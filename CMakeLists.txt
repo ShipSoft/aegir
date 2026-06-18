@@ -22,6 +22,7 @@ find_package(spdlog REQUIRED)
 find_package(phlex REQUIRED)
 find_package(
     ROOT
+    6.40
     REQUIRED
     COMPONENTS Core RIO Hist MathCore ROOTNTuple
 )
@@ -62,8 +63,9 @@ target_link_libraries(
         SHiP::SHiPDataModel
         ROOT::Hist
         ROOT::RIO
+        ROOT::ROOTHistUtil
         ROOT::ROOTNTuple
-        Boost::headers
+        spdlog::spdlog
 )
 
 # Builtin geometry provider plugin

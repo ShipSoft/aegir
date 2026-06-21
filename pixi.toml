@@ -6,9 +6,13 @@ platforms = ["linux-64"]
 
 [dependencies]
 # SHiP/HEP packages (prefix.dev/ship + conda-forge)
-shipdatamodel = "*"
+# Pin shipdatamodel and shipgeometryservice <1: the legacy 26.06.0
+# line was retired in favour of upstream's own 0.x versioning. Keep
+# the floor explicit so the solver can never re-resolve a 26.x build
+# if it were ever republished or mirrored.
+shipdatamodel = "<1"
 shipgeometry = "*"
-shipgeometryservice = "*"
+shipgeometryservice = "<1"
 field-service = "*"
 phlex = "*"
 root = ">=6.40"

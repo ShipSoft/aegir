@@ -35,10 +35,13 @@
 #include <G4WorkerThread.hh>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/SimResult.hpp>
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <future>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -78,6 +81,12 @@ thread_local G4WorkerRunManagerKernel* tl_kernel = nullptr;
 // Per-thread PDG code → G4ParticleDefinition cache
 thread_local std::unordered_map<int, G4ParticleDefinition*> tl_pdg_cache;
 
+// Moving the results out of tl_hits/tl_particles donates their buffers, so
+// without a reserve every event regrows the vectors from zero capacity.
+// Track per-thread high-water marks and pre-reserve to that size.
+thread_local std::size_t tl_hits_hwm = 0;
+thread_local std::size_t tl_particles_hwm = 0;
+
 struct Geant4SimConfig {
   std::string physics_list = "FTFP_BERT";
   int verbosity = 0;
@@ -112,8 +121,10 @@ class Geant4Sim {
     tl_hits.clear();
     tl_particles.clear();
     tl_track_map.clear();
+    tl_hits.reserve(tl_hits_hwm);
+    tl_particles.reserve(std::max(tl_particles_hwm, particles.size()));
 
-    auto* event = new G4Event(next_event_id_.fetch_add(1));
+    auto event = std::make_unique<G4Event>(next_event_id_.fetch_add(1));
     {
       AEGIR_TRACE_EVENT("g4", "build_primaries");
       for (auto const& mc : particles) {
@@ -144,17 +155,19 @@ class Geant4Sim {
     state_mgr->SetNewState(G4State_GeomClosed);
     {
       AEGIR_TRACE_EVENT("g4", "ProcessOneEvent");
-      tl_kernel->GetEventManager()->ProcessOneEvent(event);
+      tl_kernel->GetEventManager()->ProcessOneEvent(event.get());
     }
     state_mgr->SetNewState(G4State_GeomClosed);
 
-    delete event;
+    event.reset();
 
     SHiP::SimResult result;
     {
       AEGIR_TRACE_EVENT("g4", "flush_hits");
       AEGIR_TRACE_COUNTER("g4", "hits", tl_hits.size());
       AEGIR_TRACE_COUNTER("g4", "particles", tl_particles.size());
+      tl_hits_hwm = std::max(tl_hits_hwm, tl_hits.size());
+      tl_particles_hwm = std::max(tl_particles_hwm, tl_particles.size());
       result.hits = std::move(tl_hits);
       result.particles = std::move(tl_particles);
     }

@@ -84,7 +84,7 @@ bench-geant4: build
     hyperfine \
         --warmup 1 \
         --min-runs 3 \
-        --reference 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet)' \
+        --reference 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet) -j 1' \
         --reference-name 'G4 single-threaded' \
         -n 'G4 multi-threaded ({{g4_concurrency}}T)' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} --ext-str concurrency={{g4_concurrency}} workflows/gun_mt_noop.jsonnet)' \
         --export-markdown bench-geant4.md \
@@ -95,9 +95,9 @@ bench-geant4-io: build
     hyperfine \
         --warmup 1 \
         --min-runs 3 \
-        --reference 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet)' \
+        --reference 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet) -j 1' \
         --reference-name 'G4 ST noop' \
-        -n 'G4 ST full' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_full.jsonnet)' \
+        -n 'G4 ST full' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_full.jsonnet) -j 1' \
         --export-markdown bench-geant4-io.md
 
 # Sweep G4 concurrency levels
@@ -117,7 +117,7 @@ bench-gun-noop: build
         --min-runs 5 \
         --reference 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{events}} workflows/gun_noop.jsonnet)' \
         --reference-name 'gun noop (no G4)' \
-        -n 'gun + G4 ST noop' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet)' \
+        -n 'gun + G4 ST noop' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={{g4_events}} workflows/gun_st_bench.jsonnet) -j 1' \
         --export-markdown bench-gun-noop.md
 
 # --- Profiling / scaling sweep ---
@@ -162,7 +162,7 @@ profile_freq := "99"
 profile-flamegraph: build
     perf record -F {{profile_freq}} -g --call-graph=dwarf -o perf.data -- \
         env PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c \
-            <(jsonnet --ext-str events={{profile_events}} workflows/{{profile_workflow}}.jsonnet)
+            <(jsonnet --ext-str events={{profile_events}} workflows/{{profile_workflow}}.jsonnet) -j 1
     @if command -v flamegraph.pl >/dev/null && command -v stackcollapse-perf.pl >/dev/null; then \
         perf script -i perf.data | stackcollapse-perf.pl | flamegraph.pl \
             > flamegraph_{{profile_workflow}}.svg; \
@@ -183,5 +183,5 @@ trace_events := "50"
 profile-trace: build
     AEGIR_TRACE_FILE=trace_{{trace_workflow}}.json \
         PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c \
-            <(jsonnet --ext-str events={{trace_events}} workflows/{{trace_workflow}}.jsonnet)
+            <(jsonnet --ext-str events={{trace_events}} workflows/{{trace_workflow}}.jsonnet) -j 1
     @echo "Wrote trace_{{trace_workflow}}.json — open in https://ui.perfetto.dev"

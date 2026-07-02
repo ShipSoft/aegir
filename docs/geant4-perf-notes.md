@@ -52,6 +52,25 @@ per-event data products, so the module cannot initialise at
 registration time — a phlex design question (one-time/run-level
 resources vs per-event products), not an aegir bug.
 
+## Reproducibility and worker-kernel churn
+
+Measured with `gun_st_full` (200 events, fixed gun seed):
+
+- `phlex -j 1`: **reproducible** — the validation histograms
+  `h_mc_multiplicity`, `h_mc_momentum`, and `h_mc_pdg` are bin-by-bin
+  identical across runs (checked by `scripts/compare_histograms.py`).
+- `concurrency: 1` with `-j 12`: **not reproducible.** Even though only
+  one `simulate` call runs at a time, TBB hands successive calls to
+  different pool threads; each new thread lazily builds its own
+  `G4WorkerRunManagerKernel` with its own RNG stream, so the event
+  sequence samples different streams run to run. This directly confirms
+  the worker-kernel churn concern: the kernel count is bounded by the
+  number of distinct TBB threads that ever touch `simulate`, not by the
+  module's `concurrency`.
+- Consequence for validation: physics comparisons must either run
+  `-j 1` (exact) or compare distributions statistically. The
+  single-threaded benchmark recipes in the justfile now pin `-j 1`.
+
 ## Voluntary context switches
 
 ~2 per event (4.1–4.3 k per 2000-event run), independent of thread

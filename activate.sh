@@ -8,6 +8,17 @@ export AEGIR_ROOT="$PIXI_PROJECT_ROOT"
 export PHLEX_PLUGIN_PATH="$PIXI_PROJECT_ROOT/build:${CONDA_PREFIX}/lib${PHLEX_PLUGIN_PATH:+:$PHLEX_PLUGIN_PATH}"
 export LD_LIBRARY_PATH="$PIXI_PROJECT_ROOT/build${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+# Route phlex allocations (including dlopened Geant4/plugin libraries)
+# through jemalloc: glibc malloc arena contention costs several percent of
+# wall time in multi-threaded Geant4 runs (see docs/benchmarks.md). The
+# preload is scoped to the phlex binary via a PATH shim rather than exported
+# env-wide: a global LD_PRELOAD of the conda-glibc jemalloc crashes binaries
+# built against a different glibc (e.g. Nix store tools spawned by cmake).
+# Set AEGIR_NO_JEMALLOC=1 to opt out (e.g. for allocator-specific profiling).
+if [ -z "${AEGIR_NO_JEMALLOC:-}" ] && [ -f "$CONDA_PREFIX/lib/libjemalloc.so.2" ]; then
+    export PATH="$PIXI_PROJECT_ROOT/scripts/shims:$PATH"
+fi
+
 # shipgeometry installs geometry DBs under $CONDA_PREFIX/share/geometry/.
 # geometry_geomodel_provider resolves bare db_file names via this variable.
 export SHIPGEOMETRY_ROOT="${SHIPGEOMETRY_ROOT:-$CONDA_PREFIX}"

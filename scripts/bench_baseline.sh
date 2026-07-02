@@ -20,7 +20,8 @@ SHA=$(git rev-parse --short HEAD)
 OUT=results
 mkdir -p "$OUT"
 
-PHLEX_LIB=$(dirname "$(which phlex)")/../lib
+# Not derived from `which phlex` — the jemalloc shim dir would win.
+PHLEX_LIB=$CONDA_PREFIX/lib
 WORKFLOW=workflows/gun_mt_bench.jsonnet
 
 cfg() { jsonnet -V num_events="$EVENTS" -V concurrency="$1" "$WORKFLOW" > "$2"; }

@@ -24,6 +24,9 @@ pythia8 = ">=8.3"
 random123 = "*"
 libjsonnet = "*"
 ship-ci-metrics = "*"
+# Preloaded in activate.sh: glibc malloc arena futexes are a measurable
+# cost in multi-threaded Geant4 runs (see docs/benchmarks.md).
+jemalloc = "*"
 
 # C++ libraries
 libboost-devel = "*"

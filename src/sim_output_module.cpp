@@ -47,6 +47,9 @@ using ROOT::Experimental::RHistFillContext;
 struct FillState {
   std::shared_ptr<ROOT::RNTupleFillContext> ctx;
   std::unique_ptr<REntry> entry;
+  ROOT::RFieldToken mc_token;
+  ROOT::RFieldToken hits_token;
+  ROOT::RFieldToken particles_token;
 };
 
 using HistD = RHist<double>;
@@ -73,9 +76,13 @@ class MCRNTupleWriter {
     if (!state.ctx) {
       state.ctx = writer_->CreateFillContext();
       state.entry = state.ctx->CreateEntry();
+      state.mc_token = state.entry->GetToken("mc_particles");
     }
-    *state.entry->GetPtr<std::vector<SHiP::MCParticle>>("mc_particles") =
-        particles;
+    // Serialize straight from the input product — Fill only reads the
+    // bound value, so shedding const is safe and saves a vector copy.
+    state.entry->BindRawPtr(
+        state.mc_token,
+        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
     state.ctx->Fill(*state.entry);
   }
 
@@ -105,12 +112,20 @@ class SimRNTupleWriter {
     if (!state.ctx) {
       state.ctx = writer_->CreateFillContext();
       state.entry = state.ctx->CreateEntry();
+      state.mc_token = state.entry->GetToken("mc_particles");
+      state.hits_token = state.entry->GetToken("sim_hits");
+      state.particles_token = state.entry->GetToken("sim_particles");
     }
-    *state.entry->GetPtr<std::vector<SHiP::MCParticle>>("mc_particles") =
-        particles;
-    *state.entry->GetPtr<std::vector<SHiP::SimHit>>("sim_hits") = result.hits;
-    *state.entry->GetPtr<std::vector<SHiP::SimParticle>>("sim_particles") =
-        result.particles;
+    // Serialize straight from the input products — Fill only reads the
+    // bound values, so shedding const is safe and saves three vector copies.
+    state.entry->BindRawPtr(
+        state.mc_token,
+        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
+    state.entry->BindRawPtr(
+        state.hits_token, const_cast<std::vector<SHiP::SimHit>*>(&result.hits));
+    state.entry->BindRawPtr(
+        state.particles_token,
+        const_cast<std::vector<SHiP::SimParticle>*>(&result.particles));
     state.ctx->Fill(*state.entry);
   }
 

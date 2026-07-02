@@ -1,0 +1,22 @@
+# started on Thu Jul  2 22:42:09 2026
+
+
+ Performance counter stats for 'env PHLEX_PLUGIN_PATH=build:/home/olantwin/Projects/SHiP/aegir-g4-perf/.pixi/envs/bench/bin/../lib phlex -c results/cfg_2000ev_8t.json -j 8':
+
+    92.770.764.922      cpu_core/cycles:u/                                                      (22,07%)
+    69.481.943.451      cpu_atom/cycles:u/                                                      (79,13%)
+   202.969.262.964      cpu_core/instructions:u/                                                (22,07%)
+    72.117.058.271      cpu_atom/instructions:u/                                                (79,13%)
+                 0      context-switches:u                                                    
+                 0      cpu-migrations:u                                                      
+       404.262.985      cpu_core/cache-references:u/                                            (22,07%)
+       180.558.562      cpu_atom/cache-references:u/                                            (79,13%)
+       153.314.487      cpu_core/cache-misses:u/                                                (22,07%)
+        78.174.113      cpu_atom/cache-misses:u/                                                (79,13%)
+
+       5,363560991 seconds time elapsed
+
+      32,646925000 seconds user
+       0,323513000 seconds sys
+
+

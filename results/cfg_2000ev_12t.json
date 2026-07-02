@@ -1,0 +1,34 @@
+{
+   "driver": {
+      "cpp": "generate_layers",
+      "layers": {
+         "event": {
+            "total": 2000
+         }
+      }
+   },
+   "modules": {
+      "geant4": {
+         "concurrency": 12,
+         "cpp": "geant4_module",
+         "physics_list": "FTFP_BERT",
+         "verbosity": 0
+      }
+   },
+   "sources": {
+      "field": {
+         "cpp": "field_null_provider"
+      },
+      "geometry": {
+         "cpp": "geometry_builtin_provider"
+      },
+      "gun": {
+         "cpp": "particle_gun_source",
+         "max_theta": 0.10000000000000001,
+         "p_max": 100,
+         "p_min": 10,
+         "pdg": 13,
+         "vertex_z": -500
+      }
+   }
+}

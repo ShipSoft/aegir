@@ -79,6 +79,16 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   `-j 1` (exact) or compare distributions statistically. The
   single-threaded benchmark recipes in the justfile now pin `-j 1`.
 
+## TLS model
+
+The geant4 plugin is dlopened, so its `thread_local` buffers used the
+global-dynamic TLS model — `__tls_get_addr` on every sensitive-detector
+hit. Compiling the plugin with `-ftls-model=initial-exec` removes the
+plugin's share (perf: 2.49% → 1.97% of cycles; the residual is Geant4's
+own TLS, which conda-forge builds global-dynamic — a feedstock-level
+observation). Wall time weakly positive within noise. Plugin loading
+verified to still work (glibc's surplus static TLS accommodates it).
+
 ## Voluntary context switches
 
 ~2 per event (4.1–4.3 k per 2000-event run), independent of thread

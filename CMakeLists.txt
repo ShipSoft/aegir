@@ -134,6 +134,12 @@ aegir_add_plugin(
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
     TRACE
 )
+# The plugin is dlopened, so its thread_local hit buffers default to the
+# global-dynamic TLS model (__tls_get_addr on every sensitive-detector
+# call). initial-exec claims static TLS space instead; glibc reserves
+# surplus for dlopened objects. If plugin loading ever fails with
+# "cannot allocate memory in static TLS block", drop this option.
+target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
 
 aegir_add_plugin(field_covfie_provider LIBS SHiPFieldService::SHiPFieldService)
 aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)

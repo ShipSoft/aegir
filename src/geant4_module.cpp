@@ -17,6 +17,7 @@
 //   - Per phlex-thread: G4WorkerRunManagerKernel + G4EventManager for tracking
 //   - No G4VUserPrimaryGeneratorAction — events built directly from MCParticle
 
+#include <Random123/philox.h>
 #include <spdlog/spdlog.h>
 
 #include <G4Event.hh>
@@ -41,6 +42,7 @@
 #include <G4VUserPrimaryGeneratorAction.hh>
 #include <G4WorkerRunManagerKernel.hh>
 #include <G4WorkerThread.hh>
+#include <Randomize.hh>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
@@ -48,6 +50,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <map>
@@ -65,6 +68,7 @@
 #include "geometry_source.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
+#include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
 #include "units/clhep_bridge.hpp"
@@ -104,6 +108,7 @@ struct Geant4SimConfig {
   std::string physics_list = "FTFP_BERT";
   int verbosity = 0;
   int concurrency = 1;
+  std::uint32_t seed = 20260703;
   SDMode sd_mode = SDMode::scoring;
   ship::Energy ke_threshold = ship::Energy::zero();
   bool energy_cut = false;
@@ -149,9 +154,10 @@ class Geant4Sim {
     // unsafe).
   }
 
-  SHiP::SimResult simulate(std::shared_ptr<SHiP::IGeometrySource> const& geo,
-                           std::shared_ptr<ship::IFieldSource> const& field,
-                           std::vector<SHiP::MCParticle> const& particles) {
+  SHiP::SimResult simulate(
+      std::shared_ptr<SHiP::IGeometrySource> const& geo,
+      std::shared_ptr<ship::IFieldSource> const& field,
+      phlex::handle<std::vector<SHiP::MCParticle>> particles) {
     AEGIR_TRACE_EVENT("g4", "simulate");
 
     // A failed master init is sticky: retrying would construct a second
@@ -174,20 +180,32 @@ class Geant4Sim {
 
     if (!tl_kernel) init_worker();
 
+    // Seed the calling worker's engine from the data-cell index so the
+    // event↔RNG pairing does not depend on which thread processes which
+    // event, or in what order — any -j then reproduces bitwise.
+    auto const& index = particles.data_cell_index();
+    seed_engine(index.hash());
+
     tl_hits.clear();
     tl_particles.clear();
     tl_track_map.clear();
     tl_hits.reserve(tl_hits_hwm);
-    tl_particles.reserve(std::max(tl_particles_hwm, particles.size()));
+    tl_particles.reserve(std::max(tl_particles_hwm, particles->size()));
 
     // unique_ptr so a throw from ProcessOneEvent below can't leak the event
     // (and its primary vertices/particles); G4 does not take ownership.
-    auto event = std::make_unique<G4Event>(next_event_id_.fetch_add(1));
+    // The event id is the index number within the parent layer — stable
+    // across runs, unlike an arrival-order counter. It is globally unique
+    // only under the current flat event-under-job layout (a nested layout
+    // would repeat numbers across parents); the hash-based seed above is
+    // what needs cross-hierarchy uniqueness. G4int is 32-bit, so the id
+    // saturates past ~2^31 events — far beyond any single run here.
+    auto event = std::make_unique<G4Event>(static_cast<G4int>(index.number()));
     {
       AEGIR_TRACE_EVENT("g4", "build_primaries");
       std::size_t unknown_pdg = 0;
       std::size_t no_momentum = 0;
-      for (auto const& mc : particles) {
+      for (auto const& mc : *particles) {
         auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdgCode, nullptr);
         if (inserted) {
           it->second =
@@ -228,7 +246,7 @@ class Geant4Sim {
             "geant4_module: event {}: skipped {} of {} primaries ({} unknown "
             "PDG, {} non-positive momentum) — output mc_particles still "
             "contains them",
-            event->GetEventID(), unknown_pdg + no_momentum, particles.size(),
+            event->GetEventID(), unknown_pdg + no_momentum, particles->size(),
             unknown_pdg, no_momentum);
     }
 
@@ -269,6 +287,25 @@ class Geant4Sim {
   }
 
  private:
+  // Derive a per-data-cell engine seed with Philox, following the
+  // counter-based convention of src/philox_rng.hpp: the key selects the
+  // stream (config seed + a G4-specific constant so detector simulation and
+  // event generation draw uncorrelated sequences), the counter is the full
+  // index-path hash (unique across hierarchy levels, unlike number()).
+  void seed_engine(std::size_t index_hash) const {
+    r123::Philox4x32 philox;
+    r123::Philox4x32::key_type const key{{cfg_.seed, 0x47345EEDu}};
+    r123::Philox4x32::ctr_type const ctr{
+        {static_cast<std::uint32_t>(index_hash),
+         static_cast<std::uint32_t>(index_hash >> 32), 0, 0}};
+    auto const out = philox(ctr, key);
+    // >> 1 clears the sign bit so the value always fits a non-negative long
+    // (it can be 0, which the engine accepts).
+    auto const seed64 =
+        (static_cast<std::uint64_t>(out[1]) << 32 | out[0]) >> 1;
+    G4Random::getTheEngine()->setSeed(static_cast<long>(seed64), 0);
+  }
+
   void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
                    std::shared_ptr<ship::IFieldSource> const& field) {
     // Validate the export target up front, before anything is constructed:
@@ -414,7 +451,6 @@ class Geant4Sim {
   // Kernels that finished init_worker successfully (unlike next_thread_id_,
   // which counts allocated ids). Reported in the shutdown summary.
   std::atomic<int> built_kernels_{0};
-  std::atomic<int> next_event_id_{0};
   // Completed-event count (completion order, not event id, so the logged
   // count is monotonic) and the reference point for the average event rate.
   // sim_start_ is written in init_master and published by the call_once
@@ -460,6 +496,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           config.get<std::string>("physics_list", std::string{"FTFP_BERT"}),
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
+      .seed = static_cast<std::uint32_t>(config.get<int>("seed", 20260703)),
       .sd_mode = sd_mode_str == "crossing" ? SDMode::crossing : SDMode::scoring,
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),

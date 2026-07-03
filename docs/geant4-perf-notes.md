@@ -78,6 +78,12 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
 - Consequence for validation: physics comparisons must either run
   `-j 1` (exact) or compare distributions statistically. The
   single-threaded benchmark recipes in the justfile now pin `-j 1`.
+- **Resolved** by per-event seeding: the geant4 module now reseeds the
+  calling worker's engine from the data-cell index hash (Philox stream
+  keyed on the config `seed`), so the event↔RNG pairing no longer
+  depends on scheduling. `scripts/check_determinism.sh` verifies two
+  `-j 12` runs and a `-j 1` run produce identical hit/particle counts
+  and energy/position sums; measured identical to full float precision.
 
 ## TLS model
 

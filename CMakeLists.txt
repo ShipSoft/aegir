@@ -203,3 +203,10 @@ add_test(
     NAME file_source_roundtrip
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/file_source_roundtrip.sh
 )
+
+# Physics-list failure: an unknown physics_list must fail cleanly (catchable
+# error, no abort) even when concurrent init retries race on std::call_once.
+add_test(
+    NAME physics_list_failure
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/physics_list_failure.sh
+)

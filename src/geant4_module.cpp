@@ -123,6 +123,9 @@ class Geant4Sim {
 
   ~Geant4Sim() {
     if (!master_constructed_) return;
+    if (int kernels = built_kernels_.load(); kernels > 0)
+      spdlog::info("geant4: {} worker kernel(s) built for {} configured slots",
+                   kernels, cfg_.concurrency);
     // Empty the geometry stores now, on the geometry thread. Their static
     // singletons' destructors run at process exit on the program's main
     // thread, which never initialised Geant4's thread-local split-class
@@ -287,6 +290,17 @@ class Geant4Sim {
             "' does not exist");
     }
 
+    // Validate the physics list before constructing anything. Like export_gdml
+    // above, GetReferencePhysList raises a fatal G4Exception for an unknown
+    // list, so query IsReferencePhysList here — before detector_ or the run
+    // manager exist — to fail with a catchable, clear error instead of aborting
+    // the process. Failing this early also keeps the failure cheap: nothing has
+    // been built yet. G4PhysListFactory only consults a static name table (it
+    // creates no geometry), so validating on the calling thread is safe.
+    G4PhysListFactory phys_factory;
+    if (!phys_factory.IsReferencePhysList(cfg_.physics_list))
+      throw std::runtime_error("Unknown physics list: " + cfg_.physics_list);
+
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
         *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions);
@@ -306,14 +320,11 @@ class Geant4Sim {
       rm->SetNumberOfThreads(cfg_.concurrency);
       rm->SetUserInitialization(detector_);
 
-      // The run manager is constructed first so its G4Exception handler is
-      // installed: G4PhysListFactory raises a fatal G4Exception (and aborts)
-      // for an unknown list rather than returning null, so this lookup is not
-      // retryable regardless of ordering.
+      // Physics list already validated in init_master before the run manager
+      // was constructed, so GetReferencePhysList won't hit its unknown-list
+      // abort.
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
-      if (!physics)
-        throw std::runtime_error("Unknown physics list: " + cfg_.physics_list);
       rm->SetUserInitialization(physics);
 
       rm->SetUserInitialization(new DirectActionInit());
@@ -351,6 +362,17 @@ class Geant4Sim {
   void init_worker() {
     AEGIR_TRACE_EVENT("g4", "init_worker");
     int id = next_thread_id_.fetch_add(1);
+    // TBB does not promise that the same OS threads serve this transform
+    // for the whole run, so more kernels than configured slots can appear
+    // (each new thread that ever runs simulate builds one). Geant4 11
+    // tolerates thread ids beyond SetNumberOfThreads in this direct-
+    // injection flow, but each extra kernel costs memory and a fresh RNG
+    // stream — make it visible instead of silent.
+    if (id >= cfg_.concurrency)
+      spdlog::warn(
+          "geant4: initialising worker kernel #{} beyond the {} configured "
+          "slots (TBB thread churn)",
+          id + 1, cfg_.concurrency);
     AEGIR_TRACE_THREAD_NAME("g4_worker_" + std::to_string(id));
     G4Threading::G4SetThreadId(id);
     G4WorkerThread::BuildGeometryAndPhysicsVector();
@@ -371,6 +393,11 @@ class Geant4Sim {
 
     tl_kernel->RunInitialization();
     G4StateManager::GetStateManager()->SetNewState(G4State_GeomClosed);
+
+    // Count only here, once the kernel is fully built: next_thread_id_ is
+    // bumped on entry (to allocate the thread id) and would overcount a worker
+    // whose init_worker threw partway through.
+    built_kernels_.fetch_add(1);
   }
 
   Geant4SimConfig cfg_;
@@ -384,6 +411,9 @@ class Geant4Sim {
   ConfigurableDetectorConstruction* detector_ = nullptr;  // owned by G4
   std::shared_ptr<ship::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
+  // Kernels that finished init_worker successfully (unlike next_thread_id_,
+  // which counts allocated ids). Reported in the shutdown summary.
+  std::atomic<int> built_kernels_{0};
   std::atomic<int> next_event_id_{0};
   // Completed-event count (completion order, not event id, so the logged
   // count is monotonic) and the reference point for the average event rate.

@@ -59,14 +59,22 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
 - `phlex -j 1`: **reproducible** — the validation histograms
   `h_mc_multiplicity`, `h_mc_momentum`, and `h_mc_pdg` are bin-by-bin
   identical across runs (checked by `scripts/compare_histograms.py`).
-- `concurrency: 1` with `-j 12`: **not reproducible.** Even though only
-  one `simulate` call runs at a time, TBB hands successive calls to
-  different pool threads; each new thread lazily builds its own
-  `G4WorkerRunManagerKernel` with its own RNG stream, so the event
-  sequence samples different streams run to run. This directly confirms
-  the worker-kernel churn concern: the kernel count is bounded by the
-  number of distinct TBB threads that ever touch `simulate`, not by the
-  module's `concurrency`.
+- `concurrency: 1` with `-j 12`: **not reproducible**, even in runs
+  where only a single worker kernel was built (the module now logs the
+  kernel count at shutdown). The dominant mechanism is event order: with
+  12 events in flight upstream, the order in which events reach the
+  single `simulate` slot varies run to run, and each event starts at a
+  different point in the kernel's continuous RNG stream. Per-event
+  seeding fixes this: PR #54 (`feat/g4-per-event-seeding`) reseeds the
+  CLHEP engine from the stable phlex `data_cell_index` (its `hash()`, the
+  same per-event index the generators already seed from), so an event's
+  random stream no longer depends on which `simulate` slot it reaches.
+  Seeding from the arrival-order `G4Event` id
+  (`next_event_id_.fetch_add(1)`) would not, because that id itself varies
+  with arrival order. Kernel multiplication through TBB thread churn
+  (each distinct pool thread that ever runs `simulate` builds its own
+  kernel) remains possible on long runs and is now surfaced by a
+  warning; it was not observed in these short tests.
 - Consequence for validation: physics comparisons must either run
   `-j 1` (exact) or compare distributions statistically. The
   single-threaded benchmark recipes in the justfile now pin `-j 1`.

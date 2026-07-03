@@ -137,7 +137,7 @@ aegir_add_plugin(
         SHiPFieldService::SHiPFieldService
         SHiPFieldService::G4Adapter
         SHiPGeometryService::SHiPGeometryService
-    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src ${Random123_INCLUDE_DIR}
     TRACE
 )
 # The plugin is dlopened, so its thread_local hit buffers default to the

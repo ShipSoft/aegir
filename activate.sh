@@ -9,13 +9,17 @@ export PHLEX_PLUGIN_PATH="$PIXI_PROJECT_ROOT/build:${CONDA_PREFIX}/lib${PHLEX_PL
 export LD_LIBRARY_PATH="$PIXI_PROJECT_ROOT/build${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # Route phlex allocations (including dlopened Geant4/plugin libraries)
-# through jemalloc: glibc malloc arena contention costs several percent of
+# through tcmalloc: glibc malloc arena contention costs several percent of
 # wall time in multi-threaded Geant4 runs (see docs/benchmarks.md). The
 # preload is scoped to the phlex binary via a PATH shim rather than exported
-# env-wide: a global LD_PRELOAD of the conda-glibc jemalloc crashes binaries
-# built against a different glibc (e.g. Nix store tools spawned by cmake).
-# Set AEGIR_NO_JEMALLOC=1 to opt out (e.g. for allocator-specific profiling).
-if [ -z "${AEGIR_NO_JEMALLOC:-}" ] && [ -f "$CONDA_PREFIX/lib/libjemalloc.so.2" ]; then
+# env-wide: a global LD_PRELOAD crashes binaries built against a different
+# glibc (e.g. Nix store tools spawned by cmake). tcmalloc, not jemalloc:
+# conda-forge's jemalloc uses general-dynamic TLS, so once phlex dlopens the
+# Geant4 plugins its free() recurses through glibc's DTV update until the
+# stack overflows (see docs/benchmarks.md). tcmalloc uses initial-exec TLS
+# and is preload-safe.
+# Set AEGIR_NO_TCMALLOC=1 to opt out (e.g. for allocator-specific profiling).
+if [ -z "${AEGIR_NO_TCMALLOC:-}" ] && [ -f "$CONDA_PREFIX/lib/libtcmalloc.so.4" ]; then
     export PATH="$PIXI_PROJECT_ROOT/scripts/shims:$PATH"
 fi
 

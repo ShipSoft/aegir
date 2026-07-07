@@ -20,7 +20,7 @@ SHA=$(git rev-parse --short HEAD)
 OUT=results
 mkdir -p "$OUT"
 
-# Not derived from `which phlex` — the jemalloc shim dir would win.
+# Not derived from `which phlex` — the tcmalloc shim dir would win.
 PHLEX_LIB=$CONDA_PREFIX/lib
 WORKFLOW=workflows/gun_mt_bench.jsonnet
 

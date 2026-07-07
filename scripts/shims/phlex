@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Runs the real phlex with jemalloc preloaded. Installed on PATH ahead of
+# Runs the real phlex with tcmalloc preloaded. Installed on PATH ahead of
 # $CONDA_PREFIX/bin by activate.sh; see the comment there for why the
 # preload is scoped to phlex instead of exported for the whole environment.
-exec env LD_PRELOAD="$CONDA_PREFIX/lib/libjemalloc.so.2${LD_PRELOAD:+:$LD_PRELOAD}" \
+exec env LD_PRELOAD="$CONDA_PREFIX/lib/libtcmalloc.so.4${LD_PRELOAD:+:$LD_PRELOAD}" \
     "$CONDA_PREFIX/bin/phlex" "$@"

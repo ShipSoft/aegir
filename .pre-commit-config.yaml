@@ -17,6 +17,41 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
 
+  # Unit-safety fences (see docs/units.md). pygrep hooks fail on any match.
+  - repo: local
+    hooks:
+      - id: forbid-hardcoded-c
+        name: forbid hardcoded speed of light
+        language: pygrep
+        # Digit-anchored so it does not fire inside a longer number (e.g. a
+        # seed like 12997924580 that merely contains the c digits).
+        entry: '(?<![\d.])299792458(?!\d)|(?<!\d)299\.792458(?!\d)'
+        types_or: [c++, c]
+
+      - id: forbid-g4-system-of-units
+        name: forbid G4SystemOfUnits.hh (use units/clhep_bridge.hpp)
+        language: pygrep
+        entry: 'G4SystemOfUnits\.hh'
+        types_or: [c++, c]
+        # The bridge's header comment documents this very ban.
+        exclude: ^src/units/
+
+      - id: forbid-clhep-units-outside-bridge
+        name: forbid CLHEP units outside src/units/
+        language: pygrep
+        entry: 'CLHEP/Units/'
+        types_or: [c++, c]
+        exclude: ^src/units/
+
+      - id: forbid-magic-unit-factors
+        name: forbid hand-typed power-of-ten unit conversions
+        language: pygrep
+        # Any 1e{3,6,9}-style factor (decimal mantissa and f/l suffixes
+        # included) next to a conversion comment (-> or "to"). The comment
+        # marker keeps it from firing on unrelated powers of ten.
+        entry: '(?<![\w.])[0-9]*\.?[0-9]+[eE]-?[369][fFlL]?\b.*//.*(->|\bto\b)'
+        types_or: [c++, c]
+
   # Tools below come from the pixi `lint` environment via language: system.
   - repo: local
     hooks:

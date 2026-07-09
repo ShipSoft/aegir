@@ -36,14 +36,16 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
       source_;  // non-owning; Job-layer product outlives the G4 run
   ship::IFieldSource const* field_source_;  // non-owning; may have no regions
   SDMode sd_mode_;
-  double ke_threshold_;  // GeV, used by CrossingSD
-  std::vector<std::pair<std::string, double>> regions_;  // pattern -> cut in mm
+  ship::Energy ke_threshold_;  // used by CrossingSD
+  std::vector<std::pair<std::string, ship::Length>>
+      regions_;  // pattern -> production cut
 
  public:
   ConfigurableDetectorConstruction(
       IGeometrySource const& source, ship::IFieldSource const& field_source,
-      SDMode sd_mode = SDMode::scoring, double ke_threshold = 0.0,
-      std::vector<std::pair<std::string, double>> regions = {})
+      SDMode sd_mode = SDMode::scoring,
+      ship::Energy ke_threshold = ship::Energy::zero(),
+      std::vector<std::pair<std::string, ship::Length>> regions = {})
       : source_{&source},
         field_source_{&field_source},
         sd_mode_{sd_mode},
@@ -61,10 +63,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     // while ConstructSDandField runs on worker threads (#80). Construct()
     // is also the canonical Geant4 place: the regions exist before any
     // worker builds its per-region physics tables.
-    for (auto const& [pattern, cut_mm] : regions_) {
+    for (auto const& [pattern, cut] : regions_) {
       auto* region = new G4Region(pattern);
       auto* cuts = new G4ProductionCuts();
-      cuts->SetProductionCut(cut_mm * mm);
+      cuts->SetProductionCut(aegir::clhep::g4(cut));
       region->SetProductionCuts(cuts);
       bool matched = false;
       for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {

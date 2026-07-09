@@ -12,7 +12,6 @@
 #include <G4LogicalVolume.hh>
 #include <G4NistManager.hh>
 #include <G4PVPlacement.hh>
-#include <G4SystemOfUnits.hh>
 #include <array>
 #include <memory>
 #include <mutex>
@@ -22,8 +21,14 @@
 #include "geometry_source.hpp"
 #include "phlex/source.hpp"
 #include "provider_helpers.hpp"
+#include "units/clhep_bridge.hpp"
 
 namespace {
+
+namespace su = ship::units;
+
+// Dimension in Geant4 internal units from a quantity literal.
+inline double g4(auto q) { return aegir::clhep::g4(q); }
 
 class BuiltinGeometrySource : public SHiP::IGeometrySource {
   std::vector<std::string> sensitive_vols_{"Scoring"};
@@ -36,22 +41,27 @@ class BuiltinGeometrySource : public SHiP::IGeometrySource {
       auto* nist = G4NistManager::Instance();
 
       auto* worldMat = nist->FindOrBuildMaterial("G4_AIR");
-      auto* worldBox = new G4Box("World", 5 * m, 5 * m, 20 * m);
+      auto* worldBox =
+          new G4Box("World", g4(5 * su::m), g4(5 * su::m), g4(20 * su::m));
       auto* worldLV = new G4LogicalVolume(worldBox, worldMat, "World");
       world_ = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV, "World",
                                  nullptr, false, 0);
 
       auto* targetMat = nist->FindOrBuildMaterial("G4_W");
-      auto* targetBox = new G4Box("Target", 50 * mm, 50 * mm, 500 * mm);
+      auto* targetBox = new G4Box("Target", g4(50 * su::mm), g4(50 * su::mm),
+                                  g4(500 * su::mm));
       auto* targetLV = new G4LogicalVolume(targetBox, targetMat, "Target");
       new G4PVPlacement(nullptr, G4ThreeVector(0, 0, 0), targetLV, "Target",
                         worldLV, false, 0);
 
       auto* siMat = nist->FindOrBuildMaterial("G4_Si");
-      auto* planeBox = new G4Box("ScoringPlane", 2 * m, 2 * m, 0.3 * mm);
+      auto* planeBox = new G4Box("ScoringPlane", g4(2 * su::m), g4(2 * su::m),
+                                 g4(0.3 * su::mm));
       auto* planeLV = new G4LogicalVolume(planeBox, siMat, "ScoringPlane");
 
-      std::array<double, 5> z_positions{2 * m, 4 * m, 6 * m, 8 * m, 10 * m};
+      std::array<double, 5> z_positions{g4(2 * su::m), g4(4 * su::m),
+                                        g4(6 * su::m), g4(8 * su::m),
+                                        g4(10 * su::m)};
       for (int i = 0; i < static_cast<int>(z_positions.size()); ++i) {
         new G4PVPlacement(nullptr, G4ThreeVector(0, 0, z_positions[i]), planeLV,
                           "ScoringPlane", worldLV, false, i);

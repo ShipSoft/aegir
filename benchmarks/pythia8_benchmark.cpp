@@ -78,7 +78,7 @@ void print_stats(char const* label, Stats const& s) {
 template <typename T>
 void configure_pythia(T& pythia, double beam_energy, std::string const& process,
                       bool fairship) {
-  aegir::configure_beams(pythia, 2212, 2212, beam_energy);
+  aegir::configure_beams(pythia, 2212, 2212, beam_energy * ship::units::GeV);
   pythia.readString("Print:quiet = on");
 
   if (fairship) {
@@ -166,7 +166,8 @@ int main(int argc, char* argv[]) {
     Pythia8::Pythia pythia(xml_dir(), false);
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
-    if (cfg.fairship) aegir::stabilise_long_lived(pythia, 1.0);
+    if (cfg.fairship)
+      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
 
     // Warmup
     for (int i = 0; i < cfg.warmup; ++i) pythia.next();
@@ -187,7 +188,8 @@ int main(int argc, char* argv[]) {
     Pythia8::Pythia pythia(xml_dir(), false);
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
-    if (cfg.fairship) aegir::stabilise_long_lived(pythia, 1.0);
+    if (cfg.fairship)
+      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
 
     // Warmup
     for (int i = 0; i < cfg.warmup; ++i) {
@@ -216,7 +218,8 @@ int main(int argc, char* argv[]) {
     pythia.readString("Parallelism:numThreads = " +
                       std::to_string(cfg.threads));
     pythia.init();
-    if (cfg.fairship) aegir::stabilise_long_lived(pythia, 1.0);
+    if (cfg.fairship)
+      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
 
     // Warmup
     int warmup_count = 0;
@@ -231,7 +234,8 @@ int main(int argc, char* argv[]) {
     pythia2.readString("Parallelism:numThreads = " +
                        std::to_string(cfg.threads));
     pythia2.init();
-    if (cfg.fairship) aegir::stabilise_long_lived(pythia2, 1.0);
+    if (cfg.fairship)
+      aegir::stabilise_long_lived(pythia2, 1.0 * ship::units::mm_per_c);
 
     int event_count = 0;
     auto t0 = Clock::now();

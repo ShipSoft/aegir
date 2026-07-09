@@ -14,6 +14,7 @@
 
 #include <Pythia8/Pythia.h>
 
+#include <SHiP/Units.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -21,26 +22,35 @@
 
 namespace aegir {
 
+// Pythia8's native units: energies/momenta in GeV, positions in mm,
+// production times in mm/c.
+using PythiaTime = mp_units::quantity<ship::units::mm_per_c, double>;
+
 // Configure a fixed-target beam: beam A on a stationary target B (frameType 2,
 // eB = 0). Templated so it works for both Pythia8::Pythia and PythiaParallel.
 template <typename Pythia>
-void configure_beams(Pythia& pythia, int idA, int idB, double beam_energy) {
+void configure_beams(Pythia& pythia, int idA, int idB,
+                     ship::Energy beam_energy) {
   pythia.readString("Beams:idA = " + std::to_string(idA));
   pythia.readString("Beams:idB = " + std::to_string(idB));
   pythia.readString("Beams:frameType = 2");
-  pythia.readString("Beams:eA = " + std::to_string(beam_energy));
+  pythia.readString(
+      "Beams:eA = " +
+      std::to_string(beam_energy.numerical_value_in(ship::units::GeV)));
   pythia.readString("Beams:eB = 0.");
 }
 
-// Make long-lived particles (tau0 above threshold, in mm/c) stable so a
-// downstream simulation (e.g. Geant4) handles their decay. Guards against null
+// Make long-lived particles (tau0 above threshold) stable so a downstream
+// simulation (e.g. Geant4) handles their decay. Guards against null
 // particleData entries.
 template <typename Pythia>
-void stabilise_long_lived(Pythia& pythia, double tau0_threshold) {
+void stabilise_long_lived(Pythia& pythia, PythiaTime tau0_threshold) {
+  double const threshold =
+      tau0_threshold.numerical_value_in(ship::units::mm_per_c);
   for (auto it = pythia.particleData.begin(); it != pythia.particleData.end();
        ++it) {
     auto& entry = it->second;  // ParticleDataEntryPtr (shared_ptr-like)
-    if (entry && entry->tau0() > tau0_threshold) entry->setMayDecay(false);
+    if (entry && entry->tau0() > threshold) entry->setMayDecay(false);
   }
 }
 
@@ -61,7 +71,7 @@ void next_event(Pythia& pythia, std::string_view source_name,
 
 // Extract final-state particles from a Pythia event record into a vector of
 // MCParticle (any type exposing pdgCode/vertex/momentum/energy/time/motherId/
-// status). vertex z is shifted by z_offset (mm).
+// status). vertex z is shifted by z_offset.
 //
 // motherId is remapped from the full Pythia-record index to the index within
 // the returned vector, or -1 when the mother was not itself written out — the
@@ -69,10 +79,12 @@ void next_event(Pythia& pythia, std::string_view source_name,
 // generally are not. This makes motherId a valid index into the emitted
 // collection rather than a dangling reference into the discarded record.
 template <typename MCParticle>
-std::vector<MCParticle> extract_particles(Pythia8::Event const& event,
-                                          double z_offset = 0.0) {
+std::vector<MCParticle> extract_particles(
+    Pythia8::Event const& event, ship::Length z_offset = ship::Length::zero()) {
+  namespace su = ship::units;
   std::vector<MCParticle> particles;
   particles.reserve(event.size());
+  double const z_offset_mm = z_offset.numerical_value_in(su::mm);
 
   // Pythia-record index -> output index for written (final-state) particles.
   std::vector<int> out_index(static_cast<std::size_t>(event.size()), -1);
@@ -85,11 +97,13 @@ std::vector<MCParticle> extract_particles(Pythia8::Event const& event,
 
     MCParticle mc;
     mc.pdgCode = p.id();
-    mc.vertex = {p.xProd(), p.yProd(), p.zProd() + z_offset};  // mm
-    mc.momentum = {p.px(), p.py(), p.pz()};                    // GeV
-    mc.energy = p.e();
-    mc.time = p.tProd() / 299.792458;  // mm/c -> ns
-    mc.motherId = p.mother1();         // record index, remapped below
+    // Pythia positions and momenta are already in the canonical units.
+    mc.vertex = {p.xProd(), p.yProd(), p.zProd() + z_offset_mm};  // mm
+    mc.momentum = {p.px(), p.py(), p.pz()};                       // GeV/c
+    mc.energy = p.e();                                            // GeV
+    // mm/c -> ns via the exact definition of c (no hand-typed constant).
+    mc.time = (p.tProd() * su::mm_per_c).numerical_value_in(su::ns);
+    mc.motherId = p.mother1();  // record index, remapped below
     mc.status = p.statusHepMC();
     particles.push_back(mc);
   }

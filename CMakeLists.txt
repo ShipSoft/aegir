@@ -140,12 +140,12 @@ aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
 
 aegir_add_plugin(
     pythia8_source
-    LIBS SHiP::SHiPDataModel Pythia8::Pythia8
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8
 )
 
 aegir_add_plugin(
     fixed_target_source
-    LIBS SHiP::SHiPDataModel Pythia8::Pythia8
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8
     INCLUDES ${Random123_INCLUDE_DIR}
 )
 
@@ -162,7 +162,10 @@ aegir_add_plugin(
 
 # Standalone Pythia8 benchmark (no Phlex dependency)
 add_executable(pythia8_benchmark benchmarks/pythia8_benchmark.cpp)
-target_link_libraries(pythia8_benchmark PRIVATE Pythia8::Pythia8)
+target_link_libraries(
+    pythia8_benchmark
+    PRIVATE Pythia8::Pythia8 SHiP::SHiPUnits
+)
 target_include_directories(
     pythia8_benchmark
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src

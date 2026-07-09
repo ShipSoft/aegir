@@ -8,6 +8,7 @@
 // Each event generates a single particle with fixed or randomised kinematics.
 
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/QuantityView.hpp>
 #include <cmath>
 #include <cstdint>
 #include <numbers>
@@ -15,25 +16,31 @@
 
 #include "mc_particle_source.hpp"
 #include "philox_rng.hpp"
+#include "units/config_units.hpp"
 
 namespace {
 
+namespace su = ship::units;
+
 class ParticleGun : public phlex::source {
  public:
-  ParticleGun(int pdg, double p_min, double p_max, double max_theta,
-              std::array<double, 3> vertex)
+  ParticleGun(int pdg, ship::Momentum p_min, ship::Momentum p_max,
+              ship::Angle max_theta, ship::Vec3<ship::Length> vertex)
       : pdg_{pdg},
         p_min_{p_min},
         p_max_{p_max},
         max_theta_{max_theta},
-        vertex_{vertex} {}
+        vertex_{ship::raw(vertex)} {}
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto event_number = static_cast<std::uint32_t>(id.number());
     aegir::PhiloxRng rng{event_number};
 
-    double p = rng.uniform(p_min_, p_max_);
-    double theta = rng.uniform(0.0, max_theta_);
+    // Sampling stays on raw numbers so the Philox stream is bit-identical;
+    // the bounds are unwrapped in the canonical units on the same lines.
+    double p = rng.uniform(p_min_.numerical_value_in(su::GeV_per_c),
+                           p_max_.numerical_value_in(su::GeV_per_c));
+    double theta = rng.uniform(0.0, max_theta_.numerical_value_in(su::rad));
     double phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
 
     SHiP::MCParticle mc;
@@ -62,8 +69,9 @@ class ParticleGun : public phlex::source {
 
  private:
   int pdg_;
-  double p_min_, p_max_, max_theta_;
-  std::array<double, 3> vertex_;
+  ship::Momentum p_min_, p_max_;
+  ship::Angle max_theta_;
+  std::array<double, 3> vertex_;  // canonical mm
 };
 
 }  // namespace
@@ -71,14 +79,15 @@ class ParticleGun : public phlex::source {
 PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
-  auto pdg = config.get<int>("pdg", 13);           // muon
-  auto p_min = config.get<double>("p_min", 10.0);  // GeV
-  auto p_max = config.get<double>("p_max", 100.0);
-  auto max_theta = config.get<double>("max_theta", 0.1);  // rad
-  auto vx = config.get<double>("vertex_x", 0.0);
-  auto vy = config.get<double>("vertex_y", 0.0);
-  auto vz = config.get<double>("vertex_z", -500.0);  // mm, upstream of target
+  auto pdg = config.get<int>("pdg", 13);  // muon
+  auto p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
+  auto p_max = aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
+  auto max_theta = aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
+  auto vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
+  auto vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
+  // Default: upstream of the target.
+  auto vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
 
   s.add_source<ParticleGun>("particle_gun", pdg, p_min, p_max, max_theta,
-                            std::array<double, 3>{vx, vy, vz});
+                            ship::Vec3<ship::Length>{vx, vy, vz});
 }

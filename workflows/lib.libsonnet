@@ -40,38 +40,38 @@
   gun:: {
     cpp: 'particle_gun_source',
     pdg: 13,
-    p_min: 10.0,
-    p_max: 100.0,
-    max_theta: 0.1,
-    vertex_z: -500.0,
+    p_min: 10.0,  // GeV/c
+    p_max: 100.0,  // GeV/c
+    max_theta: 0.1,  // rad
+    vertex_z: -500.0,  // mm
   },
 
   // Pencil beam for the field smokes: straight 20 GeV μ− from z = −2 m.
   pencil_gun:: {
     cpp: 'particle_gun_source',
     pdg: 13,
-    p_min: 20.0,
-    p_max: 20.0,
-    max_theta: 0.0,
-    vertex_z: -2000.0,
+    p_min: 20.0,  // GeV/c
+    p_max: 20.0,  // GeV/c
+    max_theta: 0.0,  // rad
+    vertex_z: -2000.0,  // mm
   },
 
   pythia8:: {
     cpp: 'pythia8_source',
-    beam_energy: 400.0,
+    beam_energy: 400.0,  // GeV
     process: 'SoftQCD:inelastic',
   },
 
   fixed_target:: {
     cpp: 'fixed_target_source',
-    beam_energy: 400.0,
-    target_z: 74,
+    beam_energy: 400.0,  // GeV
+    target_z: 74,  // proton number, not a coordinate
     target_a: 184,
     // Target z extents to be determined from GeoModel geometry
-    target_z_start: 0.0,
-    target_z_end: 1164.0,
-    interaction_length: 191.9,
-    tau0_threshold: 1.0,
+    target_z_start: 0.0,  // mm
+    target_z_end: 1164.0,  // mm
+    interaction_length: 191.9,  // mm
+    tau0_threshold: 1.0,  // mm/c
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker
@@ -95,10 +95,10 @@
     cpp: 'geant4_module',
     physics_list: 'FTFP_BERT',
     sd_mode: 'crossing',
-    ke_threshold: 0.5,
+    ke_threshold: 0.5,  // GeV
     energy_cut: true,
-    particle_ke_cut: 1.0,
-    regions: { '/SHiP/target': 50, '/SHiP/muon_shield/magn_absorb': 50 },
+    particle_ke_cut: 1.0,  // GeV
+    regions: { '/SHiP/target': 50, '/SHiP/muon_shield/magn_absorb': 50 },  // production cuts [mm]
   },
 
   noop_output:: { cpp: 'sim_output_module', mode: 'noop' },

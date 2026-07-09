@@ -22,8 +22,11 @@
 #include "mc_particle_source.hpp"
 #include "philox_rng.hpp"
 #include "pythia_common.hpp"
+#include "units/config_units.hpp"
 
 namespace {
+
+namespace su = ship::units;
 
 void configure_processes(Pythia8::Pythia& pythia) {
   pythia.readString("SoftQCD:inelastic = on");
@@ -35,10 +38,10 @@ void configure_processes(Pythia8::Pythia& pythia) {
 
 class FixedTargetSource : public phlex::source {
  public:
-  FixedTargetSource(std::string const& xml_dir, double beam_energy,
-                    int target_z, int target_a, double target_z_start,
-                    double target_z_end, double interaction_length,
-                    double tau0_threshold)
+  FixedTargetSource(std::string const& xml_dir, ship::Energy beam_energy,
+                    int target_z, int target_a, ship::Length target_z_start,
+                    ship::Length target_z_end, ship::Length interaction_length,
+                    aegir::PythiaTime tau0_threshold)
       : target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
@@ -73,10 +76,11 @@ class FixedTargetSource : public phlex::source {
     bool proton_target = rng.uniform() < z_over_a;
 
     // Sample interaction point z from truncated exponential
-    double target_length = target_z_end_ - target_z_start_;
+    ship::Length target_length = target_z_end_ - target_z_start_;
     double u = rng.uniform();
-    double exp_ratio = std::exp(-target_length / interaction_length_);
-    double z_interaction =
+    double exp_ratio = std::exp(-(target_length / interaction_length_)
+                                     .numerical_value_in(mp_units::one));
+    ship::Length z_interaction =
         target_z_start_ -
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
@@ -101,9 +105,9 @@ class FixedTargetSource : public phlex::source {
  private:
   int target_z_;
   int target_a_;
-  double target_z_start_;
-  double target_z_end_;
-  double interaction_length_;
+  ship::Length target_z_start_;
+  ship::Length target_z_end_;
+  ship::Length interaction_length_;
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
 };
@@ -117,13 +121,18 @@ PHLEX_REGISTER_SOURCE(s, config) {
     if (auto const* env = std::getenv("PYTHIA8DATA")) return std::string{env};
     return std::string{"../share/Pythia8/xmldoc"};
   }());
-  auto beam_energy = config.get<double>("beam_energy", 400.0);
+  auto beam_energy =
+      aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV);
   auto target_z = config.get<int>("target_z", 74);
   auto target_a = config.get<int>("target_a", 184);
-  auto target_z_start = config.get<double>("target_z_start", 0.0);
-  auto target_z_end = config.get<double>("target_z_end", 1164.0);
-  auto interaction_length = config.get<double>("interaction_length", 191.9);
-  auto tau0_threshold = config.get<double>("tau0_threshold", 1.0);
+  auto target_z_start =
+      aegir::get_quantity(config, "target_z_start", 0.0 * su::mm);
+  auto target_z_end =
+      aegir::get_quantity(config, "target_z_end", 1164.0 * su::mm);
+  auto interaction_length =
+      aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
+  auto tau0_threshold =
+      aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
 
   s.add_source<FixedTargetSource>(
       "fixed_target", xml_dir, beam_energy, target_z, target_a, target_z_start,

@@ -26,6 +26,7 @@
 
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
+#include "units/config_units.hpp"
 
 namespace {
 
@@ -35,7 +36,7 @@ namespace {
 
 class Pythia8Source : public phlex::source {
  public:
-  Pythia8Source(std::string const& xml_dir, double beam_energy,
+  Pythia8Source(std::string const& xml_dir, ship::Energy beam_energy,
                 std::string const& process) {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
     aegir::configure_beams(*pythia_, 2212, 2212, beam_energy);
@@ -69,7 +70,7 @@ class Pythia8Source : public phlex::source {
 
 class Pythia8MTSource : public phlex::source {
  public:
-  Pythia8MTSource(std::string const& xml_dir, double beam_energy,
+  Pythia8MTSource(std::string const& xml_dir, ship::Energy beam_energy,
                   std::string const& process, int num_threads, long num_events,
                   std::size_t max_queue_size)
       : max_queue_size_{max_queue_size} {
@@ -202,7 +203,8 @@ PHLEX_REGISTER_SOURCE(s, config) {
     if (auto const* env = std::getenv("PYTHIA8DATA")) return std::string{env};
     return std::string{"../share/Pythia8/xmldoc"};
   }());
-  auto beam_energy = config.get<double>("beam_energy", 400.0);
+  auto beam_energy =
+      aegir::get_quantity(config, "beam_energy", 400.0 * ship::units::GeV);
   auto process =
       config.get<std::string>("process", std::string{"SoftQCD:inelastic"});
   auto parallel = config.get<bool>("parallel", false);

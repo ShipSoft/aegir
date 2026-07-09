@@ -34,7 +34,6 @@
 #include <G4RegionStore.hh>
 #include <G4SolidStore.hh>
 #include <G4StateManager.hh>
-#include <G4SystemOfUnits.hh>
 #include <G4Threading.hh>
 #include <G4TransportationManager.hh>
 #include <G4UImanager.hh>
@@ -66,6 +65,8 @@
 #include "phlex/core/product_selector.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
+#include "units/clhep_bridge.hpp"
+#include "units/config_units.hpp"
 
 namespace {
 
@@ -102,11 +103,11 @@ struct Geant4SimConfig {
   int verbosity = 0;
   int concurrency = 1;
   SDMode sd_mode = SDMode::scoring;
-  double ke_threshold = 0.0;
+  ship::Energy ke_threshold = ship::Energy::zero();
   bool energy_cut = false;
-  double energy_cut_threshold = 0.0;
-  double particle_ke_cut = 0.0;
-  std::vector<std::pair<std::string, double>> regions;
+  ship::Energy energy_cut_threshold = ship::Energy::zero();
+  ship::Energy particle_ke_cut = ship::Energy::zero();
+  std::vector<std::pair<std::string, ship::Length>> regions;
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
   std::string export_gdml;
@@ -189,11 +190,14 @@ class Geant4Sim {
           continue;
         }
 
-        auto* vertex = new G4PrimaryVertex(mc.vertex[0] * mm, mc.vertex[1] * mm,
-                                           mc.vertex[2] * mm, mc.time * ns);
-        auto* particle =
-            new G4PrimaryParticle(def, mc.momentum[0] * GeV,
-                                  mc.momentum[1] * GeV, mc.momentum[2] * GeV);
+        auto const vtx = ship::view::vertex(mc);
+        auto const mom = ship::view::momentum(mc);
+        namespace cb = aegir::clhep;
+        auto* vertex =
+            new G4PrimaryVertex(cb::g4(vtx[0]), cb::g4(vtx[1]), cb::g4(vtx[2]),
+                                cb::g4(ship::view::time(mc)));
+        auto* particle = new G4PrimaryParticle(def, cb::g4(mom[0]),
+                                               cb::g4(mom[1]), cb::g4(mom[2]));
         vertex->SetPrimary(particle);
         event->AddPrimaryVertex(vertex);
       }
@@ -359,10 +363,17 @@ class Geant4Sim {
 PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
+  namespace su = ship::units;
+
   auto sd_mode_str = config.get<std::string>("sd_mode", std::string{"scoring"});
-  auto ke_threshold = config.get<double>("ke_threshold", 0.0);
+  auto ke_threshold =
+      aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
   auto regions_map = config.get<std::map<std::string, double>>(
       "regions", std::map<std::string, double>{});
+  std::vector<std::pair<std::string, ship::Length>> regions;
+  regions.reserve(regions_map.size());
+  for (auto const& [pattern, cut_mm] : regions_map)
+    regions.emplace_back(pattern, cut_mm * su::mm);
 
   // Default to the framework's TBB parallelism (phlex -j) so G4 workers
   // match the threads that can actually run them. A configured value above
@@ -379,10 +390,11 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .sd_mode = sd_mode_str == "crossing" ? SDMode::crossing : SDMode::scoring,
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),
-      .energy_cut_threshold =
-          config.get<double>("energy_cut_threshold", double{ke_threshold}),
-      .particle_ke_cut = config.get<double>("particle_ke_cut", 0.0),
-      .regions = {regions_map.begin(), regions_map.end()},
+      .energy_cut_threshold = aegir::get_quantity(
+          config, "energy_cut_threshold", ship::Energy{ke_threshold}),
+      .particle_ke_cut =
+          aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
+      .regions = std::move(regions),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
   };
 

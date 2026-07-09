@@ -102,7 +102,7 @@ aegir_add_plugin(
 
 aegir_add_plugin(
     geometry_builtin_provider
-    LIBS SHiP::SHiPDataModel ${Geant4_LIBRARIES}
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits ${Geant4_LIBRARIES}
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -125,6 +125,7 @@ aegir_add_plugin(
     geant4_module
     LIBS
         SHiP::SHiPDataModel
+        SHiP::SHiPUnits
         ${Geant4_LIBRARIES}
         spdlog::spdlog
         SHiPFieldService::SHiPFieldService

@@ -85,7 +85,7 @@ endfunction()
 
 aegir_add_plugin(
     particle_gun_source
-    LIBS SHiP::SHiPDataModel
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits
     INCLUDES ${Random123_INCLUDE_DIR}
 )
 
@@ -157,7 +157,7 @@ aegir_add_plugin(
 
 aegir_add_plugin(
     genie_reader_source
-    LIBS SHiP::SHiPDataModel ROOT::RIO ROOT::Tree
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits ROOT::RIO ROOT::Tree
 )
 
 # Standalone Pythia8 benchmark (no Phlex dependency)

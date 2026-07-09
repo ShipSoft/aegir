@@ -15,6 +15,7 @@
 #include <TTree.h>
 
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/Units.hpp>
 #include <algorithm>
 #include <memory>
 #include <stdexcept>
@@ -24,6 +25,8 @@
 #include "mc_particle_source.hpp"
 
 namespace {
+
+namespace su = ship::units;
 
 // GENIE GHepStatus: 1 = stable final state (trackable by Geant4).
 constexpr int kStableFinalState = 1;
@@ -89,10 +92,13 @@ class GenieReaderSource : public phlex::source {
 
     // The interaction vertex is per event (EvtVtx, SI units); the per-particle
     // StdHepX4 positions are nuclear-scale offsets and irrelevant for
-    // tracking.
-    std::array<double, 3> const vertex{vtx_[0] * 1e3, vtx_[1] * 1e3,
-                                       vtx_[2] * 1e3};  // m -> mm
-    double const time = vtx_[3] * 1e9;                  // s -> ns
+    // tracking. GENIE's SI values acquire their unit here and convert to the
+    // canonical storage units (exact powers of ten).
+    std::array<double, 3> const vertex{
+        (vtx_[0] * su::m).numerical_value_in(su::mm),
+        (vtx_[1] * su::m).numerical_value_in(su::mm),
+        (vtx_[2] * su::m).numerical_value_in(su::mm)};
+    double const time = (vtx_[3] * su::s).numerical_value_in(su::ns);
 
     std::vector<SHiP::MCParticle> particles;
     particles.reserve(static_cast<std::size_t>(n));

@@ -10,6 +10,7 @@
 
 #include <oneapi/tbb/concurrent_queue.h>
 #include <oneapi/tbb/enumerable_thread_specific.h>
+#include <oneapi/tbb/global_control.h>
 #include <spdlog/spdlog.h>
 
 #include <ROOT/Hist/ConvertToTH1.hxx>
@@ -26,6 +27,7 @@
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
+#include <algorithm>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -417,9 +419,17 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto histo_file =
       config.get<std::string>("histo_file", std::string{"validation.root"});
   // Writer memory is bounded by fill_contexts x per-context buffering (which
-  // scales with cluster_size_mib); see issue #77.
+  // scales with cluster_size_mib); see issue #77. The pool defaults to
+  // min(4, framework threads): more contexts than threads can never fill
+  // concurrently and would only multiply idle cluster buffers. phlex installs
+  // its -j limit (a tbb::global_control) before loading modules, so the
+  // active value here is the framework's thread count.
+  auto const max_threads = tbb::global_control::active_value(
+      tbb::global_control::max_allowed_parallelism);
   auto cluster_mib = config.get<int>("cluster_size_mib", 32);
-  auto n_contexts = config.get<int>("fill_contexts", 4);
+  auto n_contexts = config.get<int>(
+      "fill_contexts", static_cast<int>(std::min<std::size_t>(
+                           4, std::max<std::size_t>(1, max_threads))));
 
   if (mode != "mc_only" && mode != "full" && mode != "noop" &&
       mode != "noop_full")

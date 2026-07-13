@@ -263,13 +263,14 @@ and Geant4 themselves:
 - **Thread count.** phlex sizes its thread pool to the machine's core
   count unless you pass `-j`. On a batch node this is rarely what you
   want: a job allocated a single CPU slot on a 56-core machine would
-  still start 56 threads. Always pass `-j` matching the CPUs the job
-  actually has.
+  still start 56 threads and oversubscribe its CPU. Always pass `-j`
+  matching the CPUs the job actually has.
 - **Output buffering.** The RNTuple writer keeps a fixed pool of fill
-  contexts (`fill_contexts`, default 4), each buffering events in
-  memory until it has roughly `cluster_size_mib` (default 32) of
-  compressed data to write out. The writer's memory use is therefore
-  about `fill_contexts × 3–4 × cluster_size_mib` regardless of how many
+  contexts (`fill_contexts`, default 4 or the thread count if lower),
+  each buffering events in memory until it has roughly
+  `cluster_size_mib` (default 32) of compressed data to write out. The
+  writer's memory use is therefore about
+  `fill_contexts × 3–4 × cluster_size_mib` regardless of how many
   events the job processes or how many threads it runs — with the
   defaults, roughly half a GB. Both keys can be set in the
   `sim_output_module` block of the workflow.

@@ -103,6 +103,10 @@
 
   noop_output:: { cpp: 'sim_output_module', mode: 'noop' },
 
+  // The writing modes also accept two optional keys bounding the writer's
+  // memory use (issue #77): cluster_size_mib (default 32) and fill_contexts
+  // (default 4). Override by merging, e.g.
+  //   lib.full_output(f, h) { cluster_size_mib: 16, fill_contexts: 8 }
   mc_only_output(rntuple_file, histo_file):: {
     cpp: 'sim_output_module',
     mode: 'mc_only',

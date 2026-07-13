@@ -8,6 +8,7 @@
 //   - RNTuple parallel writer for MCParticles and SimResult
 //   - Validation histograms
 
+#include <oneapi/tbb/concurrent_queue.h>
 #include <oneapi/tbb/enumerable_thread_specific.h>
 #include <spdlog/spdlog.h>
 
@@ -20,12 +21,14 @@
 #include <ROOT/RNTupleFillContext.hxx>
 #include <ROOT/RNTupleModel.hxx>
 #include <ROOT/RNTupleParallelWriter.hxx>
+#include <ROOT/RNTupleWriteOptions.hxx>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -49,10 +52,69 @@ using ROOT::Experimental::RHistFillContext;
 struct FillState {
   std::shared_ptr<ROOT::RNTupleFillContext> ctx;
   std::unique_ptr<REntry> entry;
-  // Field tokens cached once per thread to avoid a per-event name lookup.
+  // Field tokens cached once per context to avoid a per-event name lookup.
+  // Entries and tokens belong to their context's clone of the model, so they
+  // must stay together with the context.
   ROOT::RFieldToken mc_particles;
   ROOT::RFieldToken sim_hits;
   ROOT::RFieldToken sim_particles;
+};
+
+// Write options that bound per-context buffering. The stock defaults target
+// ~400 MiB of write memory per fill context (128 MiB zipped cluster target,
+// 1.28 GB max unzipped cluster), which multiplied across fill contexts made
+// writer memory grow with the event count until every context saturated
+// (issue #77).
+ROOT::RNTupleWriteOptions make_write_options(std::size_t cluster_mib) {
+  ROOT::RNTupleWriteOptions opts;
+  std::size_t const cluster_bytes = cluster_mib * 1024 * 1024;
+  opts.SetApproxZippedClusterSize(cluster_bytes);
+  // The default max is 10x the approx target, but only at construction time —
+  // keep the same ratio for the new target.
+  opts.SetMaxUnzippedClusterSize(10 * cluster_bytes);
+  return opts;
+}
+
+// Fixed-size pool of fill states. Bounds writer memory to
+// n_contexts x per-context buffering, independent of the TBB thread count:
+// per-thread storage would grow to one context per worker thread (56 on
+// production hosts) as TBB migrates tasks. A fill context may be used from
+// different threads as long as uses do not overlap; the queue pop/push
+// provides that synchronization.
+class FillStatePool {
+ public:
+  template <typename Init>
+  FillStatePool(RNTupleParallelWriter& writer, std::size_t n_contexts,
+                Init init) {
+    for (std::size_t i = 0; i < n_contexts; ++i) {
+      auto state = std::make_unique<FillState>();
+      state->ctx = writer.CreateFillContext();
+      state->entry = state->ctx->CreateEntry();
+      init(*state);
+      states_.push(std::move(state));
+    }
+  }
+
+  // RAII lease: the state returns to the pool even if Fill throws.
+  class Lease {
+   public:
+    explicit Lease(FillStatePool& pool) : pool_{pool} {
+      pool_.states_.pop(state_);
+    }
+    ~Lease() { pool_.states_.push(std::move(state_)); }
+    Lease(Lease const&) = delete;
+    Lease& operator=(Lease const&) = delete;
+    FillState& operator*() const { return *state_; }
+
+   private:
+    FillStatePool& pool_;
+    std::unique_ptr<FillState> state_;
+  };
+
+  Lease acquire() { return Lease{*this}; }
+
+ private:
+  tbb::concurrent_bounded_queue<std::unique_ptr<FillState>> states_;
 };
 
 using HistD = RHist<double>;
@@ -67,20 +129,24 @@ std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
 // RNTuple writer for MC particles only (used when no G4 simulation)
 class MCRNTupleWriter {
  public:
-  explicit MCRNTupleWriter(std::string filename) {
+  MCRNTupleWriter(std::string filename, std::size_t cluster_mib,
+                  std::size_t n_contexts) {
     auto model = RNTupleModel::CreateBare();
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
-    writer_ =
-        RNTupleParallelWriter::Recreate(std::move(model), "events", filename);
+    writer_ = RNTupleParallelWriter::Recreate(
+        std::move(model), "events", filename, make_write_options(cluster_mib));
+    pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.mc_particles = state.entry->GetToken("mc_particles");
+    });
+    spdlog::info(
+        "sim_output_module: writing '{}' with {} fill context(s), "
+        "{} MiB cluster target",
+        filename, n_contexts, cluster_mib);
   }
 
   void write(std::vector<SHiP::MCParticle> const& particles) {
-    auto& state = fill_states_.local();
-    if (!state.ctx) {
-      state.ctx = writer_->CreateFillContext();
-      state.entry = state.ctx->CreateEntry();
-      state.mc_particles = state.entry->GetToken("mc_particles");
-    }
+    auto lease = pool_->acquire();
+    auto& state = *lease;
     // Bind the input directly for the duration of Fill (which only reads it),
     // avoiding a full copy of the particle vector every event.
     state.entry->BindRawPtr(
@@ -90,35 +156,42 @@ class MCRNTupleWriter {
   }
 
  private:
+  // Member order matters: the pool (holding all fill contexts) must be
+  // destroyed before the writer, which commits the dataset in its destructor
+  // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
-  tbb::enumerable_thread_specific<FillState> fill_states_;
+  std::optional<FillStatePool> pool_;
 };
 
 // RNTuple writer for full simulation output (MC + G4 hits)
 class SimRNTupleWriter {
  public:
-  SimRNTupleWriter(std::string filename, bool filter_empty = false)
+  SimRNTupleWriter(std::string filename, bool filter_empty,
+                   std::size_t cluster_mib, std::size_t n_contexts)
       : filter_empty_{filter_empty} {
     auto model = RNTupleModel::CreateBare();
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     model->MakeField<std::vector<SHiP::SimHit>>("sim_hits");
     model->MakeField<std::vector<SHiP::SimParticle>>("sim_particles");
-    writer_ =
-        RNTupleParallelWriter::Recreate(std::move(model), "events", filename);
+    writer_ = RNTupleParallelWriter::Recreate(
+        std::move(model), "events", filename, make_write_options(cluster_mib));
+    pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.mc_particles = state.entry->GetToken("mc_particles");
+      state.sim_hits = state.entry->GetToken("sim_hits");
+      state.sim_particles = state.entry->GetToken("sim_particles");
+    });
+    spdlog::info(
+        "sim_output_module: writing '{}' with {} fill context(s), "
+        "{} MiB cluster target",
+        filename, n_contexts, cluster_mib);
   }
 
   void write(std::vector<SHiP::MCParticle> const& particles,
              SHiP::SimResult const& result) {
     if (filter_empty_ && result.hits.empty()) return;
 
-    auto& state = fill_states_.local();
-    if (!state.ctx) {
-      state.ctx = writer_->CreateFillContext();
-      state.entry = state.ctx->CreateEntry();
-      state.mc_particles = state.entry->GetToken("mc_particles");
-      state.sim_hits = state.entry->GetToken("sim_hits");
-      state.sim_particles = state.entry->GetToken("sim_particles");
-    }
+    auto lease = pool_->acquire();
+    auto& state = *lease;
     // Bind inputs directly for the duration of Fill (read-only), avoiding a
     // full copy of each vector every event.
     state.entry->BindRawPtr(
@@ -134,8 +207,11 @@ class SimRNTupleWriter {
 
  private:
   bool filter_empty_;
+  // Member order matters: the pool (holding all fill contexts) must be
+  // destroyed before the writer, which commits the dataset in its destructor
+  // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
-  tbb::enumerable_thread_specific<FillState> fill_states_;
+  std::optional<FillStatePool> pool_;
 };
 
 // Validation histograms for MC particles (thread-safe via per-thread
@@ -340,12 +416,20 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       config.get<std::string>("rntuple_file", std::string{"sim_output.root"});
   auto histo_file =
       config.get<std::string>("histo_file", std::string{"validation.root"});
+  // Writer memory is bounded by fill_contexts x per-context buffering (which
+  // scales with cluster_size_mib); see issue #77.
+  auto cluster_mib = config.get<int>("cluster_size_mib", 32);
+  auto n_contexts = config.get<int>("fill_contexts", 4);
 
   if (mode != "mc_only" && mode != "full" && mode != "noop" &&
       mode != "noop_full")
     throw std::runtime_error(
         "Unknown sim_output_module mode: '" + mode +
         "' (expected 'mc_only', 'full', 'noop', or 'noop_full')");
+  if (cluster_mib <= 0 || n_contexts <= 0)
+    throw std::runtime_error(
+        "sim_output_module: cluster_size_mib and fill_contexts must be "
+        "positive");
 
   if (mode == "noop") {
     auto noop = m.make<MCNoop>();
@@ -361,10 +445,13 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                              .layer = "event"_id,
                              .suffix = "sim_result"_id});
   } else if (mode == "mc_only") {
-    auto writer = m.make<MCRNTupleWriter>(rntuple_file);
+    auto writer = m.make<MCRNTupleWriter>(rntuple_file,
+                                          static_cast<std::size_t>(cluster_mib),
+                                          static_cast<std::size_t>(n_contexts));
+    // Concurrency matches the pool size so write() never blocks on a context.
     writer
         .observe("write_rntuple", &MCRNTupleWriter::write,
-                 concurrency::unlimited)
+                 concurrency{static_cast<std::size_t>(n_contexts)})
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
 
@@ -376,10 +463,13 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   } else {
     auto filter_empty = config.get<bool>("filter_empty", false);
 
-    auto writer = m.make<SimRNTupleWriter>(rntuple_file, filter_empty);
+    auto writer = m.make<SimRNTupleWriter>(
+        rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),
+        static_cast<std::size_t>(n_contexts));
+    // Concurrency matches the pool size so write() never blocks on a context.
     writer
         .observe("write_rntuple", &SimRNTupleWriter::write,
-                 concurrency::unlimited)
+                 concurrency{static_cast<std::size_t>(n_contexts)})
         .input_family(
             product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
             product_selector{.creator = "geant4"_id,

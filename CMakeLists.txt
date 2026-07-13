@@ -210,3 +210,10 @@ add_test(
     NAME physics_list_failure
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/physics_list_failure.sh
 )
+
+# Writer pool: many threads share few fill contexts with tiny clusters; no
+# event may be lost or duplicated (issue #77).
+add_test(
+    NAME writer_pool
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/writer_pool.sh
+)

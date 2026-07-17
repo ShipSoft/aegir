@@ -10,7 +10,10 @@
 // manually-built G4Event. Inspired by the CMSSW OscarMTProducer pattern.
 //
 // Architecture:
-//   - Dedicated master std::thread owns G4MTRunManager (geometry/physics init)
+//   - Master init (G4MTRunManager, geometry/physics) runs on the process-wide
+//     ship::geometry_thread(), shared with every other Geant4 geometry user
+//     (e.g. aegir-genie's GENIE geometry analyzer): Geant4 permits only one
+//     geometry-creating thread per process (aegir-genie issue #11)
 //   - Per phlex-thread: G4WorkerRunManagerKernel + G4EventManager for tracking
 //   - No G4VUserPrimaryGeneratorAction — events built directly from MCParticle
 
@@ -44,16 +47,15 @@
 #include <atomic>
 #include <cmath>
 #include <filesystem>
-#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
 #include "FieldService/IFieldSource.h"
+#include "GeometryService/GeometryThread.h"
 #include "chrome_trace.hpp"
 #include "detector_construction.hpp"
 #include "geant4_sim_core.hpp"
@@ -107,8 +109,28 @@ class Geant4Sim {
   explicit Geant4Sim(Geant4SimConfig cfg) : cfg_{std::move(cfg)} {}
 
   ~Geant4Sim() {
-    shutdown_promise_.set_value();
-    if (master_thread_.joinable()) master_thread_.join();
+    if (!initialized_) return;
+    // Empty the geometry stores now, on the geometry thread. Their static
+    // singletons' destructors run at process exit on the program's main
+    // thread, which never initialised Geant4's thread-local split-class
+    // data — so mass-deleting the still-registered volumes there
+    // dereferences a null per-thread base (e.g. ~G4PVPlacement →
+    // GetRotation → G4PVData) and segfaults (#68). The geometry thread ran
+    // the master initialisation, so the same deletions are safe there, and
+    // the stores' destructors are left with nothing to delete. The relative
+    // order of the Clean() calls is immaterial: every CleanStore() locks
+    // its objects before deleting them, which suppresses all cross-store
+    // references (e.g. ~G4LogicalVolume skips its
+    // fRegion->RemoveRootLogicalVolume backreference when locked).
+    ship::geometry_thread().run([] {
+      G4GeometryManager::GetInstance()->OpenGeometry();
+      G4RegionStore::Clean();
+      G4PhysicalVolumeStore::Clean();
+      G4LogicalVolumeStore::Clean();
+      G4SolidStore::Clean();
+    });
+    // The run manager is intentionally leaked (G4 singleton teardown is
+    // unsafe).
   }
 
   SHiP::SimResult simulate(std::shared_ptr<SHiP::IGeometrySource> const& geo,
@@ -198,94 +220,69 @@ class Geant4Sim {
  private:
   void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
                    std::shared_ptr<ship::IFieldSource> const& field) {
-    std::promise<void> ready_promise;
-    auto ready_future = ready_promise.get_future();
-
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
         *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions);
 
-    master_thread_ = std::jthread([this, &ready_promise] {
-      try {
-        AEGIR_TRACE_THREAD_NAME("g4_master");
-        {
-          AEGIR_TRACE_EVENT("g4", "init_master");
-          auto* rm = new G4MTRunManager();
-          rm->SetNumberOfThreads(cfg_.concurrency);
-          rm->SetUserInitialization(detector_);
+    // Master initialisation runs on the process-wide geometry thread: only
+    // one thread per process may create Geant4 geometry (G4GeomSplitter's
+    // slot count is shared while its data array is thread-local), and other
+    // plugins — e.g. aegir-genie's GENIE geometry analyzer — create theirs
+    // on this thread too (aegir-genie issue #11, Geant4 bug #2747). The call
+    // blocks until initialisation is done; exceptions propagate, so a failed
+    // init can be retried (init_flag_ stays unset).
+    ship::geometry_thread().run([this] {
+      AEGIR_TRACE_THREAD_NAME("g4_master");
+      AEGIR_TRACE_EVENT("g4", "init_master");
+      auto* rm = new G4MTRunManager();
+      rm->SetNumberOfThreads(cfg_.concurrency);
+      rm->SetUserInitialization(detector_);
 
-          G4PhysListFactory factory;
-          auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
-          if (!physics)
-            throw std::runtime_error("Unknown physics list: " +
-                                     cfg_.physics_list);
-          rm->SetUserInitialization(physics);
+      G4PhysListFactory factory;
+      auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
+      if (!physics)
+        throw std::runtime_error("Unknown physics list: " + cfg_.physics_list);
+      rm->SetUserInitialization(physics);
 
-          rm->SetUserInitialization(new DirectActionInit());
+      rm->SetUserInitialization(new DirectActionInit());
 
-          auto* ui = G4UImanager::GetUIpointer();
-          ui->ApplyCommand("/run/verbose " + std::to_string(cfg_.verbosity));
-          ui->ApplyCommand("/event/verbose 0");
-          ui->ApplyCommand("/tracking/verbose 0");
+      auto* ui = G4UImanager::GetUIpointer();
+      ui->ApplyCommand("/run/verbose " + std::to_string(cfg_.verbosity));
+      ui->ApplyCommand("/event/verbose 0");
+      ui->ApplyCommand("/tracking/verbose 0");
 
-          rm->Initialize();
-          rm->RunInitialization();
+      rm->Initialize();
+      rm->RunInitialization();
 
-          world_pv_ = G4TransportationManager::GetTransportationManager()
-                          ->GetNavigatorForTracking()
-                          ->GetWorldVolume();
-          physics_list_ = physics;
+      world_pv_ = G4TransportationManager::GetTransportationManager()
+                      ->GetNavigatorForTracking()
+                      ->GetWorldVolume();
+      physics_list_ = physics;
 
-          if (!cfg_.export_gdml.empty()) {
-            // G4GDMLParser::Write aborts via G4Exception on some write
-            // failures; pre-check the cases we can to fail with a catchable,
-            // clear error instead. Only the existing-file and missing-parent-
-            // directory cases are validated here — other fatal write errors
-            // (e.g. a read-only directory) remain Geant4's responsibility.
-            if (std::filesystem::exists(cfg_.export_gdml))
-              throw std::runtime_error(
-                  "geant4_module: export_gdml target '" + cfg_.export_gdml +
-                  "' already exists — remove it or choose another path");
-            auto parent = std::filesystem::path(cfg_.export_gdml).parent_path();
-            if (!parent.empty() && !std::filesystem::exists(parent))
-              throw std::runtime_error(
-                  "geant4_module: export_gdml target directory '" +
-                  parent.string() + "' does not exist");
-            G4GDMLParser parser;
-            parser.Write(cfg_.export_gdml, world_pv_);
-            spdlog::info("geant4_module: geometry exported to {}",
-                         cfg_.export_gdml);
-          }
-        }
-
-        ready_promise.set_value();
-
-        shutdown_future_.wait();
-
-        // Empty the geometry stores now, on this thread. Their static
-        // singletons' destructors run at process exit on the program's main
-        // thread, which never initialised Geant4's thread-local split-class
-        // data — so mass-deleting the still-registered volumes there
-        // dereferences a null per-thread base (e.g. ~G4PVPlacement →
-        // GetRotation → G4PVData) and segfaults (#68). This thread ran the
-        // master initialisation, so the same deletions are safe here, and the
-        // stores' destructors are left with nothing to delete. The relative
-        // order of the Clean() calls is immaterial: every CleanStore() locks
-        // its objects before deleting them, which suppresses all
-        // cross-store references (e.g. ~G4LogicalVolume skips its
-        // fRegion->RemoveRootLogicalVolume backreference when locked).
-        G4GeometryManager::GetInstance()->OpenGeometry();
-        G4RegionStore::Clean();
-        G4PhysicalVolumeStore::Clean();
-        G4LogicalVolumeStore::Clean();
-        G4SolidStore::Clean();
-        // Intentionally leak rm (G4 singleton teardown is unsafe)
-      } catch (...) {
-        ready_promise.set_exception(std::current_exception());
+      if (!cfg_.export_gdml.empty()) {
+        // G4GDMLParser::Write aborts via G4Exception on some write
+        // failures; pre-check the cases we can to fail with a catchable,
+        // clear error instead. Only the existing-file and missing-parent-
+        // directory cases are validated here — other fatal write errors
+        // (e.g. a read-only directory) remain Geant4's responsibility.
+        if (std::filesystem::exists(cfg_.export_gdml))
+          throw std::runtime_error(
+              "geant4_module: export_gdml target '" + cfg_.export_gdml +
+              "' already exists — remove it or choose another path");
+        auto parent = std::filesystem::path(cfg_.export_gdml).parent_path();
+        if (!parent.empty() && !std::filesystem::exists(parent))
+          throw std::runtime_error(
+              "geant4_module: export_gdml target directory '" +
+              parent.string() + "' does not exist");
+        G4GDMLParser parser;
+        parser.Write(cfg_.export_gdml, world_pv_);
+        spdlog::info("geant4_module: geometry exported to {}",
+                     cfg_.export_gdml);
       }
+      // The run manager stays alive (and leaked) for the whole process.
     });
 
-    ready_future.get();
+    initialized_ = true;
 
     spdlog::info("Geant4 direct simulation ready ({} worker slots)",
                  cfg_.concurrency);
@@ -325,12 +322,9 @@ class Geant4Sim {
   std::shared_ptr<ship::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
   std::atomic<int> next_event_id_{0};
-  // std::jthread: joins on destruction and on move-assignment, so a failed
-  // init_master (which throws from ready_future.get() without setting
-  // init_flag_) can be safely retried without terminating on reassignment.
-  std::jthread master_thread_;
-  std::promise<void> shutdown_promise_;
-  std::shared_future<void> shutdown_future_{shutdown_promise_.get_future()};
+  // Set only after a successful init_master, so the destructor cleans the
+  // stores exactly when there is something to clean.
+  bool initialized_ = false;
 };
 
 }  // namespace

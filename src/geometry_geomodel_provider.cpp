@@ -27,7 +27,7 @@ class GeoModelGeometrySource : public SHiP::IGeometrySource {
   std::string db_path_;
   std::vector<std::string> sensitive_vols_;
   mutable std::once_flag init_flag_;
-  mutable std::unique_ptr<ship::SHiPGeometryService> service_;
+  mutable std::shared_ptr<ship::SHiPGeometryService> service_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
@@ -36,7 +36,11 @@ class GeoModelGeometrySource : public SHiP::IGeometrySource {
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
     std::call_once(init_flag_, [this]() {
-      service_ = ship::SHiPGeometryService::fromFile(db_path_);
+      // The registry shares one service — and with it one GeoModel->G4
+      // conversion — with every other user of the same file in this
+      // process; in the full GENIE chain, aegir-genie's geometry analyzer
+      // has already loaded and converted it (aegir-genie issue #11).
+      service_ = ship::SHiPGeometryService::sharedFromFile(db_path_);
       auto* worldLV = service_->geant4WorldLogical();
       if (!worldLV)
         throw std::runtime_error(
@@ -49,12 +53,14 @@ class GeoModelGeometrySource : public SHiP::IGeometrySource {
 
       // The GeoModel tree is redundant once the Geant4 geometry is built: the
       // GeoModel->G4 conversion produced independent G4 objects owned by the G4
-      // stores, and nothing consults the service afterwards. Release it here —
-      // on the master thread, during Construct(), with all G4/GeoModel state
-      // still alive and no worker threads running — instead of holding it until
-      // program teardown. This reclaims the tree's memory for the rest of the
-      // run and keeps the only non-trivial destructor on the GeoModel path off
-      // the teardown path (investigated in the context of issue #68).
+      // stores, and nothing consults the service afterwards. Release our
+      // reference here — during Construct(), with all G4/GeoModel state still
+      // alive and no worker threads running — instead of holding it until
+      // program teardown. As the only user this reclaims the tree's memory for
+      // the rest of the run and keeps the only non-trivial destructor on the
+      // GeoModel path off the teardown path (investigated in the context of
+      // issue #68); with other users (the GENIE chain) the shared instance
+      // lives until the last of them lets go.
       service_.reset();
     });
     return world_;

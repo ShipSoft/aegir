@@ -60,7 +60,10 @@ set_target_properties(
 
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
 
-find_package(SHiPGeometryService CONFIG QUIET)
+# >=0.3: ship::geometry_thread() and SHiPGeometryService::sharedFromFile,
+# shared between geant4_module and any other Geant4 geometry user (e.g.
+# aegir-genie's GENIE source) — see aegir-genie issue #11.
+find_package(SHiPGeometryService 0.3 CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace
@@ -109,26 +112,14 @@ aegir_add_plugin(
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# GeoModel geometry provider plugin (optional)
-if(SHiPGeometryService_FOUND)
-    message(
-        STATUS
-        "SHiPGeometryService found — building geometry_geomodel_provider"
-    )
-    aegir_add_plugin(
-        geometry_geomodel_provider
-        LIBS
-            SHiP::SHiPDataModel
-            ${Geant4_LIBRARIES}
-            SHiPGeometryService::SHiPGeometryService
-        INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-else()
-    message(
-        STATUS
-        "SHiPGeometryService not found — skipping geometry_geomodel_provider"
-    )
-endif()
+aegir_add_plugin(
+    geometry_geomodel_provider
+    LIBS
+        SHiP::SHiPDataModel
+        ${Geant4_LIBRARIES}
+        SHiPGeometryService::SHiPGeometryService
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 aegir_add_plugin(
     geant4_module
@@ -138,6 +129,7 @@ aegir_add_plugin(
         spdlog::spdlog
         SHiPFieldService::SHiPFieldService
         SHiPFieldService::G4Adapter
+        SHiPGeometryService::SHiPGeometryService
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
     TRACE
 )

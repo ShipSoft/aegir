@@ -52,7 +52,8 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
         ke_threshold_{ke_threshold},
         regions_{std::move(regions)} {}
 
-  // Called once, master thread only
+  // Called once, on ship::geometry_thread() (the run manager is initialised
+  // there — the process's single Geant4 geometry-creating thread)
   G4VPhysicalVolume* Construct() override { return source_->construct(); }
 
   void ConstructSDandField() override {

@@ -12,6 +12,11 @@ requires-pixi = ">=0.68"
 # SHiP/HEP packages (prefix.dev/ship + conda-forge)
 shipdatamodel = "*"
 shipgeometry = "*"
+# >=0.3: process-wide geometry thread + shared service registry, both shared
+# between geant4_module and any other Geant4 geometry user (e.g. aegir-genie's
+# GENIE source — its issue #11). Keep in lockstep with aegir-genie's pin: the
+# unversioned soname means ld.so dedups the library process-wide and the
+# first-loaded copy wins.
 shipgeometryservice = "*"
 field-service-core = "*"
 field-service-g4 = "*"

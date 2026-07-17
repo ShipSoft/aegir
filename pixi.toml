@@ -17,7 +17,7 @@ shipgeometry = "*"
 # GENIE source — its issue #11). Keep in lockstep with aegir-genie's pin: the
 # unversioned soname means ld.so dedups the library process-wide and the
 # first-loaded copy wins.
-shipgeometryservice = "*"
+shipgeometryservice = ">=0.3"
 field-service-core = "*"
 field-service-g4 = "*"
 phlex = ">=0.3.0"

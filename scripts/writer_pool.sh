@@ -7,7 +7,10 @@
 # shared across threads (issue #77), so stress the handoff: run the particle
 # gun with many phlex threads but only 2 fill contexts and a 1 MiB cluster
 # target (forcing frequent mid-run cluster flushes), then check that no event
-# was lost or duplicated and that the file reads back cleanly.
+# was lost or duplicated and that the file reads back cleanly. With 8 threads
+# racing for 2 contexts, most write() calls block on the pool lease — the
+# writer's backpressure path — so this also checks that blocked leases make
+# progress and the run terminates.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 

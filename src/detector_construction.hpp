@@ -66,10 +66,16 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
       auto* cuts = new G4ProductionCuts();
       cuts->SetProductionCut(cut_mm * mm);
       region->SetProductionCuts(cuts);
+      bool matched = false;
       for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
-        if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern}))
+        if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern})) {
           region->AddRootLogicalVolume(lv);
+          matched = true;
+        }
       }
+      if (!matched)
+        throw std::runtime_error("Production-cut region '" + pattern +
+                                 "' matches no logical volumes");
     }
 
     return world;

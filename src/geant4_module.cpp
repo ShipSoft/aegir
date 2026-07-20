@@ -220,6 +220,27 @@ class Geant4Sim {
  private:
   void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
                    std::shared_ptr<ship::IFieldSource> const& field) {
+    // Validate the export target up front, before anything is constructed:
+    // G4GDMLParser::Write aborts via G4Exception on some write failures, so
+    // pre-check the cases we can to fail with a catchable, clear error
+    // instead. Only the existing-file and missing-parent-directory cases are
+    // validated here — other fatal write errors (e.g. a read-only directory)
+    // remain Geant4's responsibility. Doing this before the G4MTRunManager is
+    // constructed keeps the std::call_once retry clean: the run manager is a
+    // leaked singleton, so a throw after it exists would make the retry abort
+    // with "run manager already exists".
+    if (!cfg_.export_gdml.empty()) {
+      if (std::filesystem::exists(cfg_.export_gdml))
+        throw std::runtime_error(
+            "geant4_module: export_gdml target '" + cfg_.export_gdml +
+            "' already exists — remove it or choose another path");
+      auto parent = std::filesystem::path(cfg_.export_gdml).parent_path();
+      if (!parent.empty() && !std::filesystem::exists(parent))
+        throw std::runtime_error(
+            "geant4_module: export_gdml target directory '" + parent.string() +
+            "' does not exist");
+    }
+
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
         *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions);
@@ -238,6 +259,10 @@ class Geant4Sim {
       rm->SetNumberOfThreads(cfg_.concurrency);
       rm->SetUserInitialization(detector_);
 
+      // The run manager is constructed first so its G4Exception handler is
+      // installed: G4PhysListFactory raises a fatal G4Exception (and aborts)
+      // for an unknown list rather than returning null, so this lookup is not
+      // retryable regardless of ordering.
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
       if (!physics)
@@ -260,20 +285,8 @@ class Geant4Sim {
       physics_list_ = physics;
 
       if (!cfg_.export_gdml.empty()) {
-        // G4GDMLParser::Write aborts via G4Exception on some write
-        // failures; pre-check the cases we can to fail with a catchable,
-        // clear error instead. Only the existing-file and missing-parent-
-        // directory cases are validated here — other fatal write errors
-        // (e.g. a read-only directory) remain Geant4's responsibility.
-        if (std::filesystem::exists(cfg_.export_gdml))
-          throw std::runtime_error(
-              "geant4_module: export_gdml target '" + cfg_.export_gdml +
-              "' already exists — remove it or choose another path");
-        auto parent = std::filesystem::path(cfg_.export_gdml).parent_path();
-        if (!parent.empty() && !std::filesystem::exists(parent))
-          throw std::runtime_error(
-              "geant4_module: export_gdml target directory '" +
-              parent.string() + "' does not exist");
+        // The target path was validated at the top of init_master, before the
+        // run manager was constructed.
         G4GDMLParser parser;
         parser.Write(cfg_.export_gdml, world_pv_);
         spdlog::info("geant4_module: geometry exported to {}",

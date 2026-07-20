@@ -17,7 +17,6 @@
 #include <G4SDManager.hh>
 #include <G4String.hh>
 #include <G4VUserDetectorConstruction.hh>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -39,7 +38,6 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   SDMode sd_mode_;
   double ke_threshold_;  // GeV, used by CrossingSD
   std::vector<std::pair<std::string, double>> regions_;  // pattern -> cut in mm
-  std::once_flag regions_flag_;
 
  public:
   ConfigurableDetectorConstruction(
@@ -54,7 +52,28 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
 
   // Called once, on ship::geometry_thread() (the run manager is initialised
   // there — the process's single Geant4 geometry-creating thread)
-  G4VPhysicalVolume* Construct() override { return source_->construct(); }
+  G4VPhysicalVolume* Construct() override {
+    auto* world = source_->construct();
+
+    // Create the configured production-cut regions here, not in
+    // ConstructSDandField: G4Region is a split class, so regions must be
+    // created on the process's single geometry-creating thread — this one —
+    // while ConstructSDandField runs on worker threads (#80). Construct()
+    // is also the canonical Geant4 place: the regions exist before any
+    // worker builds its per-region physics tables.
+    for (auto const& [pattern, cut_mm] : regions_) {
+      auto* region = new G4Region(pattern);
+      auto* cuts = new G4ProductionCuts();
+      cuts->SetProductionCut(cut_mm * mm);
+      region->SetProductionCuts(cuts);
+      for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
+        if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern}))
+          region->AddRootLogicalVolume(lv);
+      }
+    }
+
+    return world;
+  }
 
   void ConstructSDandField() override {
     auto const& sv_names = source_->sensitiveVolumes();
@@ -102,20 +121,6 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
                                  "': volume_pattern '" + fr.volume_pattern +
                                  "' matches no logical volumes");
     }
-
-    // Create G4Regions with custom production cuts (once only)
-    std::call_once(regions_flag_, [this]() {
-      for (auto const& [pattern, cut_mm] : regions_) {
-        auto* region = new G4Region(pattern);
-        auto* cuts = new G4ProductionCuts();
-        cuts->SetProductionCut(cut_mm * mm);
-        region->SetProductionCuts(cuts);
-        for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
-          if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern}))
-            region->AddRootLogicalVolume(lv);
-        }
-      }
-    });
   }
 };
 

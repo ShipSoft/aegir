@@ -83,6 +83,13 @@ ROOT::RNTupleWriteOptions make_write_options(std::size_t cluster_mib) {
 // production hosts) as TBB migrates tasks. A fill context may be used from
 // different threads as long as uses do not overlap; the queue pop/push
 // provides that synchronization.
+//
+// When all states are leased, acquire() blocks the calling thread. That is
+// deliberate: it is the writer's backpressure. Blocked write() calls occupy
+// TBB worker threads, so when the writer falls behind, the framework runs
+// out of threads to simulate further events and the source stalls — keeping
+// the number of completed-but-unwritten events (whose products are pinned in
+// memory) at ~thread count instead of growing with the event count.
 class FillStatePool {
  public:
   template <typename Init>
@@ -458,10 +465,14 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     auto writer = m.make<MCRNTupleWriter>(rntuple_file,
                                           static_cast<std::size_t>(cluster_mib),
                                           static_cast<std::size_t>(n_contexts));
-    // Concurrency matches the pool size so write() never blocks on a context.
+    // Unlimited on purpose: excess write() calls block on the pool lease,
+    // which throttles the framework when the writer is the bottleneck. phlex
+    // has no in-flight-event limit, so a concurrency-limited node would let
+    // completed events queue in front of it without bound, each pinning its
+    // products in memory (issue #77).
     writer
         .observe("write_rntuple", &MCRNTupleWriter::write,
-                 concurrency{static_cast<std::size_t>(n_contexts)})
+                 concurrency::unlimited)
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
 
@@ -476,10 +487,14 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     auto writer = m.make<SimRNTupleWriter>(
         rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),
         static_cast<std::size_t>(n_contexts));
-    // Concurrency matches the pool size so write() never blocks on a context.
+    // Unlimited on purpose: excess write() calls block on the pool lease,
+    // which throttles the framework when the writer is the bottleneck. phlex
+    // has no in-flight-event limit, so a concurrency-limited node would let
+    // completed events queue in front of it without bound, each pinning its
+    // products in memory (issue #77).
     writer
         .observe("write_rntuple", &SimRNTupleWriter::write,
-                 concurrency{static_cast<std::size_t>(n_contexts)})
+                 concurrency::unlimited)
         .input_family(
             product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
             product_selector{.creator = "geant4"_id,

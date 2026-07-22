@@ -384,7 +384,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.1.0-he60beb7_1.conda
       - conda: https://prefix.dev/ship/linux-64/libjsonnet-0.22.0-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
-      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.1.0-h0566472_1.conda
+      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.2.0-ha28ff26_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometryservice-0.3.0-hb0f4dca_0.conda
       - conda: https://prefix.dev/ship/noarch/random123-1.14.0-h4616a5c_1.conda
@@ -752,7 +752,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.1.0-he60beb7_1.conda
       - conda: https://prefix.dev/ship/linux-64/libjsonnet-0.22.0-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
-      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.1.0-h0566472_1.conda
+      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.2.0-ha28ff26_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometryservice-0.3.0-hb0f4dca_0.conda
       - conda: https://prefix.dev/ship/noarch/random123-1.14.0-h4616a5c_1.conda
@@ -1140,7 +1140,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.1.0-he60beb7_1.conda
       - conda: https://prefix.dev/ship/linux-64/libjsonnet-0.22.0-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
-      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.1.0-h0566472_1.conda
+      - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.2.0-ha28ff26_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_1.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometryservice-0.3.0-hb0f4dca_0.conda
       - conda: https://prefix.dev/ship/noarch/random123-1.14.0-h4616a5c_1.conda
@@ -7838,21 +7838,22 @@ packages:
     - mp-units >=2.5.0,<2.6.0a0
   size: 110217
   timestamp: 1781445240307
-- conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.1.0-h0566472_1.conda
-  sha256: 361589eca9a2ef87965d4707bfda168a0314bc56f878737e01f284a6ff60aa13
-  md5: 98b423228cc31bb717056358b2fa06b3
+- conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.2.0-ha28ff26_1.conda
+  sha256: b06d43ee0766874bdca5c49925d6ac774cdb3cf9ebd62c19af725077fb310224
+  md5: 047904bcb5da4130cb83737928ec3cde
   depends:
   - libstdcxx >=15
   - libgcc >=15
   - __glibc >=2.17,<3.0.a0
   - root_cxx_standard ==23
   - root_base >=6.40.2,<6.40.3.0a0
+  - mp-units >=2.5.0,<2.6.0a0
   license: LGPL-3.0-or-later
   run_exports:
     weak:
-    - shipdatamodel >=0.1.0,<0.2.0a0
-  size: 51042
-  timestamp: 1781881906395
+    - shipdatamodel >=0.2.0,<0.3.0a0
+  size: 54215
+  timestamp: 1784725546445
 - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_1.conda
   sha256: 7d7f6df998b8c374593e7ae9954ceba9afe29c2aa022ca84934b5be7cf6c610f
   md5: 16b3e83e89636e555343ad3ee37a6b89

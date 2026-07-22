@@ -10,7 +10,9 @@ requires-pixi = ">=0.68"
 
 [dependencies]
 # SHiP/HEP packages (prefix.dev/ship + conda-forge)
-shipdatamodel = "*"
+# >=0.2: provides the SHiP::SHiPUnits target and SHiP/Units.hpp (mp-units
+# vocabulary) that the Geant4 CLHEP unit bridge links against.
+shipdatamodel = ">=0.2"
 shipgeometry = "*"
 # >=0.3: process-wide geometry thread + shared service registry, both shared
 # between geant4_module and any other Geant4 geometry user (e.g. aegir-genie's

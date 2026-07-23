@@ -122,7 +122,7 @@ class Geant4Sim {
   explicit Geant4Sim(Geant4SimConfig cfg) : cfg_{std::move(cfg)} {}
 
   ~Geant4Sim() {
-    if (!initialized_) return;
+    if (!master_constructed_) return;
     // Empty the geometry stores now, on the geometry thread. Their static
     // singletons' destructors run at process exit on the program's main
     // thread, which never initialised Geant4's thread-local split-class
@@ -302,6 +302,7 @@ class Geant4Sim {
       AEGIR_TRACE_THREAD_NAME("g4_master");
       AEGIR_TRACE_EVENT("g4", "init_master");
       auto* rm = new G4MTRunManager();
+      master_constructed_ = true;
       rm->SetNumberOfThreads(cfg_.concurrency);
       rm->SetUserInitialization(detector_);
 
@@ -342,7 +343,6 @@ class Geant4Sim {
     });
 
     sim_start_ = std::chrono::steady_clock::now();
-    initialized_ = true;
 
     spdlog::info("Geant4 direct simulation ready ({} worker slots)",
                  cfg_.concurrency);
@@ -391,9 +391,14 @@ class Geant4Sim {
   // every simulate call passes through first.
   std::atomic<std::size_t> completed_{0};
   std::chrono::steady_clock::time_point sim_start_;
-  // Set only after a successful init_master, so the destructor cleans the
-  // stores exactly when there is something to clean.
-  bool initialized_ = false;
+  // Set on the geometry thread as soon as the G4MTRunManager exists. From
+  // that point the geometry stores may hold volumes — even when a later init
+  // step throws, detector construction has typically already registered them
+  // — so the destructor must clean the stores on the geometry thread (#68)
+  // for failed and successful inits alike. Guarding on full init success
+  // instead would leave the stores populated after a failed init and their
+  // static destructors would segfault at process exit.
+  bool master_constructed_ = false;
 };
 
 }  // namespace

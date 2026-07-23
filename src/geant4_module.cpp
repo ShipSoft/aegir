@@ -47,6 +47,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -147,8 +148,23 @@ class Geant4Sim {
                            std::vector<SHiP::MCParticle> const& particles) {
     AEGIR_TRACE_EVENT("g4", "simulate");
 
-    std::call_once(init_flag_,
-                   [this, &geo, &field]() { init_master(geo, field); });
+    // A failed master init is sticky: retrying would construct a second
+    // G4MTRunManager next to the leaked first one and die on Geant4's fatal
+    // "constructed twice" abort, masking the original error. Store the
+    // exception instead and rethrow it on this and every later call — phlex
+    // logs it at shutdown and terminates the job cleanly.
+    std::call_once(init_flag_, [this, &geo, &field]() {
+      try {
+        init_master(geo, field);
+      } catch (std::exception const& e) {
+        spdlog::error("geant4_module: master initialisation failed: {}",
+                      e.what());
+        init_error_ = std::current_exception();
+      } catch (...) {
+        init_error_ = std::current_exception();
+      }
+    });
+    if (init_error_) std::rethrow_exception(init_error_);
 
     if (!tl_kernel) init_worker();
 
@@ -243,10 +259,8 @@ class Geant4Sim {
     // pre-check the cases we can to fail with a catchable, clear error
     // instead. Only the existing-file and missing-parent-directory cases are
     // validated here — other fatal write errors (e.g. a read-only directory)
-    // remain Geant4's responsibility. Doing this before the G4MTRunManager is
-    // constructed keeps the std::call_once retry clean: the run manager is a
-    // leaked singleton, so a throw after it exists would make the retry abort
-    // with "run manager already exists".
+    // remain Geant4's responsibility. Failing before the G4MTRunManager is
+    // constructed keeps the failure cheap: nothing has been built yet.
     if (!cfg_.export_gdml.empty()) {
       if (std::filesystem::exists(cfg_.export_gdml))
         throw std::runtime_error(
@@ -268,8 +282,8 @@ class Geant4Sim {
     // slot count is shared while its data array is thread-local), and other
     // plugins — e.g. aegir-genie's GENIE geometry analyzer — create theirs
     // on this thread too (aegir-genie issue #11, Geant4 bug #2747). The call
-    // blocks until initialisation is done; exceptions propagate, so a failed
-    // init can be retried (init_flag_ stays unset).
+    // blocks until initialisation is done; exceptions propagate to the
+    // caller in simulate(), which records them as a sticky init failure.
     ship::geometry_thread().run([this] {
       AEGIR_TRACE_THREAD_NAME("g4_master");
       AEGIR_TRACE_EVENT("g4", "init_master");
@@ -347,6 +361,9 @@ class Geant4Sim {
   Geant4SimConfig cfg_;
 
   std::once_flag init_flag_;
+  // Written at most once inside the call_once body, read only after the
+  // call_once returns — no further synchronisation needed.
+  std::exception_ptr init_error_;
   G4VPhysicalVolume* world_pv_ = nullptr;
   G4VUserPhysicsList* physics_list_ = nullptr;
   ConfigurableDetectorConstruction* detector_ = nullptr;  // owned by G4

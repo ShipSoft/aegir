@@ -109,6 +109,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in |
+| `progress_interval` | int | `100` | Log a progress line (event count and average rate) every this many simulated events; `0` disables |
 
 For consumers that read the exported file with ROOT's TGeo importer, run
 `scripts/gdml_fix_element_names.py` on it first: ROOT confuses materials

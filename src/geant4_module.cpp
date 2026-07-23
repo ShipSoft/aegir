@@ -45,6 +45,7 @@
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <exception>
@@ -112,6 +113,8 @@ struct Geant4SimConfig {
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
   std::string export_gdml;
+  // Log a progress line every this many simulated events (0 disables).
+  int progress_interval = 100;
 };
 
 class Geant4Sim {
@@ -248,6 +251,17 @@ class Geant4Sim {
       result.hits = std::move(tl_hits);
       result.particles = std::move(tl_particles);
     }
+
+    auto const done = completed_.fetch_add(1) + 1;
+    if (cfg_.progress_interval > 0 &&
+        done % static_cast<std::size_t>(cfg_.progress_interval) == 0) {
+      auto const elapsed = std::chrono::duration<double>(
+                               std::chrono::steady_clock::now() - sim_start_)
+                               .count();
+      spdlog::info("geant4_module: {} events simulated ({:.1f} events/s)", done,
+                   elapsed > 0 ? done / elapsed : 0.0);
+    }
+
     return result;
   }
 
@@ -327,6 +341,7 @@ class Geant4Sim {
       // The run manager stays alive (and leaked) for the whole process.
     });
 
+    sim_start_ = std::chrono::steady_clock::now();
     initialized_ = true;
 
     spdlog::info("Geant4 direct simulation ready ({} worker slots)",
@@ -370,6 +385,12 @@ class Geant4Sim {
   std::shared_ptr<ship::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
   std::atomic<int> next_event_id_{0};
+  // Completed-event count (completion order, not event id, so the logged
+  // count is monotonic) and the reference point for the average event rate.
+  // sim_start_ is written in init_master and published by the call_once
+  // every simulate call passes through first.
+  std::atomic<std::size_t> completed_{0};
+  std::chrono::steady_clock::time_point sim_start_;
   // Set only after a successful init_master, so the destructor cleans the
   // stores exactly when there is something to clean.
   bool initialized_ = false;
@@ -413,6 +434,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
       .regions = std::move(regions),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
+      .progress_interval = config.get<int>("progress_interval", 100),
   };
 
   if (cfg.concurrency > active_parallelism)

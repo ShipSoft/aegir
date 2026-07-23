@@ -133,7 +133,7 @@ Example workflow configuration:
       ke_threshold: 0.5,
       energy_cut: true,
       particle_ke_cut: 1.0,
-      regions: { Target: 50, HadronAbsorber: 50 },
+      regions: { '/SHiP/target': 50, '/SHiP/muon_shield/magn_absorb': 50 },
     },
   },
 }

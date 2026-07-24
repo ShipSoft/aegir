@@ -16,6 +16,12 @@ option(
     OFF
 )
 
+option(
+    AEGIR_TLS_INITIAL_EXEC
+    "Compile the dlopened geant4_module with -ftls-model=initial-exec (relies on the loader's surplus static TLS; disable if plugin loading fails with 'cannot allocate memory in static TLS block')"
+    ON
+)
+
 # Dependencies
 find_package(SHiPDataModel REQUIRED)
 find_package(SHiPFieldService REQUIRED COMPONENTS G4Adapter)
@@ -138,8 +144,11 @@ aegir_add_plugin(
 # global-dynamic TLS model (__tls_get_addr on every sensitive-detector
 # call). initial-exec claims static TLS space instead; glibc reserves
 # surplus for dlopened objects. If plugin loading ever fails with
-# "cannot allocate memory in static TLS block", drop this option.
-target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
+# "cannot allocate memory in static TLS block", configure with
+# -DAEGIR_TLS_INITIAL_EXEC=OFF.
+if(AEGIR_TLS_INITIAL_EXEC)
+    target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
+endif()
 
 aegir_add_plugin(field_covfie_provider LIBS SHiPFieldService::SHiPFieldService)
 aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)

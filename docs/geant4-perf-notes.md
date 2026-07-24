@@ -80,10 +80,17 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   single-threaded benchmark recipes in the justfile now pin `-j 1`.
 - **Resolved** by per-event seeding: the geant4 module now reseeds the
   calling worker's engine from the data-cell index hash (Philox stream
-  keyed on the config `seed`), so the event↔RNG pairing no longer
+  keyed on the base seed), so the event↔RNG pairing no longer
   depends on scheduling. `scripts/check_determinism.sh` verifies two
   `-j 12` runs and a `-j 1` run produce identical hit/particle counts
   and energy/position sums; measured identical to full float precision.
+- Reproducibility is opt-in: without a `seed` in the module config, each
+  run draws a random base seed (logged at startup, so any run can still
+  be reproduced by configuring the logged value). Workflows whose output
+  is compared across runs — the CI smokes, the benchmarks, and
+  `gun_st_full` used by the determinism check — pin `seed` explicitly;
+  the large-scale MT workflows accept it as a jsonnet argument
+  (`--tla-code seed=N`).
 
 ## TLS model
 

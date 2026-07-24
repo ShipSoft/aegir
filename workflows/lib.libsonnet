@@ -83,6 +83,9 @@
   },
 
   // ── modules ────────────────────────────────────────────────────────────
+  // Without a `seed`, each run draws a random one (logged at startup, so a
+  // run can be reproduced after the fact). Merge one in for reproducible
+  // output, e.g. lib.geant4 { seed: 12345 }.
   geant4:: {
     cpp: 'geant4_module',
     physics_list: 'FTFP_BERT',
@@ -91,7 +94,7 @@
 
   // Crossing-mode Geant4 for the GeoModel workflows: scoring-plane SD with a
   // KE threshold, production-cut regions in the target/absorber, tracked-
-  // particle KE cut.
+  // particle KE cut. Seeding works as for `geant4` above.
   geant4_crossing:: {
     cpp: 'geant4_module',
     physics_list: 'FTFP_BERT',

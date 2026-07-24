@@ -11,7 +11,7 @@ local lib = import 'lib.libsonnet';
     gun: lib.pencil_gun { vertex_x: 200.0 },
   },
   modules: {
-    geant4: lib.geant4 { concurrency: 4 },
+    geant4: lib.geant4 { concurrency: 4, seed: 20260703 },
     output: lib.full_output('gun_mt_field_smoke.root', 'gun_mt_field_smoke_validation.root'),
   },
 }

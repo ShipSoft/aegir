@@ -1,5 +1,7 @@
 local lib = import 'lib.libsonnet';
-{
+// Pass --tla-code seed=N (e.g. a batch job id) for reproducible large-scale
+// runs; without it each run draws its own random seed.
+function(seed=null) {
   driver: lib.driver(100),
   sources: {
     field: lib.null_field,
@@ -7,7 +9,10 @@ local lib = import 'lib.libsonnet';
     gun: lib.gun,
   },
   modules: {
-    geant4: lib.geant4 { concurrency: 4 },
+    geant4: lib.geant4 {
+      concurrency: 4,
+      [if seed != null then 'seed']: seed,
+    },
     output: lib.full_output('gun_mt_output.root', 'gun_mt_validation.root'),
   },
 }

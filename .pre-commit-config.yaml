@@ -24,32 +24,35 @@ repos:
         name: forbid hardcoded speed of light
         language: pygrep
         # Digit-anchored so it does not fire inside a longer number (e.g. a
-        # seed like 12997924580 that merely contains the c digits).
-        entry: '(?<![\d.])299792458(?!\d)|(?<!\d)299\.792458(?!\d)'
+        # seed like 12997924580 that merely contains the c digits). Covers the
+        # integer (optional ' separators), decimal, and 2.99792458e8 forms.
+        entry: '(?<![\d.])299''?792''?458(?!\d)|(?<!\d)299\.792458(?!\d)|(?<![\d.])2\.99792458[eE][+]?0*8(?!\d)'
         types_or: [c++, c]
 
       - id: forbid-g4-system-of-units
         name: forbid G4SystemOfUnits.hh (use units/clhep_bridge.hpp)
         language: pygrep
-        entry: 'G4SystemOfUnits\.hh'
+        # Match the include directive only, so the ban is repo-wide without
+        # tripping on prose (e.g. the bridge header's own comment about it).
+        entry: '#\s*include\s*[<"][^>"]*G4SystemOfUnits\.hh'
         types_or: [c++, c]
-        # The bridge's header comment documents this very ban.
-        exclude: ^src/units/
 
       - id: forbid-clhep-units-outside-bridge
-        name: forbid CLHEP units outside src/units/
+        name: forbid CLHEP units outside the bridge
         language: pygrep
-        entry: 'CLHEP/Units/'
+        # Include path or CLHEP:: symbols; the bridge is the one file allowed both.
+        entry: 'CLHEP/Units/|\bCLHEP::'
         types_or: [c++, c]
-        exclude: ^src/units/
+        exclude: '^src/units/clhep_bridge\.hpp$'
 
       - id: forbid-magic-unit-factors
         name: forbid hand-typed power-of-ten unit conversions
         language: pygrep
-        # Any 1e{3,6,9}-style factor (decimal mantissa and f/l suffixes
-        # included) next to a conversion comment (-> or "to"). The comment
-        # marker keeps it from firing on unrelated powers of ten.
-        entry: '(?<![\w.])[0-9]*\.?[0-9]+[eE]-?[369][fFlL]?\b.*//.*(->|\bto\b)'
+        # Any 1e{3,6,9}-style factor (signed exponent, decimal mantissa and
+        # f/l suffixes included) next to a conversion comment (-> or "to", in
+        # a // or /* */ comment). The marker keeps it from firing on unrelated
+        # powers of ten.
+        entry: '(?<![\w.])[0-9]*\.?[0-9]+[eE][-+]?[369][fFlL]?\b.*(?://|/\*).*(->|\bto\b)'
         types_or: [c++, c]
 
   # Tools below come from the pixi `lint` environment via language: system.

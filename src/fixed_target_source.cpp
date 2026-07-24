@@ -41,14 +41,27 @@ class FixedTargetSource : public phlex::source {
   FixedTargetSource(std::string const& xml_dir, ship::Energy beam_energy,
                     int target_z, int target_a, ship::Length target_z_start,
                     ship::Length target_z_end, ship::Length interaction_length,
-                    aegir::PythiaTime tau0_threshold)
+                    aegir::PythiaTime tau0_threshold, uint32_t user_seed)
       : target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
-        interaction_length_{interaction_length} {
+        interaction_length_{interaction_length},
+        user_seed_{user_seed} {
+    auto configure_pythia_seed = [user_seed](Pythia8::Pythia& pythia) {
+      pythia.readString("Random:setSeed = on");
+      int pythia_seed;
+      if (user_seed != 0) {
+        pythia_seed = (user_seed % 900000000) + 1;
+      } else {
+        pythia_seed = user_seed;
+      }
+      pythia.readString("Random:seed = " + std::to_string(pythia_seed));
+    };
+
     // Proton target (p-p)
     pythia_pp_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
+    configure_pythia_seed(*pythia_pp_);
     aegir::configure_beams(*pythia_pp_, 2212, 2212, beam_energy);
     configure_processes(*pythia_pp_);
     pythia_pp_->readString("Print:quiet = on");
@@ -57,6 +70,7 @@ class FixedTargetSource : public phlex::source {
 
     // Neutron target (p-n)
     pythia_pn_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
+    configure_pythia_seed(*pythia_pn_);
     aegir::configure_beams(*pythia_pn_, 2212, 2112, beam_energy);
     configure_processes(*pythia_pn_);
     pythia_pn_->readString("Print:quiet = on");
@@ -68,7 +82,7 @@ class FixedTargetSource : public phlex::source {
     auto event_number = static_cast<std::uint32_t>(id.number());
     // 0xF14ED0A7: independent stream from the particle gun (0xBEEFCAFE
     // default).
-    aegir::PhiloxRng rng{event_number, 0xF14ED0A7};
+    aegir::PhiloxRng rng{user_seed_, 0xF14ED0A7, event_number};
 
     // Select target: proton with probability Z/A, else neutron
     double z_over_a =
@@ -110,6 +124,7 @@ class FixedTargetSource : public phlex::source {
   ship::Length interaction_length_;
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
+  uint32_t user_seed_;
 };
 
 }  // namespace
@@ -133,8 +148,9 @@ PHLEX_REGISTER_SOURCE(s, config) {
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
+  auto user_seed = config.get<std::uint32_t>("user_seed", 0);
 
   s.add_source<FixedTargetSource>(
       "fixed_target", xml_dir, beam_energy, target_z, target_a, target_z_start,
-      target_z_end, interaction_length, tau0_threshold);
+      target_z_end, interaction_length, tau0_threshold, user_seed);
 }

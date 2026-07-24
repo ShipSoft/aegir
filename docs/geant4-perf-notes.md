@@ -89,6 +89,14 @@ own TLS, which conda-forge builds global-dynamic — a feedstock-level
 observation). Wall time weakly positive within noise. Plugin loading
 verified to still work (glibc's surplus static TLS accommodates it).
 
+Validated environment: linux-64, conda-forge toolchain
+(sysroot_linux-64 2.17), running under the glibc 2.42 dynamic loader
+(NixOS host; pixi maps `/lib64/ld-linux-x86-64.so.2` to it inside the
+environment). Other loaders may reserve less surplus static TLS; if
+plugin loading fails there with "cannot allocate memory in static TLS
+block", rebuild with `-DAEGIR_TLS_INITIAL_EXEC=OFF` (the flag is
+guarded by that CMake option, default `ON`).
+
 ## Voluntary context switches
 
 ~2 per event (4.1–4.3 k per 2000-event run), independent of thread

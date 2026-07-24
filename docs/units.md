@@ -51,9 +51,10 @@ CLHEP or Geant4 headers — always qualify.
 
 ## Enforcement
 
-prek hooks (see `.pre-commit-config.yaml`) fail on: hardcoded
-299792458/299.792458, any `G4SystemOfUnits.hh` include, `CLHEP/Units/`
-outside `src/units/`, and `1e3`/`1e9`-style factors next to unit
-conversion comments. Review rule: no raw double crosses a function
+prek hooks (see `.pre-commit-config.yaml`) fail on: hardcoded c
+(299792458, 299.792458 or 2.99792458e8, digit separators allowed), any
+repo-wide `G4SystemOfUnits.hh` include, `CLHEP/Units/` includes or
+`CLHEP::` symbols outside `src/units/clhep_bridge.hpp`, and
+`1e±3`/`1e±9`-style factors next to unit conversion comments. Review rule: no raw double crosses a function
 boundary with an implicit unit — either the parameter is a quantity
 type, or the conversion happens on the line the value is read.

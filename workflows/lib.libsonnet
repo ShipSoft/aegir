@@ -72,6 +72,7 @@
     target_z_end: 1164.0,  // mm
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
+    user_seed: 0,
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker

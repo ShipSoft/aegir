@@ -12,7 +12,7 @@ local lib = import 'lib.libsonnet';
     gun: lib.pencil_gun { vertex_x: 200.0 },
   },
   modules: {
-    geant4: lib.geant4,
+    geant4: lib.geant4 { seed: 20260703 },  // stable output for comparisons
     output: lib.full_output('gun_st_field_smoke.root', 'gun_st_field_smoke_validation.root'),
   },
 }

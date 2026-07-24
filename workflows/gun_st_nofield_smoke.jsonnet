@@ -9,7 +9,9 @@ local lib = import 'lib.libsonnet';
     gun: lib.pencil_gun { vertex_x: 200.0 },
   },
   modules: {
-    geant4: lib.geant4,
+    // Pinned seed: CI extracts physics metrics from this workflow's output
+    // and compares them against a baseline at tight float tolerance.
+    geant4: lib.geant4 { seed: 20260703 },
     output: lib.full_output('gun_st_nofield_smoke.root', 'gun_st_nofield_smoke_validation.root'),
   },
 }

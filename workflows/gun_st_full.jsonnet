@@ -7,7 +7,10 @@ local lib = import 'lib.libsonnet';
     gun: lib.gun,
   },
   modules: {
-    geant4: lib.geant4,
+    // Pinned seed: scripts/check_determinism.sh compares repeated runs of
+    // this workflow bitwise, and the perf baselines in docs assume a fixed
+    // workload.
+    geant4: lib.geant4 { seed: 20260703 },
     output: lib.full_output('bench_gun_st_output.root', 'bench_gun_st_validation.root'),
   },
 }

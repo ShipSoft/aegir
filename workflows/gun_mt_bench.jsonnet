@@ -7,6 +7,9 @@ local lib = import 'lib.libsonnet';
     gun: lib.gun,
   },
   modules: {
-    geant4: lib.geant4 { concurrency: std.parseInt(std.extVar('concurrency')) },
+    geant4: lib.geant4 {
+      concurrency: std.parseInt(std.extVar('concurrency')),
+      seed: 20260703,  // fixed workload for benchmarks
+    },
   },
 }

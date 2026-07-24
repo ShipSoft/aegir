@@ -10,6 +10,7 @@ local lib = import 'lib.libsonnet';
     geant4: lib.geant4_crossing {
       energy_cut_threshold: 30.0,
       concurrency: std.parseInt(std.extVar('concurrency')),
+      seed: 20260703,  // fixed workload for benchmarks
     },
     output: lib.noop_output,
   },

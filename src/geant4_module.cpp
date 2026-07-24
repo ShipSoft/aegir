@@ -56,6 +56,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -108,7 +109,7 @@ struct Geant4SimConfig {
   std::string physics_list = "FTFP_BERT";
   int verbosity = 0;
   int concurrency = 1;
-  std::uint32_t seed = 20260703;
+  std::uint32_t seed = 0;
   SDMode sd_mode = SDMode::scoring;
   ship::Energy ke_threshold = ship::Energy::zero();
   bool energy_cut = false;
@@ -491,12 +492,25 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto const active_parallelism =
       static_cast<int>(detail::max_allowed_parallelism::active_value());
 
+  // Reproducibility is opt-in: without a configured seed, draw one at random
+  // so independent jobs produce independent output, and log it so any run can
+  // still be reproduced after the fact.
+  auto const configured_seed = config.get_if_present<int>("seed");
+  auto const seed = configured_seed
+                        ? static_cast<std::uint32_t>(*configured_seed)
+                        : static_cast<std::uint32_t>(std::random_device{}());
+  if (!configured_seed)
+    spdlog::info(
+        "geant4: no seed configured — drew random seed {}; set 'seed: {}' to "
+        "reproduce this run",
+        seed, seed);
+
   Geant4SimConfig cfg{
       .physics_list =
           config.get<std::string>("physics_list", std::string{"FTFP_BERT"}),
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
-      .seed = static_cast<std::uint32_t>(config.get<int>("seed", 20260703)),
+      .seed = seed,
       .sd_mode = sd_mode_str == "crossing" ? SDMode::crossing : SDMode::scoring,
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),

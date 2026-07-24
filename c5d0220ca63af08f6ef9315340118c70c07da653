@@ -1,0 +1,180 @@
+{
+  "timestamp": "2026-07-24T08:46:53.957672Z",
+  "configuration": "",
+  "files": {
+    "gun_st_nofield_smoke_validation.root": {
+      "file_size": 6123,
+      "trees": {},
+      "histograms": {
+        "h_mc_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 1.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_mc_momentum": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 20.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 9.19,
+            "uncertainty": 0.787235034789484,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 7.87235034789484,
+            "uncertainty": 0.5566592314872718,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_edep": {
+          "entries": {
+            "value": 919.0,
+            "uncertainty": 30.315012782448235,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 0.00012842571746888751,
+            "uncertainty": 3.325987818940081e-06,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.00010082736324543567,
+            "uncertainty": 2.3518285409163857e-06,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 919.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_z": {
+          "entries": {
+            "value": 919.0,
+            "uncertainty": 30.315012782448235,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 6054.226850531355,
+            "uncertainty": 92.90260948799936,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 2816.343794151497,
+            "uncertainty": 65.69206515889003,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 919.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_detector": {
+          "entries": {
+            "value": 919.0,
+            "uncertainty": 30.315012782448235,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 919.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_momentum": {
+          "entries": {
+            "value": 919.0,
+            "uncertainty": 30.315012782448235,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 11.09779676574723,
+            "uncertainty": 0.32778343560161827,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 9.936759040137856,
+            "uncertainty": 0.23177789007452826,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 919.0,
+            "compare": "float"
+          }
+        },
+        "h_particle_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 304.76,
+            "uncertainty": 6.457803341694453,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 64.57803341694454,
+            "uncertainty": 4.5663565344812955,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        }
+      }
+    }
+  }
+}

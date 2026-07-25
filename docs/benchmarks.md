@@ -3,6 +3,8 @@
 Measured on a single machine (i7-8665U: 4 cores / 8 threads).
 All results use `hyperfine` with warmup runs.
 Phlex v0.1.0, ROOT 6.38, Pythia8 8.317, Geant4 11.4.
+The bench workflows pin both the generator-source and geant4 `seed`, so
+every run simulates the same fixed workload.
 
 ## Pythia8: standalone vs Phlex
 

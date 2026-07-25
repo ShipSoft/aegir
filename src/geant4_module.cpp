@@ -53,11 +53,9 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -73,6 +71,7 @@
 #include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
+#include "seed_config.hpp"
 #include "units/clhep_bridge.hpp"
 #include "units/config_units.hpp"
 
@@ -493,26 +492,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto const active_parallelism =
       static_cast<int>(detail::max_allowed_parallelism::active_value());
 
-  // Reproducibility is opt-in: without a configured seed, draw one at random
-  // so independent jobs produce independent output, and log it so any run can
-  // still be reproduced after the fact. Parsed as int64 so the full uint32
-  // range survives — drawn seeds are logged as uint32 values, and pasting one
-  // back must round-trip.
-  auto const configured_seed = config.get_if_present<std::int64_t>("seed");
-  if (configured_seed &&
-      (*configured_seed < 0 ||
-       *configured_seed > std::numeric_limits<std::uint32_t>::max()))
-    throw std::runtime_error("geant4_module: seed " +
-                             std::to_string(*configured_seed) +
-                             " is outside the valid range [0, 4294967295]");
-  auto const seed = configured_seed
-                        ? static_cast<std::uint32_t>(*configured_seed)
-                        : static_cast<std::uint32_t>(std::random_device{}());
-  if (!configured_seed)
-    spdlog::info(
-        "geant4: no seed configured — drew random seed {}; set 'seed: {}' to "
-        "reproduce this run",
-        seed, seed);
+  auto const seed = aegir::resolve_seed(config, "geant4");
 
   Geant4SimConfig cfg{
       .physics_list =

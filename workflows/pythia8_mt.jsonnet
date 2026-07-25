@@ -1,6 +1,7 @@
 local lib = import 'lib.libsonnet';
 // Pass --tla-code seed=N (e.g. a batch job id) for reproducible large-scale
-// runs; without it each run draws its own random seed.
+// runs — it seeds both the generator source and Geant4; without it each
+// draws its own random seed.
 function(seed=null) {
   driver: lib.driver(100),
   sources: {
@@ -10,6 +11,7 @@ function(seed=null) {
       parallel: true,
       num_threads: 4,
       num_events: 100,
+      [if seed != null then 'seed']: seed,
     },
   },
   modules: {

@@ -6,7 +6,7 @@ local lib = import 'lib.libsonnet';
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.null_field,
-    gun: lib.pencil_gun { vertex_x: 200.0 },
+    gun: lib.pencil_gun { vertex_x: 200.0, seed: 20260703 },
   },
   modules: {
     // Pinned seed: CI extracts physics metrics from this workflow's output

@@ -8,7 +8,7 @@ local lib = import 'lib.libsonnet';
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.world_field_05T_y,
-    gun: lib.pencil_gun { vertex_x: 200.0 },
+    gun: lib.pencil_gun { vertex_x: 200.0, seed: 20260703 },
   },
   modules: {
     geant4: lib.geant4 { concurrency: 4, seed: 20260703 },

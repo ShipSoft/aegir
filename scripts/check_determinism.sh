@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Verifies that simulation output is independent of scheduling: two
-# multi-threaded runs and one single-threaded run of gun_st_full must
-# produce identical hit/particle counts and energy/position sums.
+# Verifies that aggregate simulation output is independent of scheduling:
+# two multi-threaded runs and one single-threaded run of gun_st_full must
+# produce identical event/hit/particle counts and energy/position sums.
+# The comparison is over these per-run aggregates, not event by event, so
+# compensating per-event differences would in principle go unnoticed.
 # Requires the bench environment (ROOT python): pixi run -e bench ...
 set -euo pipefail
 
@@ -59,5 +61,6 @@ if results["mt1"] != results["mt2"]:
     sys.exit("FAIL: two multi-threaded runs differ")
 if results["mt1"] != results["st"]:
     sys.exit("FAIL: multi-threaded and single-threaded runs differ")
-print("OK: simulation output is scheduling-independent")
+print("OK: aggregate simulation output (counts, energy/position sums) "
+      "is scheduling-independent")
 EOF

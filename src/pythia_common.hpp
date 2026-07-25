@@ -31,6 +31,10 @@ using PythiaTime = mp_units::quantity<ship::units::mm_per_c, double>;
 // [1, 900000000]. extra_streams reserves headroom for consecutive
 // per-instance seeds (PythiaParallel seeds helper i with Random:seed + i).
 inline int pythia_seed(std::uint32_t base, int extra_streams = 0) {
+  if (extra_streams < 0 || extra_streams >= 900000000)
+    throw std::invalid_argument("pythia_seed: extra_streams " +
+                                std::to_string(extra_streams) +
+                                " must be in [0, 900000000)");
   auto const range = static_cast<std::uint32_t>(900000000 - extra_streams);
   return static_cast<int>(base % range) + 1;
 }

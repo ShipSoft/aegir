@@ -87,11 +87,15 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   comparison); measured identical to full float precision.
 - Reproducibility is opt-in: without a `seed` in the module config, each
   run draws a random base seed (logged at startup, so any run can still
-  be reproduced by configuring the logged value). Workflows whose output
-  is compared across runs — the CI smokes, the benchmarks, and
-  `gun_st_full` used by the determinism check — pin `seed` explicitly;
-  the large-scale MT workflows accept it as a jsonnet argument
-  (`--tla-code seed=N`).
+  be reproduced by configuring the logged value). The generator sources
+  (particle gun, pythia8, fixed target) follow the same convention with
+  their own `seed` key, so unseeded runs also vary in their primaries;
+  the Pythia-based sources always forward a definite seed to Pythia
+  (mapped into its valid `Random:seed` range [1, 900000000]). Workflows
+  whose output is compared across runs — the CI smokes, the benchmarks,
+  and `gun_st_full` used by the determinism check — pin both the module
+  and source seeds explicitly; the large-scale MT workflows accept a
+  jsonnet argument (`--tla-code seed=N`) that feeds both.
 
 ## TLS model
 

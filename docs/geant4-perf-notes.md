@@ -82,8 +82,9 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   calling worker's engine from the data-cell index hash (Philox stream
   keyed on the base seed), so the event↔RNG pairing no longer
   depends on scheduling. `scripts/check_determinism.sh` verifies two
-  `-j 12` runs and a `-j 1` run produce identical hit/particle counts
-  and energy/position sums; measured identical to full float precision.
+  `-j 12` runs and a `-j 1` run produce identical aggregate hit/particle
+  counts and energy/position sums (per-run totals, not an event-by-event
+  comparison); measured identical to full float precision.
 - Reproducibility is opt-in: without a `seed` in the module config, each
   run draws a random base seed (logged at startup, so any run can still
   be reproduced by configuring the logged value). Workflows whose output

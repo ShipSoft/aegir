@@ -53,6 +53,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -494,8 +495,16 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   // Reproducibility is opt-in: without a configured seed, draw one at random
   // so independent jobs produce independent output, and log it so any run can
-  // still be reproduced after the fact.
-  auto const configured_seed = config.get_if_present<int>("seed");
+  // still be reproduced after the fact. Parsed as int64 so the full uint32
+  // range survives — drawn seeds are logged as uint32 values, and pasting one
+  // back must round-trip.
+  auto const configured_seed = config.get_if_present<std::int64_t>("seed");
+  if (configured_seed &&
+      (*configured_seed < 0 ||
+       *configured_seed > std::numeric_limits<std::uint32_t>::max()))
+    throw std::runtime_error("geant4_module: seed " +
+                             std::to_string(*configured_seed) +
+                             " is outside the valid range [0, 4294967295]");
   auto const seed = configured_seed
                         ? static_cast<std::uint32_t>(*configured_seed)
                         : static_cast<std::uint32_t>(std::random_device{}());

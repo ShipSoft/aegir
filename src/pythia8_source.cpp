@@ -13,6 +13,7 @@
 
 #include <SHiP/MCParticle.hpp>
 #include <condition_variable>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <future>
@@ -26,6 +27,7 @@
 
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
+#include "seed_config.hpp"
 #include "units/config_units.hpp"
 
 namespace {
@@ -37,11 +39,14 @@ namespace {
 class Pythia8Source : public phlex::source {
  public:
   Pythia8Source(std::string const& xml_dir, ship::Energy beam_energy,
-                std::string const& process) {
+                std::string const& process, std::uint32_t seed) {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
     aegir::configure_beams(*pythia_, 2212, 2212, beam_energy);
     pythia_->readString(process + " = on");
     pythia_->readString("Print:quiet = on");
+    pythia_->readString("Random:setSeed = on");
+    pythia_->readString("Random:seed = " +
+                        std::to_string(aegir::pythia_seed(seed)));
     pythia_->init();
   }
 
@@ -72,7 +77,7 @@ class Pythia8MTSource : public phlex::source {
  public:
   Pythia8MTSource(std::string const& xml_dir, ship::Energy beam_energy,
                   std::string const& process, int num_threads, long num_events,
-                  std::size_t max_queue_size)
+                  std::size_t max_queue_size, std::uint32_t seed)
       : max_queue_size_{max_queue_size} {
     pythia_thread_ = std::jthread([=, this] {
       // Ensure done_ is always signalled when the thread exits,
@@ -94,6 +99,14 @@ class Pythia8MTSource : public phlex::source {
         pythia.readString("Print:quiet = on");
         pythia.readString("Parallelism:numThreads = " +
                           std::to_string(num_threads));
+        // PythiaParallel seeds helper i with Random:seed + i; the headroom
+        // keeps every helper inside the valid range. Per-run statistics are
+        // reproducible per seed (helpers divide the events evenly by
+        // default), but arrival order through the queue is not — compare
+        // aggregates, not per-event content.
+        pythia.readString("Random:setSeed = on");
+        pythia.readString("Random:seed = " + std::to_string(aegir::pythia_seed(
+                                                 seed, num_threads)));
         pythia.init();
 
         ready_promise_.set_value();
@@ -208,9 +221,10 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto process =
       config.get<std::string>("process", std::string{"SoftQCD:inelastic"});
   auto parallel = config.get<bool>("parallel", false);
+  auto seed = aegir::resolve_seed(config, "pythia8");
 
   if (!parallel) {
-    s.add_source<Pythia8Source>("pythia8", xml_dir, beam_energy, process);
+    s.add_source<Pythia8Source>("pythia8", xml_dir, beam_energy, process, seed);
   } else {
     auto num_threads = config.get<int>("num_threads", 4);
     auto num_events = config.get<long>("num_events", 100);
@@ -221,6 +235,6 @@ PHLEX_REGISTER_SOURCE(s, config) {
 
     s.add_source<Pythia8MTSource>("pythia8", xml_dir, beam_energy, process,
                                   num_threads, num_events,
-                                  static_cast<std::size_t>(queue_size));
+                                  static_cast<std::size_t>(queue_size), seed);
   }
 }

@@ -16,6 +16,7 @@
 
 #include "mc_particle_source.hpp"
 #include "philox_rng.hpp"
+#include "seed_config.hpp"
 #include "units/config_units.hpp"
 
 namespace {
@@ -25,16 +26,21 @@ namespace su = ship::units;
 class ParticleGun : public phlex::source {
  public:
   ParticleGun(int pdg, ship::Momentum p_min, ship::Momentum p_max,
-              ship::Angle max_theta, ship::Vec3<ship::Length> vertex)
+              ship::Angle max_theta, ship::Vec3<ship::Length> vertex,
+              std::uint32_t seed)
       : pdg_{pdg},
         p_min_{p_min},
         p_max_{p_max},
         max_theta_{max_theta},
-        vertex_{ship::raw(vertex)} {}
+        vertex_{ship::raw(vertex)},
+        seed_{seed} {}
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto event_number = static_cast<std::uint32_t>(id.number());
-    aegir::PhiloxRng rng{event_number};
+    // 0xBEEFCAFE: the gun's stream, independent of fixed_target (0xF14ED0A7)
+    // and geant4 (0x47345EED); the event number selects the counter
+    // sub-stream so events stay decorrelated for any base seed.
+    aegir::PhiloxRng rng{seed_, 0xBEEFCAFE, event_number};
 
     // Sampling stays on raw numbers so the Philox stream is bit-identical;
     // the bounds are unwrapped in the canonical units on the same lines.
@@ -72,6 +78,7 @@ class ParticleGun : public phlex::source {
   ship::Momentum p_min_, p_max_;
   ship::Angle max_theta_;
   std::array<double, 3> vertex_;  // canonical mm
+  std::uint32_t seed_;
 };
 
 }  // namespace
@@ -87,7 +94,8 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
   // Default: upstream of the target.
   auto vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
+  auto seed = aegir::resolve_seed(config, "particle_gun");
 
   s.add_source<ParticleGun>("particle_gun", pdg, p_min, p_max, max_theta,
-                            ship::Vec3<ship::Length>{vx, vy, vz});
+                            ship::Vec3<ship::Length>{vx, vy, vz}, seed);
 }

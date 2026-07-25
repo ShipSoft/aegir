@@ -15,6 +15,7 @@
 #include <Pythia8/Pythia.h>
 
 #include <SHiP/Units.hpp>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -25,6 +26,14 @@ namespace aegir {
 // Pythia8's native units: energies/momenta in GeV, positions in mm,
 // production times in mm/c.
 using PythiaTime = mp_units::quantity<ship::units::mm_per_c, double>;
+
+// Map a 32-bit base seed into Pythia's valid Random:seed range
+// [1, 900000000]. extra_streams reserves headroom for consecutive
+// per-instance seeds (PythiaParallel seeds helper i with Random:seed + i).
+inline int pythia_seed(std::uint32_t base, int extra_streams = 0) {
+  auto const range = static_cast<std::uint32_t>(900000000 - extra_streams);
+  return static_cast<int>(base % range) + 1;
+}
 
 // Configure a fixed-target beam: beam A on a stationary target B (frameType 2,
 // eB = 0). Templated so it works for both Pythia8::Pythia and PythiaParallel.

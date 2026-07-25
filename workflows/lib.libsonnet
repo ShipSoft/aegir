@@ -36,6 +36,10 @@
     sensitive_volumes: ['ScoringPlane'],
   },
 
+  // The generator sources follow the same seeding convention as the geant4
+  // module below: without a `seed`, each run draws a random one (logged at
+  // startup, so a run can be reproduced after the fact). Merge one in for
+  // reproducible primaries, e.g. lib.gun { seed: 12345 }.
   // Default spray gun: 10–100 GeV μ− in a narrow cone from z = −500 mm.
   gun:: {
     cpp: 'particle_gun_source',
@@ -72,7 +76,6 @@
     target_z_end: 1164.0,  // mm
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
-    user_seed: 0,
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker

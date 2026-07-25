@@ -4,7 +4,7 @@ local lib = import 'lib.libsonnet';
   sources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
-    gun: lib.gun,
+    gun: lib.gun { seed: 20260703 },
   },
   modules: {
     // Pinned seed: scripts/check_determinism.sh compares repeated runs of

@@ -9,6 +9,7 @@ local num_events = std.parseInt(std.extVar('num_events'));
       parallel: true,
       num_threads: std.parseInt(std.extVar('pythia_threads')),
       num_events: num_events,
+      seed: 20260703,  // fixed workload for benchmarks
     },
   },
   modules: {

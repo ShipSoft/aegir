@@ -91,7 +91,7 @@ endfunction()
 
 aegir_add_plugin(
     particle_gun_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog
     INCLUDES ${Random123_INCLUDE_DIR}
 )
 
@@ -155,12 +155,12 @@ aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
 
 aegir_add_plugin(
     pythia8_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
 )
 
 aegir_add_plugin(
     fixed_target_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
     INCLUDES ${Random123_INCLUDE_DIR}
 )
 

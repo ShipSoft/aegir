@@ -9,9 +9,9 @@
 import argparse
 import sys
 
-import ROOT
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import ROOT
 from matplotlib import rcParams
 
 rcParams.update(
@@ -164,7 +164,7 @@ def plot(mu_plus, mu_minus, output, n_pot, e_cut):
         label=r"$\mu^+$",
     )
     ax2.set_xlabel(r"$p_{\mathrm{T}}$ [GeV/$c$]")
-    ax2.set_ylabel(r"Entries / {:.0f} MeV".format(1000 * (bins_pt[1] - bins_pt[0])))
+    ax2.set_ylabel(rf"Entries / {1000 * (bins_pt[1] - bins_pt[0]):.0f} MeV")
     ax2.set_yscale("log")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
@@ -204,7 +204,7 @@ def main():
 
     try:
         mu_plus, mu_minus = read_muon_data(args.input, args.ntuple)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"RDataFrame approach failed ({e}), trying loop...", file=sys.stderr)
         mu_plus, mu_minus = read_muon_data_loop(args.input, args.ntuple)
 

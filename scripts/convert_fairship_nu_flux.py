@@ -27,6 +27,7 @@ fStartT units with the neutrino group before production use.
 
 import argparse
 import sys
+from typing import ClassVar
 
 import ROOT
 
@@ -103,7 +104,7 @@ def write_meta(out_file_name, pot, max_energy, description, software):
 class CbmsimLeaves:
     """Leaf-based access to one cbmsim entry (no dictionaries needed)."""
 
-    LEAVES = {
+    LEAVES: ClassVar[dict[str, str]] = {
         "pdg": "MCTrack.fPdgCode",
         "mother": "MCTrack.fMotherId",
         "px": "MCTrack.fPx",

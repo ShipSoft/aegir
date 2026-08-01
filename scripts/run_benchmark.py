@@ -28,7 +28,6 @@ import sys
 import tempfile
 import time
 
-
 WORKFLOW_JSONNET = {
     "gun_mt": "workflows/gun_mt_bench.jsonnet",
     "pythia8_mt": "workflows/pythia8_mt_bench.jsonnet",
@@ -55,7 +54,7 @@ def render_jsonnet(workflow, num_events, g4_threads, pythia_threads=None):
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-    tmp = tempfile.NamedTemporaryFile(
+    tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", suffix=".json", delete=False, prefix="bench_"
     )
     tmp.write(result.stdout)
@@ -69,7 +68,9 @@ def run_phlex(config_json, parallelism, trace_file=None):
     env = os.environ.copy()
     if trace_file:
         env["AEGIR_TRACE_FILE"] = trace_file
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600, env=env)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=3600, env=env, check=False
+    )
     return result
 
 
@@ -176,7 +177,7 @@ def aggregate_cohort_traces(cohort_results):
             continue
     if not all_events:
         return parse_chrome_trace("/nonexistent")
-    tmp = tempfile.NamedTemporaryFile(
+    tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
         mode="w", suffix=".json", delete=False, prefix="cohort_merged_"
     )
     json.dump(all_events, tmp)
@@ -470,10 +471,10 @@ def plot_results(results, output_prefix):
         return statistics.mean(vals) if vals else None
 
     # 1. Real time vs g4_threads
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    _fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
-    par_levels = sorted(set(r["parallelism"] for r in data))
-    g4_levels = sorted(set(r["g4_threads"] for r in data))
+    par_levels = sorted({r["parallelism"] for r in data})
+    g4_levels = sorted({r["g4_threads"] for r in data})
 
     for par in par_levels:
         xs, ys = [], []

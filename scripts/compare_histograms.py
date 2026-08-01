@@ -37,7 +37,7 @@ def compare(path_a, path_b):
             print(f"{name}: bin count differs")
             ok = False
             continue
-        for b in range(0, ha.GetNbinsX() + 2):  # include under/overflow
+        for b in range(ha.GetNbinsX() + 2):  # include under/overflow
             if ha.GetBinContent(b) != hb.GetBinContent(b):
                 print(
                     f"{name}: bin {b} differs "

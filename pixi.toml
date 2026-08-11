@@ -9,17 +9,10 @@ preview = ["pixi-build"]
 requires-pixi = ">=0.68"
 
 [dependencies]
-# SHiP/HEP packages (prefix.dev/ship + conda-forge)
-# >=0.2: provides the SHiP::SHiPUnits target and SHiP/Units.hpp (mp-units
-# vocabulary) that the Geant4 CLHEP unit bridge links against.
-shipdatamodel = ">=0.2"
-shipgeometry = "*"
-# >=0.3: process-wide geometry thread + shared service registry, both shared
-# between geant4_module and any other Geant4 geometry user (e.g. aegir-genie's
-# GENIE source — its issue #11). Keep in lockstep with aegir-genie's pin: the
-# unversioned soname means ld.so dedups the library process-wide and the
-# first-loaded copy wins.
-shipgeometryservice = ">=0.3"
+# SHiP/HEP packages (prefix.dev/ship + conda-forge). NB: the three co-developed
+# packages (shipdatamodel/shipgeometry/shipgeometryservice) are declared in
+# [feature.released] just below — not here — so the opt-in `dev` environment can
+# override them with sibling source builds without these channel specs in scope.
 field-service-core = "*"
 field-service-g4 = "*"
 phlex = ">=0.3.0"
@@ -44,6 +37,23 @@ eigen = "*"
 cmake = ">=3.27"
 ninja = "*"
 cxx-compiler = "*"
+
+# The three co-developed SHiP packages as their released conda builds
+# (prefix.dev/ship). Held in a feature the default/bench/lint environments pull
+# in — deliberately NOT in the base [dependencies] — so the opt-in `dev`
+# environment (path overrides in [feature.dev] below) sees no channel spec for
+# them and builds them from the sibling source checkouts instead.
+[feature.released.dependencies]
+# >=0.2: provides the SHiP::SHiPUnits target and SHiP/Units.hpp (mp-units
+# vocabulary) that the Geant4 CLHEP unit bridge links against.
+shipdatamodel = ">=0.2"
+shipgeometry = "*"
+# >=0.3: process-wide geometry thread + shared service registry, both shared
+# between geant4_module and any other Geant4 geometry user (e.g. aegir-genie's
+# GENIE source — its issue #11). Keep in lockstep with aegir-genie's pin: the
+# unversioned soname means ld.so dedups the library process-wide and the
+# first-loaded copy wins.
+shipgeometryservice = ">=0.3"
 
 [activation]
 scripts = ["activate.sh"]
@@ -128,7 +138,7 @@ sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg
 # shipgeometryservice = { path = "../geometry_service" }
 
 [environments]
-default = { solve-group = "default" }
-bench = { features = ["bench"], solve-group = "default" }
-lint = { features = ["lint"], solve-group = "lint" }
+default = { features = ["released"], solve-group = "default" }
+bench = { features = ["bench", "released"], solve-group = "default" }
+lint = { features = ["lint", "released"], solve-group = "lint" }
 # dev = { features = ["dev"] }  # multi-package dev, see block above

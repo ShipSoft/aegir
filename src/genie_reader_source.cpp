@@ -10,10 +10,10 @@
 // libraries, so event generation stays decoupled from the aegir build; see
 // docs/genie.md for how to produce the input files.
 
-#include <TFile.h>
 #include <TLeaf.h>
 #include <TTree.h>
 
+#include <ROOT/RFile.hxx>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/Units.hpp>
 #include <algorithm>
@@ -28,6 +28,8 @@ namespace {
 
 namespace su = ship::units;
 
+using ROOT::Experimental::RFile;
+
 // GENIE GHepStatus: 1 = stable final state (trackable by Geant4).
 constexpr int kStableFinalState = 1;
 
@@ -41,11 +43,13 @@ class GenieReaderSource : public phlex::source {
   GenieReaderSource(std::string const& file, std::string const& tree_name,
                     long long first_entry)
       : file_name_{file}, first_entry_{first_entry} {
-    file_.reset(TFile::Open(file.c_str(), "READ"));
-    if (!file_ || file_->IsZombie())
+    try {
+      file_ = RFile::Open(file);
+    } catch (ROOT::RException const& e) {
       throw std::runtime_error("genie_reader_source: cannot open '" + file +
-                               "'");
-    tree_ = file_->Get<TTree>(tree_name.c_str());
+                               "': " + e.what());
+    }
+    tree_ = file_->Get<TTree>(tree_name);
     if (!tree_)
       throw std::runtime_error("genie_reader_source: no TTree '" + tree_name +
                                "' in '" + file + "'");
@@ -162,8 +166,10 @@ class GenieReaderSource : public phlex::source {
 
   std::string file_name_;
   long long first_entry_;
-  std::unique_ptr<TFile> file_;
-  TTree* tree_ = nullptr;  // owned by file_
+  // Declaration order matters: the TTree stays attached to the underlying
+  // file for lazy basket reads, so it must be destroyed before file_.
+  std::unique_ptr<RFile> file_;
+  std::unique_ptr<TTree> tree_;
 
   int n_particles_ = 0;
   double vtx_[4] = {0, 0, 0, 0};  // x, y, z, t (SI: m, s)

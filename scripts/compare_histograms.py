@@ -19,33 +19,35 @@ HISTOGRAMS = ["h_mc_multiplicity", "h_mc_momentum", "h_mc_pdg"]
 
 
 def compare(path_a, path_b):
-    fa = ROOT.TFile.Open(path_a)
-    fb = ROOT.TFile.Open(path_b)
-    if not fa or fa.IsZombie() or not fb or fb.IsZombie():
-        print(f"could not open {path_a} and/or {path_b}")
+    try:
+        fa = ROOT.Experimental.RFile.Open(path_a)
+        fb = ROOT.Experimental.RFile.Open(path_b)
+    except ROOT.RException as err:
+        print(f"could not open {path_a} and/or {path_b}: {err}")
         return False
 
-    ok = True
-    for name in HISTOGRAMS:
-        ha = fa.Get(name)
-        hb = fb.Get(name)
-        if not ha or not hb:
-            print(f"missing histogram {name}")
-            ok = False
-            continue
-        if ha.GetNbinsX() != hb.GetNbinsX():
-            print(f"{name}: bin count differs")
-            ok = False
-            continue
-        for b in range(ha.GetNbinsX() + 2):  # include under/overflow
-            if ha.GetBinContent(b) != hb.GetBinContent(b):
-                print(
-                    f"{name}: bin {b} differs "
-                    f"({ha.GetBinContent(b)} != {hb.GetBinContent(b)})"
-                )
+    with fa, fb:
+        ok = True
+        for name in HISTOGRAMS:
+            ha = fa.Get(name)
+            hb = fb.Get(name)
+            if not ha or not hb:
+                print(f"missing histogram {name}")
                 ok = False
-                break
-    return ok
+                continue
+            if ha.GetNbinsX() != hb.GetNbinsX():
+                print(f"{name}: bin count differs")
+                ok = False
+                continue
+            for b in range(ha.GetNbinsX() + 2):  # include under/overflow
+                if ha.GetBinContent(b) != hb.GetBinContent(b):
+                    print(
+                        f"{name}: bin {b} differs "
+                        f"({ha.GetBinContent(b)} != {hb.GetBinContent(b)})"
+                    )
+                    ok = False
+                    break
+        return ok
 
 
 if __name__ == "__main__":

@@ -64,7 +64,9 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
 - `configure` — run CMake with `CMAKE_PREFIX_PATH=$CONDA_PREFIX`.
 - `build` — `cmake --build build -j`. Depends on `configure`.
 - `install` — `cmake --install build`, populating `$CONDA_PREFIX/lib` and `bin`.
-- `test` — `ctest --test-dir build --output-on-failure` (no-op until tests are added).
+- `test` — `ctest --test-dir build --output-on-failure`. Runs the integration
+  tests registered in [`CMakeLists.txt`](CMakeLists.txt), each a script in
+  [`scripts/`](scripts/). CI runs this task.
 - `smoke` — quick end-to-end check used by CI ([`scripts/smoke.sh`](scripts/smoke.sh)).
 - `clean` — `rm -rf build`.
 

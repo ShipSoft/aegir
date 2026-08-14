@@ -213,10 +213,19 @@ add_test(
 )
 
 # file_source round-trip: write an RNTuple, read it back through file_source +
-# Geant4, and check the count helper, read-all, and the skip offset.
+# Geant4, and check the count helper, read-all, the skip offset, and the
+# re-simulation of both MCParticle and SimParticle inputs.
 add_test(
     NAME file_source_roundtrip
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/file_source_roundtrip.sh
+)
+
+# Event header round-trip: file_source must publish the header stored in the
+# input, and fall back to the unweighted default for a file written before the
+# event_header field existed. Reads back via mc_only, so no Geant4.
+add_test(
+    NAME event_header_roundtrip
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/event_header_roundtrip.sh
 )
 
 # Physics-list failure: an unknown physics_list must fail cleanly (catchable

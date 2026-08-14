@@ -69,3 +69,9 @@ All particles of an event share the interaction vertex (`EvtVtx`), converted
 from GENIE's SI units to aegir's mm/ns. `motherId` is remapped to index the
 emitted collection and is `-1` when the mother was not itself final state —
 the common case.
+
+Per-event metadata is copied into the `EventHeader`: the GENIE event weight
+(`EvtWght`) becomes `weight` and the event number (`EvtNum`) becomes
+`original_event_id` (event-level provenance). Both branches are optional — a
+file produced without them reads fine and keeps the unweighted defaults
+(`weight = 1.0`, `original_event_id = -1`).

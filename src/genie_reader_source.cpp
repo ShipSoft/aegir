@@ -14,10 +14,13 @@
 #include <TTree.h>
 
 #include <ROOT/RFile.hxx>
+#include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/Units.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -74,62 +77,71 @@ class GenieReaderSource : public phlex::source {
     enable_branch("StdHepStatus", status_.data());
     enable_branch("StdHepFm", first_mother_.data());
     enable_branch("StdHepP4", p4_.data());
+    // Event-level provenance for the EventHeader. Optional: files produced
+    // without these branches keep the unweighted defaults (weight 1.0, id -1).
+    enable_optional_branch("EvtWght", &weight_);
+    enable_optional_branch("EvtNum", &evt_num_);
   }
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto const entry = first_entry_ + static_cast<long long>(id.number());
-    if (entry >= tree_->GetEntries())
-      throw std::runtime_error(
-          "genie_reader_source: input exhausted — the workflow requested "
-          "entry " +
-          std::to_string(entry) + " but '" + file_name_ + "' holds only " +
-          std::to_string(tree_->GetEntries()) +
-          " events. Reduce the driver's event count or provide a larger "
-          "file.");
-    tree_->GetEntry(entry);
-
-    auto const n = n_particles_;
-    if (n < 0 || n > static_cast<int>(pdg_.size()))
-      throw std::runtime_error("genie_reader_source: corrupt entry " +
-                               std::to_string(entry) +
-                               ": StdHepN = " + std::to_string(n));
-
-    // The interaction vertex is per event (EvtVtx, SI units); the per-particle
-    // StdHepX4 positions are nuclear-scale offsets and irrelevant for
-    // tracking. GENIE's SI values acquire their unit here and convert to the
-    // canonical storage units (exact powers of ten).
-    std::array<double, 3> const vertex{
-        (vtx_[0] * su::m).numerical_value_in(su::mm),
-        (vtx_[1] * su::m).numerical_value_in(su::mm),
-        (vtx_[2] * su::m).numerical_value_in(su::mm)};
-    double const time = (vtx_[3] * su::s).numerical_value_in(su::ns);
 
     std::vector<SHiP::MCParticle> particles;
-    particles.reserve(static_cast<std::size_t>(n));
-    // StdHep-record index -> output index for written (final-state) particles.
-    std::vector<int> out_index(static_cast<std::size_t>(n), -1);
+    std::vector<int> out_index;
+    int n = 0;
+    {
+      // The mc_particles and event_header providers become separate phlex nodes
+      // that may run concurrently; the TTree and its shared branch buffers are
+      // not thread-safe, so io_mutex_ serialises every read. Copy the particle
+      // record out of the buffers before releasing the lock.
+      std::lock_guard const lock{io_mutex_};
+      require_in_range(entry);
+      load_entry(entry);
 
-    for (int i = 0; i < n; ++i) {
-      if (status_[i] != kStableFinalState) continue;
+      n = n_particles_;
+      if (n < 0 || n > static_cast<int>(pdg_.size()))
+        throw std::runtime_error("genie_reader_source: corrupt entry " +
+                                 std::to_string(entry) +
+                                 ": StdHepN = " + std::to_string(n));
 
-      out_index[static_cast<std::size_t>(i)] =
-          static_cast<int>(particles.size());
+      // The interaction vertex is per event (EvtVtx, SI units); the
+      // per-particle StdHepX4 positions are nuclear-scale offsets and
+      // irrelevant for tracking. GENIE's SI values acquire their unit here and
+      // convert to the canonical storage units (exact powers of ten).
+      std::array<double, 3> const vertex{
+          (vtx_[0] * su::m).numerical_value_in(su::mm),
+          (vtx_[1] * su::m).numerical_value_in(su::mm),
+          (vtx_[2] * su::m).numerical_value_in(su::mm)};
+      double const time = (vtx_[3] * su::s).numerical_value_in(su::ns);
 
-      SHiP::MCParticle mc;
-      mc.pdgCode = pdg_[static_cast<std::size_t>(i)];
-      mc.vertex = vertex;
-      mc.momentum = {p4(i, 0), p4(i, 1), p4(i, 2)};  // GeV
-      mc.energy = p4(i, 3);                          // GeV
-      mc.time = time;
-      mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
-      mc.status = 1;
-      particles.push_back(mc);
+      particles.reserve(static_cast<std::size_t>(n));
+      // StdHep-record index -> output index for written (final-state)
+      // particles.
+      out_index.assign(static_cast<std::size_t>(n), -1);
+
+      for (int i = 0; i < n; ++i) {
+        if (status_[i] != kStableFinalState) continue;
+
+        out_index[static_cast<std::size_t>(i)] =
+            static_cast<int>(particles.size());
+
+        SHiP::MCParticle mc;
+        mc.pdgCode = pdg_[static_cast<std::size_t>(i)];
+        mc.vertex = vertex;
+        mc.momentum = {p4(i, 0), p4(i, 1), p4(i, 2)};  // GeV
+        mc.energy = p4(i, 3);                          // GeV
+        mc.time = time;
+        mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
+        mc.status = 1;
+        particles.push_back(mc);
+      }
     }
 
     // Remap motherId from the full StdHep record to the emitted collection, or
     // -1 when the mother was not itself written out — the common case, since
     // mothers of final-state particles (the neutrino, the struck nucleus,
-    // intermediate states) are generally not final state.
+    // intermediate states) are generally not final state. Operates on local
+    // vectors only, so it needs no lock.
     for (auto& mc : particles) {
       int const m = mc.motherId;
       mc.motherId =
@@ -138,12 +150,25 @@ class GenieReaderSource : public phlex::source {
     return particles;
   }
 
+  SHiP::EventHeader generate_header(phlex::data_cell_index const& id) {
+    auto const entry = first_entry_ + static_cast<long long>(id.number());
+    std::lock_guard const lock{io_mutex_};
+    require_in_range(entry);
+    load_entry(entry);
+    // weight_/evt_num_ keep their defaults (1.0 / -1) when the optional
+    // EvtWght/EvtNum branches are absent from the file.
+    return SHiP::EventHeader{weight_, static_cast<std::int64_t>(evt_num_)};
+  }
+
   phlex::detail::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
         selector,
         [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
+        phlex::concurrency::serial,
+        [this](phlex::data_cell_index const& id) {
+          return generate_header(id);
+        });
   }
 
   phlex::index_generator indices() override { co_return; }
@@ -158,6 +183,36 @@ class GenieReaderSource : public phlex::source {
                                "rootracker)?");
     tree_->SetBranchStatus(name.c_str(), true);
     tree_->SetBranchAddress(name.c_str(), address);
+  }
+
+  // Like enable_branch but tolerates a missing branch, leaving *address at its
+  // caller-supplied default. Used for the optional event-header provenance.
+  template <typename T>
+  void enable_optional_branch(char const* name, T* address) {
+    if (!tree_->GetBranch(name)) return;
+    tree_->SetBranchStatus(name, true);
+    tree_->SetBranchAddress(name, address);
+  }
+
+  // Load an entry into the shared branch buffers, skipping the read when it is
+  // already resident so the mc_particles and event_header providers do not each
+  // re-read the (large) StdHep arrays. Caller must hold io_mutex_.
+  void load_entry(long long entry) {
+    if (entry != loaded_entry_) {
+      tree_->GetEntry(entry);
+      loaded_entry_ = entry;
+    }
+  }
+
+  void require_in_range(long long entry) const {
+    if (entry >= tree_->GetEntries())
+      throw std::runtime_error(
+          "genie_reader_source: input exhausted — the workflow requested "
+          "entry " +
+          std::to_string(entry) + " but '" + file_name_ + "' holds only " +
+          std::to_string(tree_->GetEntries()) +
+          " events. Reduce the driver's event count or provide a larger "
+          "file.");
   }
 
   double p4(int i, int k) const {
@@ -177,6 +232,17 @@ class GenieReaderSource : public phlex::source {
   std::vector<int> status_;
   std::vector<int> first_mother_;
   std::vector<double> p4_;  // [n][4]: px, py, pz, E (GeV)
+
+  // Event-level provenance for the EventHeader; defaults survive when the
+  // optional EvtWght/EvtNum branches are absent.
+  double weight_ = 1.0;
+  int evt_num_ = -1;
+
+  // Serialises TTree access across the concurrent mc_particles and event_header
+  // provider nodes; loaded_entry_ tracks which entry is resident in the shared
+  // buffers to avoid a redundant re-read by the second provider.
+  std::mutex io_mutex_;
+  long long loaded_entry_ = -1;
 };
 
 }  // namespace

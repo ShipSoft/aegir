@@ -18,12 +18,15 @@
 
 #include <spdlog/spdlog.h>
 
+#include <ROOT/RNTupleDescriptor.hxx>
 #include <ROOT/RNTupleReader.hxx>
 #include <ROOT/RNTupleView.hxx>
+#include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -79,6 +82,14 @@ class FileSource : public phlex::source {
       sim_view_ = reader_->GetView<std::vector<SHiP::SimParticle>>(product);
     else
       mc_view_ = reader_->GetView<std::vector<SHiP::MCParticle>>(product);
+
+    // The event header is optional: files written before it existed have no
+    // such field, and GetView would throw. Probe the descriptor first and only
+    // read it back when present, so older files still replay (publishing the
+    // unweighted default header via the empty generator below).
+    if (reader_->GetDescriptor().FindFieldId("event_header") !=
+        ROOT::kInvalidDescriptorId)
+      header_view_ = reader_->GetView<SHiP::EventHeader>("event_header");
   }
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
@@ -90,6 +101,11 @@ class FileSource : public phlex::source {
       return {};
     }
 
+    // The mc_particles and event_header providers become separate phlex nodes
+    // that may run concurrently; a single RNTupleReader and its views are not
+    // thread-safe, so all reads share io_mutex_. The view returns a reference
+    // into its own buffer, so copy out while still holding the lock.
+    std::lock_guard const lock{io_mutex_};
     if (read_sim_) {
       auto const& sim_particles = (*sim_view_)(entry);
       std::vector<SHiP::MCParticle> particles;
@@ -101,13 +117,29 @@ class FileSource : public phlex::source {
     return (*mc_view_)(entry);
   }
 
+  SHiP::EventHeader generate_header(phlex::data_cell_index const& id) {
+    auto const entry = static_cast<ROOT::NTupleSize_t>(id.number()) +
+                       static_cast<ROOT::NTupleSize_t>(skip_);
+    // Out-of-range mirrors generate()'s empty-particle fallback: publish the
+    // unweighted default rather than reading past the end.
+    if (entry >= n_entries_) return SHiP::EventHeader{};
+    std::lock_guard const lock{io_mutex_};
+    return (*header_view_)(entry);
+  }
+
   phlex::detail::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    // A single RNTupleReader/view is not thread-safe; read events serially.
+    // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
+    // additionally guards the reader against the concurrent header provider.
+    aegir::event_header_generator header_gen{};
+    if (header_view_)
+      header_gen = [this](phlex::data_cell_index const& id) {
+        return generate_header(id);
+      };
     return aegir::mc_particle_provider_bundles(
         selector,
         [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
+        phlex::concurrency::serial, std::move(header_gen));
   }
 
   phlex::index_generator indices() override { co_return; }
@@ -119,6 +151,12 @@ class FileSource : public phlex::source {
   std::unique_ptr<ROOT::RNTupleReader> reader_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::MCParticle>>> mc_view_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::SimParticle>>> sim_view_;
+  // Set only when the input carries an "event_header" field; absent for files
+  // written before the header existed.
+  std::optional<ROOT::RNTupleView<SHiP::EventHeader>> header_view_;
+  // Serialises all reader/view access across the concurrent mc_particles and
+  // event_header provider nodes.
+  std::mutex io_mutex_;
 };
 
 }  // namespace

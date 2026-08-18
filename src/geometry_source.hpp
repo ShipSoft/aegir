@@ -53,9 +53,10 @@ class IGeometrySource {
   if (pattern == "Calorimeter") return detector_id::Calorimeter;
   if (pattern == "timing_detector" || pattern == "TimingDetector")
     return detector_id::TimingDetector;
-  throw std::runtime_error("No detector_id mapping for sensitive-volume "
-                            "pattern '" +
-                            pattern + "'");
+  throw std::runtime_error(
+      "No detector_id mapping for sensitive-volume "
+      "pattern '" +
+      pattern + "'");
 }
 
 }  // namespace SHiP

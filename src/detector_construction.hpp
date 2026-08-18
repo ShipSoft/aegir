@@ -87,6 +87,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     auto const& sv_names = source_->sensitiveVolumes();
     DetectorIdMap detector_ids;
 
+    for (auto const& pattern : sv_names) {
+      (void)SHiP::detector_id_for_pattern(pattern);
+    }
+
     for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
       for (auto const& pattern : sv_names) {
         if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern})) {

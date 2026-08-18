@@ -88,9 +88,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     DetectorIdMap detector_ids;
 
     for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
-      for (int i = 0; i < static_cast<int>(sv_names.size()); ++i) {
-        if (G4StrUtil::contains(lv->GetName(), std::string_view{sv_names[i]})) {
-          detector_ids.emplace(lv, i);
+      for (auto const& pattern : sv_names) {
+        if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern})) {
+          detector_ids.emplace(
+              lv, static_cast<int>(SHiP::detector_id_for_pattern(pattern)));
           break;
         }
       }

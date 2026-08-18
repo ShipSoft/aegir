@@ -12,6 +12,8 @@
 #pragma once
 
 #include <G4VPhysicalVolume.hh>
+#include <SHiP/detectors/detector_id.hpp>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -32,5 +34,28 @@ class IGeometrySource {
   [[nodiscard]] virtual std::vector<std::string> const& sensitiveVolumes()
       const = 0;
 };
+
+/// Maps a sensitive-volume config pattern (e.g. "trackers") to the canonical
+/// detector it belongs to. Hardcoded in aegir rather than driven by config:
+/// the correspondence between a G4 volume-name pattern and a
+/// SHiP::detector_id is a fact about the geometry, not something a workflow
+/// should restate per-config.
+[[nodiscard]] inline detector_id detector_id_for_pattern(
+    std::string const& pattern) {
+  if (pattern == "UpstreamTagger") return detector_id::UpstreamTagger;
+  // No SurroundTagger geometry exists yet; the test fixtures' "Scoring"/
+  // "ScoringPlane" planes stand in for it.
+  if (pattern == "SurroundTagger" || pattern == "Scoring" ||
+      pattern == "ScoringPlane")
+    return detector_id::SurroundTagger;
+  if (pattern == "trackers" || pattern == "StrawTubes")
+    return detector_id::StrawTubes;
+  if (pattern == "Calorimeter") return detector_id::Calorimeter;
+  if (pattern == "timing_detector" || pattern == "TimingDetector")
+    return detector_id::TimingDetector;
+  throw std::runtime_error("No detector_id mapping for sensitive-volume "
+                            "pattern '" +
+                            pattern + "'");
+}
 
 }  // namespace SHiP

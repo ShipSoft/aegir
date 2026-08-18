@@ -42,7 +42,8 @@ class IGeometrySource {
 /// should restate per-config.
 [[nodiscard]] inline detector_id detector_id_for_pattern(
     std::string const& pattern) {
-  if (pattern == "UpstreamTagger") return detector_id::UpstreamTagger;
+  if (pattern == "UpstreamTagger" || pattern == "upstream_tagger")
+    return detector_id::UpstreamTagger;
   // No SurroundTagger geometry exists yet; the test fixtures' "Scoring"/
   // "ScoringPlane" planes stand in for it.
   if (pattern == "SurroundTagger" || pattern == "Scoring" ||
@@ -50,7 +51,8 @@ class IGeometrySource {
     return detector_id::SurroundTagger;
   if (pattern == "trackers" || pattern == "StrawTubes")
     return detector_id::StrawTubes;
-  if (pattern == "Calorimeter") return detector_id::Calorimeter;
+  if (pattern == "Calorimeter" || "calorimeter")
+    return detector_id::Calorimeter;
   if (pattern == "timing_detector" || pattern == "TimingDetector")
     return detector_id::TimingDetector;
   throw std::runtime_error(

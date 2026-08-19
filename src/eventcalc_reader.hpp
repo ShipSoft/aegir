@@ -234,7 +234,9 @@ class Reader {
   }
   // Sum of the per-event decay probabilities — the denominator needed to turn
   // the stored sample into an absolute event count.
-  [[nodiscard]] double summed_decay_probability() const { return sum_of_weights_; }
+  [[nodiscard]] double summed_decay_probability() const {
+    return sum_of_weights_;
+  }
 
  private:
   static std::int32_t to_pdg(double value) {

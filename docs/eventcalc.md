@@ -63,10 +63,6 @@ python simulate.py --llp HNL --mixing-pattern "1 0 0" \
     --mass 1.0 --c-tau 0.1 --nevents 100000
 ```
 
-SHiP maintains a mirror at [ShipSoft/EventCalc](https://github.com/ShipSoft/EventCalc);
-prefer it if the two ever diverge, since that is the version the collaboration
-supports.
-
 ## Running
 
 The driver's event count must match the number of decays in the file, so the
@@ -86,12 +82,12 @@ The source block accepts:
 | key | default | meaning |
 |:---|:---|:---|
 | `file` | (required) | EventCalc `*_data.dat` record |
-| `first_event` | `0` | skip this many decays (e.g. to split a file across jobs) |
+| `first_entry` | `0` | skip this many decays (e.g. to split a file across jobs) |
 | `skip_neutrinos` | `true` | drop neutrino daughters instead of tracking them |
 | `emit_llp` | `false` | also emit the LLP itself (see below) |
 | `offset_x`, `offset_y`, `offset_z` | `0.0` | shift applied to the decay vertex [mm] |
 
-Events are read in order: workflow event *N* is file row `first_event + N`.
+Events are read in order: workflow event *N* is file row `first_entry + N`.
 Requesting more events than the file holds is an error, not silently-empty
 events — reduce the driver's event count or supply a larger file.
 
@@ -156,7 +152,7 @@ The weight is published as `SHiP::EventHeader::weight` on the `event` layer
 and written to the `event_header` field of the output RNTuple, so any analysis
 downstream must weight by it. `EventHeader::original_event_id` records the row
 of the input file the event came from, which survives splitting a file across
-jobs with `first_event`.
+jobs with `first_entry`.
 
 Sources that sample uniformly (the gun, Pythia8, GENIE) publish the default
 header — weight 1.0, `original_event_id` −1 — so the output schema is the same

@@ -210,7 +210,7 @@ class Reader {
         event.daughters.push_back(daughter);
       }
 
-      weight_sum_ += event.decay_probability;
+      sum_of_weights_ += event.decay_probability;
       events_.push_back(std::move(event));
     }
 
@@ -234,7 +234,7 @@ class Reader {
   }
   // Sum of the per-event decay probabilities — the denominator needed to turn
   // the stored sample into an absolute event count.
-  [[nodiscard]] double summed_decay_probability() const { return weight_sum_; }
+  [[nodiscard]] double summed_decay_probability() const { return sum_of_weights_; }
 
  private:
   static std::int32_t to_pdg(double value) {
@@ -245,7 +245,7 @@ class Reader {
   FileSummary summary_;
   std::vector<std::string> processes_;
   std::vector<DecayEvent> events_;
-  double weight_sum_ = 0;
+  double sum_of_weights_ = 0;
 };
 
 }  // namespace aegir::eventcalc

@@ -45,11 +45,11 @@ bool is_neutrino(std::int32_t pdg) {
 
 class EventCalcSource : public phlex::source {
  public:
-  EventCalcSource(std::string const& file, long long first_event,
+  EventCalcSource(std::string const& file, long long first_entry,
                   bool skip_neutrinos, bool emit_llp, ship::Length offset_x,
                   ship::Length offset_y, ship::Length offset_z)
       : reader_{file},
-        first_event_{first_event},
+        first_entry_{first_entry},
         skip_neutrinos_{skip_neutrinos},
         emit_llp_{emit_llp},
         offset_{offset_x.numerical_value_in(su::mm),
@@ -135,7 +135,7 @@ class EventCalcSource : public phlex::source {
 
  private:
   std::size_t entry_for(phlex::data_cell_index const& id) const {
-    auto const entry = first_event_ + static_cast<long long>(id.number());
+    auto const entry = first_entry_ + static_cast<long long>(id.number());
     if (entry < 0 || static_cast<std::size_t>(entry) >= reader_.size())
       throw std::runtime_error(
           "eventcalc_source: input exhausted — the workflow requested event " +
@@ -162,7 +162,7 @@ class EventCalcSource : public phlex::source {
   }
 
   aegir::eventcalc::Reader reader_;
-  long long first_event_;
+  long long first_entry_;
   bool skip_neutrinos_;
   bool emit_llp_;
   std::array<double, 3> offset_;  // mm
@@ -172,9 +172,9 @@ class EventCalcSource : public phlex::source {
 
 PHLEX_REGISTER_SOURCE(s, config) {
   auto file = config.get<std::string>("file");
-  auto first_event = config.get<long>("first_event", 0L);
-  if (first_event < 0)
-    throw std::runtime_error("eventcalc_source: first_event must be >= 0");
+  auto first_entry = config.get<long>("first_entry", 0L);
+  if (first_entry < 0)
+    throw std::runtime_error("eventcalc_source: first_entry must be >= 0");
 
   // Neutrinos are recorded by EventCalc but invisible to the detector;
   // tracking them costs time and yields nothing.
@@ -187,6 +187,6 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto offset_z = aegir::get_quantity(config, "offset_z", 0.0 * su::mm);
 
   s.add_source<EventCalcSource>(
-      "eventcalc", file, static_cast<long long>(first_event), skip_neutrinos,
+      "eventcalc", file, static_cast<long long>(first_entry), skip_neutrinos,
       emit_llp, offset_x, offset_y, offset_z);
 }

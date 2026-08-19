@@ -69,7 +69,7 @@ The driver's event count must match the number of decays in the file, so the
 count is read out first — the same pattern `file_source` uses (see
 [count_entries.py](../scripts/count_entries.py)):
 
-```sh
+```bash
 n=$(pixi run count_eventcalc_events HNL_1.000e+00_1.000e-01_data.dat)
 pixi run phlex -c <(jsonnet --ext-str events="$n" \
     --ext-str infile=HNL_1.000e+00_1.000e-01_data.dat \
@@ -81,7 +81,7 @@ The source block accepts:
 
 | key | default | meaning |
 |:---|:---|:---|
-| `file` | (required) | EventCalc `*_data.dat` record |
+| `file` | `eventcalc_events.dat` | EventCalc `*_data.dat` record. The default comes from `lib.eventcalc`; every shipped workflow overrides it with `--ext-str infile=...` |
 | `first_entry` | `0` | skip this many decays (e.g. to split a file across jobs) |
 | `skip_neutrinos` | `true` | drop neutrino daughters instead of tracking them |
 | `emit_llp` | `false` | also emit the LLP itself (see below) |

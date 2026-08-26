@@ -14,6 +14,7 @@
 // CRLF line endings, channels of differing multiplicity, and rows padded with
 // one and with two `0. 0. 0. 0. 0. -999.` groups.
 
+#include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <string>
@@ -33,6 +34,15 @@ void check(std::string const& what, A const& got, B const& expected) {
     ++failures;
     std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
               << "\n";
+  }
+}
+
+void check_close(std::string const& what, double got, double expected,
+                 double rel_tol) {
+  if (std::abs(got - expected) > rel_tol * std::abs(expected)) {
+    ++failures;
+    std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
+              << " (rel_tol " << rel_tol << ")\n";
   }
 }
 
@@ -114,6 +124,26 @@ int main(int argc, char** argv) {
   check("event 3 weight", reader.at(3).decay_probability, 0.004);
   check("summed weight", reader.summed_decay_probability(),
         0.001 + 0.002 + 0.003 + 0.004 + 0.005 + 0.006);
+
+  // flight_time at a known kinematic point: p = 0.6 GeV/c, E = 1 GeV gives
+  // beta = 0.6, and a straight 50 m path then takes 277.97008 ns — derived
+  // through mp-units' exact definition of c, never hand-typed here.
+  aegir::eventcalc::Particle llp;
+  llp.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+                  0.6 * su::GeV_per_c};
+  llp.energy = 1.0 * su::GeV;
+  auto const t = aegir::eventcalc::flight_time(
+      {ship::Length::zero(), ship::Length::zero(), 50.0 * su::m}, llp);
+  check_close("flight time at beta = 0.6 [ns]", t.numerical_value_in(su::ns),
+              277.97008, 1e-6);
+
+  // Unphysical kinematics (zero momentum or energy) fall back to t = 0.
+  aegir::eventcalc::Particle const stopped;
+  check("flight time guard [ns]",
+        aegir::eventcalc::flight_time(
+            {ship::Length::zero(), ship::Length::zero(), 1.0 * su::m}, stopped)
+            .numerical_value_in(su::ns),
+        0.0);
 
   if (failures == 0) std::cout << "test_eventcalc_reader: all checks passed\n";
   return failures == 0 ? 0 : 1;

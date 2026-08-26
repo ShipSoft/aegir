@@ -97,7 +97,6 @@ std::vector<MCParticle> extract_particles(
   namespace su = ship::units;
   std::vector<MCParticle> particles;
   particles.reserve(event.size());
-  double const z_offset_mm = z_offset.numerical_value_in(su::mm);
 
   // Pythia-record index -> output index for written (final-state) particles.
   std::vector<int> out_index(static_cast<std::size_t>(event.size()), -1);
@@ -110,10 +109,16 @@ std::vector<MCParticle> extract_particles(
 
     MCParticle mc;
     mc.pdgCode = p.id();
-    // Pythia positions and momenta are already in the canonical units.
-    mc.vertex = {p.xProd(), p.yProd(), p.zProd() + z_offset_mm};  // mm
-    mc.momentum = {p.px(), p.py(), p.pz()};                       // GeV/c
-    mc.energy = p.e();                                            // GeV
+    // Each Pythia accessor acquires its unit on the read line; ship::raw is
+    // the single bitwise unwrap into the storage units. The ship::view
+    // setters are unavailable here because MCParticle is a template parameter
+    // (the benchmark instantiates a local struct without the data model).
+    mc.vertex = ship::raw(ship::Vec3<ship::Length>{
+        p.xProd() * su::mm, p.yProd() * su::mm, p.zProd() * su::mm + z_offset});
+    mc.momentum = ship::raw(ship::Vec3<ship::Momentum>{p.px() * su::GeV_per_c,
+                                                       p.py() * su::GeV_per_c,
+                                                       p.pz() * su::GeV_per_c});
+    mc.energy = ship::raw(p.e() * su::GeV);
     // mm/c -> ns via the exact definition of c (no hand-typed constant).
     mc.time = (p.tProd() * su::mm_per_c).numerical_value_in(su::ns);
     mc.motherId = p.mother1();  // record index, remapped below

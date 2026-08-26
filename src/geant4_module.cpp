@@ -225,14 +225,13 @@ class Geant4Sim {
           ++unknown_pdg;
           continue;
         }
-        double pmag = aegir::magnitude(mc.momentum);
-        if (pmag <= 0) {
+        auto const mom = ship::view::momentum(mc);
+        if (aegir::magnitude(mom) <= ship::Momentum::zero()) {
           ++no_momentum;
           continue;
         }
 
         auto const vtx = ship::view::vertex(mc);
-        auto const mom = ship::view::momentum(mc);
         namespace cb = aegir::clhep;
         auto* vertex =
             new G4PrimaryVertex(cb::g4(vtx[0]), cb::g4(vtx[1]), cb::g4(vtx[2]),

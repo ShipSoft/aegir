@@ -45,6 +45,13 @@ a quantity via an explicit conversion.**
 - Configuration: workflow files stay plain numbers; C++ reads them with
   `aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV)`, making
   the parameter definition the single source of truth for the unit.
+- Filling a persisted struct is a boundary too: write through the
+  `ship::view` setters when the concrete `SHiP::` type is known. In code
+  templated over the particle type (e.g. `extract_particles`), build the
+  quantity on the read line and unwrap with `ship::raw`. A `// GeV`-style
+  comment is not a fence. Copies between persisted structs that share the
+  storage units (and diagnostics read straight off them, e.g. histogram
+  fills) stay raw — no unit crosses a boundary there.
 
 Never `using namespace ship::units` in a translation unit that includes
 CLHEP or Geant4 headers — always qualify.

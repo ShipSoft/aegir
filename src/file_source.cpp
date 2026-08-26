@@ -21,6 +21,7 @@
 #include <ROOT/RNTupleReader.hxx>
 #include <ROOT/RNTupleView.hxx>
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/QuantityView.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <cstdint>
 #include <memory>
@@ -35,19 +36,25 @@
 
 namespace {
 
+namespace su = ship::units;
+
 // Project a simulation SimParticle onto an MCParticle suitable as sim input.
 // SimParticle::energy is kinetic while MCParticle::energy is total; recover the
-// total energy from |p| and the kinetic energy without needing a PDG mass
-// table: E_total = (|p|^2 + E_kin^2) / (2 E_kin), from
-// m = (|p|^2 - E_kin^2) / (2 E_kin) and E_total = E_kin + m.
+// total energy from |p|c and the kinetic energy without needing a PDG mass
+// table: E_total = ((|p|c)^2 + E_kin^2) / (2 E_kin), from
+// mc^2 = ((|p|c)^2 - E_kin^2) / (2 E_kin) and E_total = E_kin + mc^2.
 SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   SHiP::MCParticle mc;
   mc.pdgCode = sp.pdgCode;
+  // Same storage units on both sides — direct copies, no unit crossing.
   mc.vertex = sp.vertex;
   mc.momentum = sp.momentum;
-  double const p = aegir::magnitude(sp.momentum);
-  double const e_kin = sp.energy;
-  mc.energy = e_kin > 0.0 ? (p * p + e_kin * e_kin) / (2.0 * e_kin) : p;
+  auto const pc = (aegir::magnitude(ship::view::momentum(sp)) * su::c)
+                      .in(su::GeV);           // |p|c; conversion factor is 1
+  auto const e_kin = ship::view::energy(sp);  // SimParticle::energy is kinetic
+  ship::view::setEnergy(mc, e_kin > ship::Energy::zero()
+                                ? (pc * pc + e_kin * e_kin) / (2.0 * e_kin)
+                                : pc);
   mc.time = sp.time;
   // SimParticle::parentId is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.

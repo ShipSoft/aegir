@@ -14,6 +14,7 @@
 // CRLF line endings, channels of differing multiplicity, and rows padded with
 // one and with two `0. 0. 0. 0. 0. -999.` groups.
 
+#include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <string>
@@ -33,6 +34,15 @@ void check(std::string const& what, A const& got, B const& expected) {
     ++failures;
     std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
               << "\n";
+  }
+}
+
+void check_close(std::string const& what, double got, double expected,
+                 double rel_tol) {
+  if (std::abs(got - expected) > rel_tol * std::abs(expected)) {
+    ++failures;
+    std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
+              << " (rel_tol " << rel_tol << ")\n";
   }
 }
 
@@ -99,8 +109,10 @@ int main(int argc, char** argv) {
 
   check("event 0 LLP PDG", reader.at(0).llp.pdg, 9900015);
   check("event 0 weight", reader.at(0).decay_probability, 0.001);
-  // The file writes 45 m; the parse line converts to the canonical mm — an
-  // exact x1000, so this is an equality check, not a closeness check.
+  // The file writes 45 m, which converts to the canonical mm exactly because
+  // 45 and 45000 are both representable. That is why this can be an equality
+  // check; don't copy the pattern for arbitrary values, where m -> mm can land
+  // an ulp away.
   check("event 0 vertex z [mm]",
         reader.at(0).vertex[2].numerical_value_in(su::mm), 45000.0);
   check("event 0 LLP energy [GeV]",
@@ -114,6 +126,36 @@ int main(int argc, char** argv) {
   check("event 3 weight", reader.at(3).decay_probability, 0.004);
   check("summed weight", reader.summed_decay_probability(),
         0.001 + 0.002 + 0.003 + 0.004 + 0.005 + 0.006);
+
+  // flight_time at a known kinematic point: p = 0.6 GeV/c, E = 1 GeV gives
+  // beta = 0.6, and a straight 50 m path then takes 277.97008 ns. The code
+  // never hand-types c; the expected value is computed independently.
+  aegir::eventcalc::Particle llp;
+  llp.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+                  0.6 * su::GeV_per_c};
+  llp.energy = 1.0 * su::GeV;
+  auto const t = aegir::eventcalc::flight_time(
+      {ship::Length::zero(), ship::Length::zero(), 50.0 * su::m}, llp);
+  check_close("flight time at beta = 0.6 [ns]", t.numerical_value_in(su::ns),
+              277.97008, 1e-6);
+
+  // Unphysical kinematics fall back to t = 0: zero momentum, and separately
+  // zero energy with non-zero momentum, so each guard condition is exercised.
+  aegir::eventcalc::Particle const stopped;
+  check("flight time guard, p = 0 [ns]",
+        aegir::eventcalc::flight_time(
+            {ship::Length::zero(), ship::Length::zero(), 1.0 * su::m}, stopped)
+            .numerical_value_in(su::ns),
+        0.0);
+  aegir::eventcalc::Particle no_energy;
+  no_energy.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+                        1.0 * su::GeV_per_c};
+  check(
+      "flight time guard, E = 0 [ns]",
+      aegir::eventcalc::flight_time(
+          {ship::Length::zero(), ship::Length::zero(), 1.0 * su::m}, no_energy)
+          .numerical_value_in(su::ns),
+      0.0);
 
   if (failures == 0) std::cout << "test_eventcalc_reader: all checks passed\n";
   return failures == 0 ? 0 : 1;

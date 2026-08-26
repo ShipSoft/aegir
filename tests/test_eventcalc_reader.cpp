@@ -4,8 +4,8 @@
 
 // test_eventcalc_reader.cpp — unit test for the EventCalc .dat parser
 //
-// The parser is standard-library only, so this links nothing: no Phlex, ROOT
-// or Geant4. Run with the fixture as the single argument:
+// The parser links only the header-only unit vocabulary (SHiP::SHiPUnits):
+// no Phlex, ROOT or Geant4. Run with the fixture as the single argument:
 //   ./test_eventcalc_reader tests/data/eventcalc_sample.dat
 //
 // The fixture deliberately covers the cases that have bitten this parser:
@@ -21,6 +21,8 @@
 #include "eventcalc_reader.hpp"
 
 namespace {
+
+namespace su = ship::units;
 
 int failures = 0;
 
@@ -97,7 +99,14 @@ int main(int argc, char** argv) {
 
   check("event 0 LLP PDG", reader.at(0).llp.pdg, 9900015);
   check("event 0 weight", reader.at(0).decay_probability, 0.001);
-  check("event 0 vertex z [m]", reader.at(0).vertex[2], 45.0);
+  // The file writes 45 m; the parse line converts to the canonical mm — an
+  // exact x1000, so this is an equality check, not a closeness check.
+  check("event 0 vertex z [mm]",
+        reader.at(0).vertex[2].numerical_value_in(su::mm), 45000.0);
+  check("event 0 LLP energy [GeV]",
+        reader.at(0).llp.energy.numerical_value_in(su::GeV), 40.0);
+  check("event 0 LLP pz [GeV/c]",
+        reader.at(0).llp.momentum[2].numerical_value_in(su::GeV_per_c), 30.0);
   // Anti-baryons sit far below the -999 padding sentinel, so a threshold test
   // would truncate the daughter list here rather than keep this particle.
   check_daughter("event 0 daughter 2 PDG (anti-proton)", reader, 0, 2, -2212);

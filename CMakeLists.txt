@@ -240,13 +240,14 @@ add_test(
 )
 
 # EventCalc parser: a fixture covering padded rows, process names containing
-# the decay arrow, CRLF endings and both block-header forms. The parser is
-# standard-library only, so this links no Phlex, ROOT or Geant4.
+# the decay arrow, CRLF endings and both block-header forms. The parser links
+# only the header-only unit vocabulary: no Phlex, ROOT or Geant4.
 add_executable(test_eventcalc_reader tests/test_eventcalc_reader.cpp)
 target_include_directories(
     test_eventcalc_reader
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(test_eventcalc_reader PRIVATE SHiP::SHiPUnits)
 add_test(
     NAME eventcalc_reader
     COMMAND

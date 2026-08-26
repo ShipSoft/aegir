@@ -22,8 +22,8 @@
 
 #include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/QuantityView.hpp>
 #include <SHiP/Units.hpp>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -31,7 +31,6 @@
 #include <vector>
 
 #include "eventcalc_reader.hpp"
-#include "math_utils.hpp"
 #include "mc_particle_source.hpp"
 #include "units/config_units.hpp"
 
@@ -52,31 +51,21 @@ class EventCalcSource : public phlex::source {
       : reader_{file},
         first_entry_{first_entry},
         skip_neutrinos_{skip_neutrinos},
-        offset_{offset_x.numerical_value_in(su::mm),
-                offset_y.numerical_value_in(su::mm),
-                offset_z.numerical_value_in(su::mm)} {}
+        offset_{offset_x, offset_y, offset_z} {}
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto const& event = reader_.at(entry_for(id));
 
-    // EventCalc writes metres with the origin at the centre of the SHiP
-    // target. The values are plain doubles throughout; mp-units appears only
-    // in the conversion below, which is where the metre-to-millimetre factor
-    // is expressed rather than hand-written. The offset shifts into the frame
-    // of the configured geometry provider, should the two origins differ.
     // The LLP is produced at the target, which is the EventCalc origin, so
-    // the flight path must be measured from there — before the geometry
-    // offset is applied, or a non-zero offset would corrupt the timing.
-    std::array<double, 3> const vertex_from_target{
-        (event.vertex[0] * su::m).numerical_value_in(su::mm),
-        (event.vertex[1] * su::m).numerical_value_in(su::mm),
-        (event.vertex[2] * su::m).numerical_value_in(su::mm)};
+    // the flight path is measured from there — before the geometry offset
+    // is applied, or a non-zero offset would corrupt the timing.
+    auto const time = aegir::eventcalc::flight_time(event.vertex, event.llp);
 
-    double const time = flight_time(vertex_from_target, event.llp);
-
-    std::array<double, 3> const vertex{vertex_from_target[0] + offset_[0],
-                                       vertex_from_target[1] + offset_[1],
-                                       vertex_from_target[2] + offset_[2]};
+    // The offset shifts into the frame of the configured geometry provider,
+    // should the two origins differ.
+    ship::Vec3<ship::Length> const vertex{event.vertex[0] + offset_[0],
+                                          event.vertex[1] + offset_[1],
+                                          event.vertex[2] + offset_[2]};
 
     std::vector<SHiP::MCParticle> particles;
     particles.reserve(event.daughters.size());
@@ -85,10 +74,10 @@ class EventCalcSource : public phlex::source {
       if (skip_neutrinos_ && is_neutrino(d.pdg)) continue;
       SHiP::MCParticle mc;
       mc.pdgCode = d.pdg;
-      mc.momentum = d.momentum;  // GeV
-      mc.energy = d.energy;      // GeV
-      mc.vertex = vertex;
-      mc.time = time;
+      ship::view::setMomentum(mc, d.momentum);
+      ship::view::setEnergy(mc, d.energy);
+      ship::view::setVertex(mc, vertex);
+      ship::view::setTime(mc, time);
       mc.motherId = -1;
       mc.status = 1;
       particles.push_back(mc);
@@ -133,24 +122,10 @@ class EventCalcSource : public phlex::source {
     return static_cast<std::size_t>(entry);
   }
 
-  // EventCalc records no time, so it is reconstructed from the LLP kinematics:
-  // the particle leaves the target at t = 0 and reaches the decay vertex after
-  // a path length s at speed beta. Expressing s/beta in mm/c yields the time
-  // directly, the same route Pythia's tProd() takes. Neglecting the flight of
-  // the parent meson is a sub-ns approximation.
-  static double flight_time(std::array<double, 3> const& vertex,
-                            aegir::eventcalc::Particle const& llp) {
-    double const p = aegir::magnitude(llp.momentum);
-    if (p <= 0.0 || llp.energy <= 0.0) return 0.0;
-    double const beta = p / llp.energy;
-    double const path = aegir::magnitude(vertex);
-    return ((path / beta) * su::mm_per_c).numerical_value_in(su::ns);
-  }
-
   aegir::eventcalc::Reader reader_;
   long long first_entry_;
   bool skip_neutrinos_;
-  std::array<double, 3> offset_;  // mm
+  ship::Vec3<ship::Length> offset_;
 };
 
 }  // namespace
@@ -164,7 +139,6 @@ PHLEX_REGISTER_SOURCE(s, config) {
   // Neutrinos are recorded by EventCalc but invisible to the detector;
   // tracking them costs time and yields nothing.
   auto skip_neutrinos = config.get<bool>("skip_neutrinos", true);
-  // Only meaningful with a custom G4ParticleDefinition for the LLP.
 
   auto offset_x = aegir::get_quantity(config, "offset_x", 0.0 * su::mm);
   auto offset_y = aegir::get_quantity(config, "offset_y", 0.0 * su::mm);

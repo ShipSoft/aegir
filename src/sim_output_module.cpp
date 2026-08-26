@@ -260,6 +260,8 @@ class MCHistogrammer {
     }
     ctxs.multiplicity->Fill(static_cast<double>(particles.size()));
     for (auto const& p : particles) {
+      // Histograms are filled in the storage units straight off the persisted
+      // structs; no unit conversion occurs (docs/units.md).
       double pmag = aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
       ctxs.pdg->Fill(static_cast<double>(p.pdgCode));

@@ -15,6 +15,7 @@
 
 #include <ROOT/RFile.hxx>
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/QuantityView.hpp>
 #include <SHiP/Units.hpp>
 #include <algorithm>
 #include <memory>
@@ -96,13 +97,11 @@ class GenieReaderSource : public phlex::source {
 
     // The interaction vertex is per event (EvtVtx, SI units); the per-particle
     // StdHepX4 positions are nuclear-scale offsets and irrelevant for
-    // tracking. GENIE's SI values acquire their unit here and convert to the
-    // canonical storage units (exact powers of ten).
-    std::array<double, 3> const vertex{
-        (vtx_[0] * su::m).numerical_value_in(su::mm),
-        (vtx_[1] * su::m).numerical_value_in(su::mm),
-        (vtx_[2] * su::m).numerical_value_in(su::mm)};
-    double const time = (vtx_[3] * su::s).numerical_value_in(su::ns);
+    // tracking. GENIE's SI values acquire their unit here (exact powers of
+    // ten to the canonical units).
+    ship::Vec3<ship::Length> const vertex{vtx_[0] * su::m, vtx_[1] * su::m,
+                                          vtx_[2] * su::m};
+    ship::Time const time = (vtx_[3] * su::s).in(su::ns);
 
     std::vector<SHiP::MCParticle> particles;
     particles.reserve(static_cast<std::size_t>(n));
@@ -117,10 +116,14 @@ class GenieReaderSource : public phlex::source {
 
       SHiP::MCParticle mc;
       mc.pdgCode = pdg_[static_cast<std::size_t>(i)];
-      mc.vertex = vertex;
-      mc.momentum = {p4(i, 0), p4(i, 1), p4(i, 2)};  // GeV
-      mc.energy = p4(i, 3);                          // GeV
-      mc.time = time;
+      ship::view::setVertex(mc, vertex);
+      // The rootracker "GeV" four-momentum columns are natural units: the
+      // spatial components are momenta, GeV/c.
+      ship::view::setMomentum(
+          mc, {p4(i, 0) * su::GeV_per_c, p4(i, 1) * su::GeV_per_c,
+               p4(i, 2) * su::GeV_per_c});
+      ship::view::setEnergy(mc, p4(i, 3) * su::GeV);
+      ship::view::setTime(mc, time);
       mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
       mc.status = 1;
       particles.push_back(mc);

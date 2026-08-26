@@ -32,7 +32,7 @@ class ParticleGun : public phlex::source {
         p_min_{p_min},
         p_max_{p_max},
         max_theta_{max_theta},
-        vertex_{ship::raw(vertex)},
+        vertex_{vertex},
         seed_{seed} {}
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
@@ -51,12 +51,14 @@ class ParticleGun : public phlex::source {
 
     SHiP::MCParticle mc;
     mc.pdgCode = pdg_;
-    mc.vertex = vertex_;
-    mc.momentum = {p * std::sin(theta) * std::cos(phi),
-                   p * std::sin(theta) * std::sin(phi), p * std::cos(theta)};
-    // Assume massless for energy (good enough for muons at high p)
-    mc.energy = p;
-    mc.time = 0.0;
+    ship::view::setVertex(mc, vertex_);
+    ship::view::setMomentum(
+        mc, ship::vecOf<ship::Momentum>({p * std::sin(theta) * std::cos(phi),
+                                         p * std::sin(theta) * std::sin(phi),
+                                         p * std::cos(theta)}));
+    // Assume massless, E = |p|c (good enough for muons at high p).
+    ship::view::setEnergy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
+    ship::view::setTime(mc, ship::Time::zero());
     mc.motherId = -1;
     mc.status = 1;
 
@@ -77,7 +79,7 @@ class ParticleGun : public phlex::source {
   int pdg_;
   ship::Momentum p_min_, p_max_;
   ship::Angle max_theta_;
-  std::array<double, 3> vertex_;  // canonical mm
+  ship::Vec3<ship::Length> vertex_;
   std::uint32_t seed_;
 };
 

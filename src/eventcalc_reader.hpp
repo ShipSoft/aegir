@@ -8,14 +8,16 @@
 // aegir_add_plugin() compiles, and so the parser can be exercised without
 // Phlex, ROOT or Geant4 in the picture.
 //
-// Values are kept exactly as EventCalc writes them: GeV for momenta, energies
-// and masses; metres for the decay vertex, with the origin at the centre of
-// the SHiP target. Per docs/units.md a raw double acquires its unit on the
-// line it enters — that line is in eventcalc_source.cpp, so this header stays
-// deliberately unit-free.
+// Per docs/units.md a raw double acquires its unit on the line it enters —
+// here that is the parse line, so the structs below carry the canonical
+// quantity types. EventCalc's "GeV" momentum and mass columns are natural
+// units, i.e. GeV/c and GeV/c²; the decay vertex is written in metres with
+// the origin at the centre of the SHiP target and is stored as ship::Length
+// (mm — an exact ×1000).
 
 #pragma once
 
+#include <SHiP/Units.hpp>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -28,7 +30,11 @@
 #include <utility>
 #include <vector>
 
+#include "math_utils.hpp"
+
 namespace aegir::eventcalc {
+
+namespace su = ship::units;
 
 // Normalisation numbers from the first line of the file. The expected number
 // of decay events in the volume is
@@ -47,21 +53,41 @@ struct FileSummary {
 };
 
 // One particle of the record: the LLP or one of its decay products.
+// (Explicit zero() initialisers: a default-constructed mp-units quantity
+// leaves its double representation uninitialised.)
 struct Particle {
-  std::array<double, 3> momentum = {0, 0, 0};  // px, py, pz [GeV]
-  double energy = 0;                           // [GeV]
-  double mass = 0;                             // [GeV]
+  ship::Vec3<ship::Momentum> momentum = {
+      ship::Momentum::zero(), ship::Momentum::zero(), ship::Momentum::zero()};
+  ship::Energy energy = ship::Energy::zero();  // total energy
+  ship::Mass mass = ship::Mass::zero();
   std::int32_t pdg = 0;
 };
 
 // One sampled LLP decay.
 struct DecayEvent {
   Particle llp;
-  std::array<double, 3> vertex = {0, 0, 0};  // decay vertex [m]
-  double decay_probability = 0;              // P_decay,LLP — per-event weight
-  std::uint32_t process_id = 0;              // index into Reader::processes()
-  std::vector<Particle> daughters;           // padding groups stripped
+  // Decay vertex, from the centre of the SHiP target.
+  ship::Vec3<ship::Length> vertex = {ship::Length::zero(), ship::Length::zero(),
+                                     ship::Length::zero()};
+  double decay_probability = 0;     // P_decay,LLP — per-event weight
+  std::uint32_t process_id = 0;     // index into Reader::processes()
+  std::vector<Particle> daughters;  // padding groups stripped
 };
+
+// EventCalc records no time, so it is reconstructed from the LLP kinematics:
+// the LLP leaves the target (the EventCalc origin) at t = 0 and reaches the
+// decay vertex after a path length s at speed beta*c. s/(beta*c) lands in
+// mm/c and converts to ns through the exact SI definition of c — the same
+// derived route Pythia's tProd() takes. Neglecting the flight of the parent
+// meson is a sub-ns approximation.
+[[nodiscard]] inline ship::Time flight_time(
+    ship::Vec3<ship::Length> const& vertex_from_target, Particle const& llp) {
+  auto const p = aegir::magnitude(llp.momentum);
+  if (p <= ship::Momentum::zero() || llp.energy <= ship::Energy::zero())
+    return ship::Time::zero();
+  auto const beta = (p * su::c / llp.energy).in(mp_units::one);  // v/c
+  return (aegir::magnitude(vertex_from_target) / (beta * su::c)).in(su::ns);
+}
 
 namespace detail {
 
@@ -186,12 +212,13 @@ class Reader {
         continue;
 
       DecayEvent event;
-      event.llp.momentum = {values[0], values[1], values[2]};
-      event.llp.energy = values[3];
-      event.llp.mass = values[4];
+      event.llp.momentum =
+          ship::vecOf<ship::Momentum>({values[0], values[1], values[2]});
+      event.llp.energy = values[3] * su::GeV;
+      event.llp.mass = values[4] * su::GeV_per_c2;
       event.llp.pdg = to_pdg(values[5]);
       event.decay_probability = values[6];
-      event.vertex = {values[7], values[8], values[9]};
+      event.vertex = {values[7] * su::m, values[8] * su::m, values[9] * su::m};
       event.process_id = current_process;
 
       // Decay products come in groups of six; trailing groups are padding,
@@ -203,9 +230,10 @@ class Reader {
            i += detail::kDaughterColumns) {
         if (detail::is_padding(values[i + 5])) break;
         Particle daughter;
-        daughter.momentum = {values[i], values[i + 1], values[i + 2]};
-        daughter.energy = values[i + 3];
-        daughter.mass = values[i + 4];
+        daughter.momentum = ship::vecOf<ship::Momentum>(
+            {values[i], values[i + 1], values[i + 2]});
+        daughter.energy = values[i + 3] * su::GeV;
+        daughter.mass = values[i + 4] * su::GeV_per_c2;
         daughter.pdg = to_pdg(values[i + 5]);
         event.daughters.push_back(daughter);
       }

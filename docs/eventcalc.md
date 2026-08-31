@@ -115,11 +115,13 @@ stacked into one file, so short rows are padded with groups of
 > subsequent group by one column, silently producing extra daughters with
 > `PDG = 0`. `eventcalc_reader.hpp` tests the group's PDG column and stops.
 
-Momenta, energies and masses are in GeV; the decay vertex is in **metres**,
-with the origin at the centre of the SHiP target. Both acquire their unit at
-the read site in `eventcalc_source.cpp` and convert to the canonical storage
-units, per [units.md](units.md). If the configured geometry provider puts its
-origin elsewhere, correct for it with the `offset_*` keys.
+Energies are in GeV; the momentum and mass columns are also labelled "GeV" by
+EventCalc, which is natural units for GeV/c and GeV/c². The decay vertex is in
+**metres**, with the origin at the centre of the SHiP target. All of them
+acquire their unit on the parse line in `eventcalc_reader.hpp`, into the
+canonical quantity types (`ship::Momentum`, `ship::Energy`, `ship::Mass`,
+`ship::Length`), per [units.md](units.md). If the configured geometry provider
+puts its origin elsewhere, correct for it with the `offset_*` keys.
 
 ## What is read
 

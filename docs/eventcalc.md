@@ -84,7 +84,6 @@ The source block accepts:
 | `file` | `eventcalc_events.dat` | EventCalc `*_data.dat` record. The default comes from `lib.eventcalc`; every shipped workflow overrides it with `--ext-str infile=...` |
 | `first_entry` | `0` | skip this many decays (e.g. to split a file across jobs) |
 | `skip_neutrinos` | `true` | drop neutrino daughters instead of tracking them |
-| `emit_llp` | `false` | also emit the LLP itself (see below) |
 | `offset_x`, `offset_y`, `offset_z` | `0.0` | shift applied to the decay vertex [mm] |
 
 Events are read in order: workflow event *N* is file row `first_entry + N`.
@@ -135,12 +134,12 @@ the timing detector.
 `skip_neutrinos` drops daughter neutrinos by default: EventCalc records them
 for completeness, Geant4 will happily track them, and they deposit nothing.
 
-The LLP itself is **not** emitted by default. Geant4 has no particle
-definition for an HNL or a dark scalar, and the decay has already happened, so
-there is nothing to track. `emit_llp` adds it as `status = 2` with the
-daughters' `motherId` pointing at it, which is only useful if you have
-registered a matching `G4ParticleDefinition` or want the LLP kinematics
-carried through to the output for truth studies.
+The LLP itself is not emitted. Geant4 has no particle definition for an HNL or
+a dark scalar, and the decay has already happened upstream, so there is nothing
+to track. Its kinematics are recoverable where they are needed: for a fully
+recorded decay the daughter four-momenta sum to the LLP's, and
+`EventHeader::original_event_id` identifies the input row when they do not —
+`skip_neutrinos` having removed an invisible daughter, for instance.
 
 ## Weights
 

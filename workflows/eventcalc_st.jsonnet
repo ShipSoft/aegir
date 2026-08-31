@@ -1,16 +1,18 @@
-// Read LLP decays from an EventCalc-SHiP .dat record and run the decay
-// products through Geant4. See docs/eventcalc.md.
-//   n=$(pixi run count_eventcalc_events HNL_..._data.dat)
-//   jsonnet --ext-str events=$n --ext-str infile=HNL_..._data.dat \
-//       --ext-str simout=sim.root --ext-str histo=valid.root \
+// EventCalc LLP decays through the SHiP geometry.
+//
+// GeoModel geometry, not the builtin one: EventCalc places decay vertices at
+// z = 35-80 m, well outside the builtin world volume (half-length 20 m in z).
+//
+//   n=$(pixi run count_eventcalc_events <file>_data.dat)
+//   jsonnet --ext-str events=$n --ext-str infile=<file>_data.dat \
+//       --ext-str simout=sim.root --ext-str histo=val.root \
 //       workflows/eventcalc_st.jsonnet
 local lib = import 'lib.libsonnet';
-local n_events = std.parseInt(std.extVar('events'));
 {
-  driver: lib.driver(n_events),
+  driver: lib.driver(std.parseInt(std.extVar('events'))),
   sources: {
     field: lib.null_field,
-    geometry: lib.builtin_geometry,
+    geometry: lib.geomodel_geometry,
     eventcalc: lib.eventcalc { file: std.extVar('infile') },
   },
   modules: {

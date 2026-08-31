@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "eventcalc_reader.hpp"
+#include "math_utils.hpp"
 #include "mc_particle_source.hpp"
 #include "units/config_units.hpp"
 
@@ -46,12 +47,11 @@ bool is_neutrino(std::int32_t pdg) {
 class EventCalcSource : public phlex::source {
  public:
   EventCalcSource(std::string const& file, long long first_entry,
-                  bool skip_neutrinos, bool emit_llp, ship::Length offset_x,
+                  bool skip_neutrinos, ship::Length offset_x,
                   ship::Length offset_y, ship::Length offset_z)
       : reader_{file},
         first_entry_{first_entry},
         skip_neutrinos_{skip_neutrinos},
-        emit_llp_{emit_llp},
         offset_{offset_x.numerical_value_in(su::mm),
                 offset_y.numerical_value_in(su::mm),
                 offset_z.numerical_value_in(su::mm)} {}
@@ -60,9 +60,10 @@ class EventCalcSource : public phlex::source {
     auto const& event = reader_.at(entry_for(id));
 
     // EventCalc writes metres with the origin at the centre of the SHiP
-    // target; the values acquire their unit here and convert to the canonical
-    // storage unit. The offset shifts into the frame of the configured
-    // geometry provider, should the two origins differ.
+    // target. The values are plain doubles throughout; mp-units appears only
+    // in the conversion below, which is where the metre-to-millimetre factor
+    // is expressed rather than hand-written. The offset shifts into the frame
+    // of the configured geometry provider, should the two origins differ.
     // The LLP is produced at the target, which is the EventCalc origin, so
     // the flight path must be measured from there — before the geometry
     // offset is applied, or a non-zero offset would corrupt the timing.
@@ -78,21 +79,7 @@ class EventCalcSource : public phlex::source {
                                        vertex_from_target[2] + offset_[2]};
 
     std::vector<SHiP::MCParticle> particles;
-    particles.reserve(event.daughters.size() + (emit_llp_ ? 1 : 0));
-
-    std::int32_t mother = -1;
-    if (emit_llp_) {
-      SHiP::MCParticle llp;
-      llp.pdgCode = event.llp.pdg;
-      llp.momentum = event.llp.momentum;  // GeV
-      llp.energy = event.llp.energy;      // GeV
-      llp.vertex = offset_;               // produced at the target
-      llp.time = 0.0;
-      llp.motherId = -1;
-      llp.status = 2;  // decayed: not a Geant4 primary
-      particles.push_back(llp);
-      mother = 0;
-    }
+    particles.reserve(event.daughters.size());
 
     for (auto const& d : event.daughters) {
       if (skip_neutrinos_ && is_neutrino(d.pdg)) continue;
@@ -102,7 +89,7 @@ class EventCalcSource : public phlex::source {
       mc.energy = d.energy;      // GeV
       mc.vertex = vertex;
       mc.time = time;
-      mc.motherId = mother;
+      mc.motherId = -1;
       mc.status = 1;
       particles.push_back(mc);
     }
@@ -153,18 +140,16 @@ class EventCalcSource : public phlex::source {
   // the parent meson is a sub-ns approximation.
   static double flight_time(std::array<double, 3> const& vertex,
                             aegir::eventcalc::Particle const& llp) {
-    double const p =
-        std::hypot(llp.momentum[0], llp.momentum[1], llp.momentum[2]);
+    double const p = aegir::magnitude(llp.momentum);
     if (p <= 0.0 || llp.energy <= 0.0) return 0.0;
     double const beta = p / llp.energy;
-    double const path = std::hypot(vertex[0], vertex[1], vertex[2]);
+    double const path = aegir::magnitude(vertex);
     return ((path / beta) * su::mm_per_c).numerical_value_in(su::ns);
   }
 
   aegir::eventcalc::Reader reader_;
   long long first_entry_;
   bool skip_neutrinos_;
-  bool emit_llp_;
   std::array<double, 3> offset_;  // mm
 };
 
@@ -180,13 +165,12 @@ PHLEX_REGISTER_SOURCE(s, config) {
   // tracking them costs time and yields nothing.
   auto skip_neutrinos = config.get<bool>("skip_neutrinos", true);
   // Only meaningful with a custom G4ParticleDefinition for the LLP.
-  auto emit_llp = config.get<bool>("emit_llp", false);
 
   auto offset_x = aegir::get_quantity(config, "offset_x", 0.0 * su::mm);
   auto offset_y = aegir::get_quantity(config, "offset_y", 0.0 * su::mm);
   auto offset_z = aegir::get_quantity(config, "offset_z", 0.0 * su::mm);
 
-  s.add_source<EventCalcSource>(
-      "eventcalc", file, static_cast<long long>(first_entry), skip_neutrinos,
-      emit_llp, offset_x, offset_y, offset_z);
+  s.add_source<EventCalcSource>("eventcalc", file,
+                                static_cast<long long>(first_entry),
+                                skip_neutrinos, offset_x, offset_y, offset_z);
 }

@@ -47,13 +47,15 @@ class FixedTargetSource : public phlex::source {
                     ship::Energy beam_energy, int target_z, int target_a,
                     ship::Length target_z_start, ship::Length target_z_end,
                     ship::Length interaction_length,
-                    aegir::PythiaTime tau0_threshold, std::uint32_t seed)
+                    aegir::PythiaTime tau0_threshold, aegir::record_mode record,
+                    std::uint32_t seed)
       : stage_{std::move(stage)},
         target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
         interaction_length_{interaction_length},
+        record_{record},
         seed_{seed} {
     // Both instances draw from Philox engines that generate() re-keys to the
     // event number before every event (see pythia_philox_engine.hpp). Pythia
@@ -114,7 +116,7 @@ class FixedTargetSource : public phlex::source {
                                             : "FixedTargetSource (pn)");
 
     return aegir::extract_particles<SHiP::MCParticle>(pythia.event,
-                                                      z_interaction);
+                                                      z_interaction, record_);
   }
 
   phlex::provider_bundles create_providers(
@@ -138,6 +140,7 @@ class FixedTargetSource : public phlex::source {
       std::make_shared<aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
+  aegir::record_mode record_;
   std::uint32_t seed_;
 };
 
@@ -164,11 +167,14 @@ PHLEX_REGISTER_SOURCE(s, config) {
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
+  auto const record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "fixed_target");
   auto seed = aegir::resolve_seed(config, "fixed_target");
   auto stage = aegir::source_stage(config, "fixed_target");
 
-  s.add_source<FixedTargetSource>("fixed_target", std::move(stage), xml_dir,
-                                  beam_energy, target_z, target_a,
-                                  target_z_start, target_z_end,
-                                  interaction_length, tau0_threshold, seed);
+  s.add_source<FixedTargetSource>(
+      "fixed_target", std::move(stage), xml_dir, beam_energy, target_z,
+      target_a, target_z_start, target_z_end, interaction_length,
+      tau0_threshold, record, seed);
 }

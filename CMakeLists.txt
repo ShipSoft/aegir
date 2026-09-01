@@ -300,3 +300,10 @@ add_test(
     NAME thread_independence
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/thread_independence.sh
 )
+
+# Generator status: only HepMC status-1 (final-state) entries become Geant4
+# primaries; decayed and beam entries are skipped unless track_all_primaries.
+add_test(
+    NAME generator_status
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_status.sh
+)

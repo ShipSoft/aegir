@@ -73,11 +73,17 @@
     vertex_z: -2000.0,  // mm
   },
 
+  // `record` selects how much of the generator's event record is emitted:
+  // 'final_state' (only what Geant4 will track) or 'full' (the whole record,
+  // with HepMC statuses and mother links intact — several times larger; the
+  // geant4 module still tracks only status-1 entries). See
+  // docs/generator_record.md.
   pythia8:: {
     cpp: 'pythia8_source',
     stage: $.stage,
     beam_energy: 400.0,  // GeV
     process: 'SoftQCD:inelastic',
+    record: 'final_state',
   },
 
   fixed_target:: {
@@ -91,6 +97,7 @@
     target_z_end: 1164.0,  // mm
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
+    record: 'final_state',
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker
@@ -99,6 +106,7 @@
     cpp: 'genie_reader_source',
     stage: $.stage,
     file: 'genie_events.rootracker.root',
+    record: 'final_state',
   },
 
   // ── modules ────────────────────────────────────────────────────────────

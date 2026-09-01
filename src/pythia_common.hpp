@@ -22,6 +22,8 @@
 #include <utility>
 #include <vector>
 
+#include "record_mode.hpp"
+
 namespace aegir {
 
 // Pythia8's native units: energies/momenta in GeV, positions in mm,
@@ -89,28 +91,45 @@ void next_event(Pythia& pythia, std::string_view source_name,
                            std::to_string(max_attempts) + " times in a row");
 }
 
-// Extract final-state particles from a Pythia event record into a vector of
-// MCParticle (any type exposing pdgCode/vertex/momentum/energy/time/motherId/
-// status). vertex z is shifted by z_offset.
+// Extract particles from a Pythia event record into a vector of MCParticle
+// (any type exposing pdgCode/vertex/momentum/energy/time/motherId/status).
+// vertex z is shifted by z_offset.
 //
-// motherId is remapped from the full Pythia-record index to the index within
-// the returned vector, or -1 when the mother was not itself written out — the
-// common case, since only final-state particles are kept and their mothers
-// generally are not. This makes motherId a valid index into the emitted
-// collection rather than a dangling reference into the discarded record.
+// In final_state mode only undecayed particles are emitted; in full mode the
+// whole record is, so beam particles, decayed mothers and intermediate
+// entries appear too. The emitted `status` is the HepMC status
+// (Pythia8's statusHepMC(); see hepmc_status.hpp for the code set), so a
+// consumer can tell the two apart — geant4_module tracks exactly status 1.
+// Pythia's entry 0, the "system" pseudo-particle, is never emitted.
+//
+// motherId is remapped from the Pythia-record index to the index within the
+// returned vector, or -1 when the mother was not itself written out. In
+// final_state mode that is the common case, since mothers of final-state
+// particles generally are not final state themselves; in full mode the map
+// degenerates to "record index minus one", with -1 for the beams, whose
+// mother1() is 0. Either way motherId is a valid index into the emitted
+// collection rather than a dangling reference into a discarded record.
+//
+// Only Pythia's mother1() is kept: MCParticle has a single mother index,
+// while Pythia encodes up to two (a carbon copy, a single mother, a range of
+// string-fragmentation mothers, or two genuinely distinct ones). Entries with
+// several mothers therefore keep only the first.
 template <typename MCParticle>
 std::vector<MCParticle> extract_particles(
-    Pythia8::Event const& event, ship::Length z_offset = ship::Length::zero()) {
+    Pythia8::Event const& event, ship::Length z_offset = ship::Length::zero(),
+    record_mode mode = record_mode::final_state) {
   namespace su = ship::units;
   std::vector<MCParticle> particles;
   particles.reserve(event.size());
 
-  // Pythia-record index -> output index for written (final-state) particles.
+  // Pythia-record index -> output index for written particles. Entry 0 is
+  // never written, so out_index[0] stays -1 and mother1() == 0 ("no mother"
+  // in Pythia) maps onto MCParticle's -1 without a special case.
   std::vector<int> out_index(static_cast<std::size_t>(event.size()), -1);
 
-  for (int i = 0; i < event.size(); ++i) {
+  for (int i = 1; i < event.size(); ++i) {
     auto const& p = event[i];
-    if (!p.isFinal()) {
+    if (mode == record_mode::final_state && !p.isFinal()) {
       continue;
     }
 

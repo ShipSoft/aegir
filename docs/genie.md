@@ -63,12 +63,19 @@ file.
 
 ## What is read
 
-Only stable final-state particles (GENIE status 1) are handed to Geant4; the
+By default only stable final-state particles (GENIE status 1) are emitted; the
 incoming neutrino, the struck nucleus and intermediate states are dropped.
+Set `record: 'full'` to keep the whole record instead — see
+[generator_record.md](generator_record.md), which also gives the GENIE→HepMC
+status mapping. Either way the emitted `status` is the HepMC code (GENIE's
+`kIStStableFinalState` becomes 1), and Geant4 tracks exactly the status-1
+entries.
+
 All particles of an event share the interaction vertex (`EvtVtx`), converted
 from GENIE's SI units to aegir's mm/ns. `motherId` is remapped to index the
-emitted collection and is `-1` when the mother was not itself final state —
-the common case.
+emitted collection and is `-1` when the mother was not itself emitted — the
+common case under `record: 'final_state'`. Only GENIE's first mother
+(`StdHepFm`) is read.
 
 Per-event metadata is copied into the `EventHeader`: the GENIE event weight
 (`EvtWght`) becomes `weight` and the event number (`EvtNum`) becomes

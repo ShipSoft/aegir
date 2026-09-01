@@ -79,8 +79,9 @@ Each Phlex thread lazily initialises on its first call to `simulate()`:
 
 Instead of `G4RunManager::BeamOn()`, the module:
 
-1. Builds a `G4Event` directly from the input `MCParticle` vector, creating
-   `G4PrimaryVertex` and `G4PrimaryParticle` objects (no
+1. Builds a `G4Event` directly from the input `MCParticle` vector — keeping
+   only final-state entries, see [Primary selection](#primary-selection) —
+   creating `G4PrimaryVertex` and `G4PrimaryParticle` objects (no
    `G4VUserPrimaryGeneratorAction` involved)
 2. Sets the G4 state to `G4State_GeomClosed`
 3. Calls `G4EventManager::ProcessOneEvent(event)`
@@ -88,6 +89,45 @@ Instead of `G4RunManager::BeamOn()`, the module:
 
 This bypasses the G4 run loop entirely, giving the framework full control
 over event scheduling.
+
+### Primary selection
+
+`SHiP::MCParticle::status` carries the **HepMC status code** — the same
+convention Pythia8's `Particle::statusHepMC()` produces and EDM4hep uses for
+its `generatorStatus`:
+
+| Code | Meaning | Tracked? |
+|------|---------|----------|
+| 0 | Empty entry, no meaningful information | no |
+| 1 | Final state — not decayed *by the generator*; may still be unstable | **yes** |
+| 2 | Decayed Standard Model hadron, tau or muon | no |
+| 3 | Documentation entry | no |
+| 4 | Incoming beam particle | no |
+| 11-200 | Intermediate entry, generator-dependent classification | no |
+
+Only status-1 entries become primaries. Note that "final state" does not mean
+stable: a final-state `K_S` is status 1 and is expected to decay in the
+detector — that is exactly the work being handed over. Everything else is
+either the generator's own bookkeeping or a particle the generator has already
+decayed, and tracking it alongside the daughters it already produced would
+double-count the event.
+
+The predicate lives in `src/hepmc_status.hpp`, next to the code set. Geant4's
+own HepMC example uses the same `status == 1` test.
+
+Skipped primaries are counted and reported once per event in an aggregated
+warning; they remain in the output `mc_particles` product, so the record is
+not lost.
+
+Every generator here pre-filters to final state before writing
+`mc_particles`, so today the check is a no-op: it is a guard for an input
+that does not, such as a stored file or a generator that emits its whole
+record.
+
+Without it the failure mode would be *silent and partial* rather than loud.
+Geant4 declines to track short-lived definitions (quarks, gluons, diquarks,
+strings) on its own, but it happily tracks decayed hadrons and beam particles
+alongside the daughters they already produced.
 
 ### Shutdown
 
@@ -107,6 +147,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `energy_cut` | bool | `false` | Enable stepping energy cut |
 | `energy_cut_threshold` | double | `ke_threshold` | KE below which tracks are killed (GeV) |
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
+| `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in |
 | `progress_interval` | int | `100` | Log a progress line (event count and average rate) every this many simulated events; `0` disables |

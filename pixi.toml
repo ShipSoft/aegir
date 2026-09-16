@@ -38,6 +38,15 @@ cmake = ">=3.27"
 ninja = "*"
 cxx-compiler = "*"
 
+# Static analysis. clang-tidy lives here rather than in [feature.lint] because
+# it replays the commands in compile_commands.json and so needs the same
+# headers the compiler saw; feature.lint is a separate solve group and could
+# drift from them. clang-tools provides clang-tidy but does not depend on the
+# clang package that ships clang's own builtin headers (stddef.h and friends),
+# and without those every translation unit fails to parse.
+clang = "*"
+clang-tools = "*"
+
 # The three co-developed SHiP packages as their released conda builds
 # (prefix.dev/ship). Held in a feature the default/bench/lint environments pull
 # in — deliberately NOT in the base [dependencies] — so the opt-in `dev`
@@ -78,6 +87,27 @@ ci-physics-smoke = { cmd = "bash -c 'phlex -c <(jsonnet workflows/gun_st_nofield
 ci-extract-metrics = "ship-metrics-extract . -o metrics-physics-smoke.json --pretty --config ci/metrics_config.yaml"
 ci-render-plots = "ship-metrics-render gun_st_nofield_smoke_validation.root --output-dir plots/physics-smoke --job physics-smoke --config default"
 clean = "rm -rf build"
+
+# Static analysis. `clang-tidy` reports the whole tree, the same run CI does on
+# a push. -source-filter is a Python regex (run-clang-tidy is a Python script),
+# unlike the llvm::Regex patterns in .clang-tidy.
+clang-tidy = { cmd = '''
+run-clang-tidy -p build -j $(nproc) -quiet \
+    -source-filter '^(?!.*(/G__|Dict[.]cxx|/_deps/|/CMakeFiles/)).*' \
+    -extra-arg=-isystem$CONDA_PREFIX/include
+''', depends-on = ["build"] }
+# `clang-tidy-diff` is the quick local check on the sources you changed, not a
+# copy of the gate: -only-check-in-db drops anything absent from
+# compile_commands.json, so a header-only change prints "No relevant changes
+# found" here while CI analyses the translation units that include the header.
+# A clean run is therefore no promise; run the whole-tree task above after
+# touching a header, and let CI have the last word.
+# clang-tidy-diff.py ships with clang-tools but is not on PATH.
+clang-tidy-diff = { cmd = '''
+git diff --unified=0 --diff-filter=d origin/main HEAD -- '*.cpp' '*.hpp' '*.cxx' '*.h' \
+  | python $CONDA_PREFIX/share/clang/clang-tidy-diff.py -p1 -path build -j $(nproc) \
+      -quiet -only-check-in-db -extra-arg=-isystem$CONDA_PREFIX/include
+''', depends-on = ["build"] }
 
 [feature.bench.dependencies]
 hyperfine = "*"

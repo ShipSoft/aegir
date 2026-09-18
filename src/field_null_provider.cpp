@@ -33,7 +33,7 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
 
   // Publish as the interface type: consumers request
   // std::shared_ptr<ship::IFieldSource>.
-  std::shared_ptr<ship::IFieldSource> source =
+  std::shared_ptr<ship::IFieldSource> const source =
       std::make_shared<NullFieldSource>();
 
   aegir::provide_constant(s, "create_field", source, "field", "map", "job");

@@ -35,17 +35,18 @@ class GeoModelGeometrySource : public SHiP::IGeometrySource {
       : db_path_{std::move(path)}, sensitive_vols_{std::move(sv)} {}
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
-    std::call_once(init_flag_, [this]() {
+    std::call_once(init_flag_, [this] {
       // The registry shares one service — and with it one GeoModel->G4
       // conversion — with every other user of the same file in this
       // process; in the full GENIE chain, aegir-genie's geometry analyzer
       // has already loaded and converted it (aegir-genie issue #11).
       service_ = ship::SHiPGeometryService::sharedFromFile(db_path_);
       auto* worldLV = service_->geant4WorldLogical();
-      if (!worldLV)
+      if (!worldLV) {
         throw std::runtime_error(
             "GeoModelGeometrySource: GeoModel->G4 conversion failed for " +
             db_path_);
+      }
 
       // Wrap the logical volume in a physical volume placement (world)
       world_ = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV,
@@ -84,21 +85,23 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   // install layout is flat under share/geometry/.
   if (!std::filesystem::exists(db_file)) {
     auto resolved = std::filesystem::path(db_file).filename();
-    if (auto const* root = std::getenv("SHIPGEOMETRY_ROOT"))
+    if (auto const* root = std::getenv("SHIPGEOMETRY_ROOT")) {
       resolved = std::filesystem::path(root) / "share" / "geometry" / resolved;
-    if (std::filesystem::exists(resolved))
+    }
+    if (std::filesystem::exists(resolved)) {
       db_file = resolved.string();
-    else
+    } else {
       throw std::runtime_error(
           "Cannot locate geometry DB '" + db_file +
           "'; set SHIPGEOMETRY_ROOT or provide an absolute path");
+    }
   }
 
   auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
 
   // Publish as the interface type: consumers request
   // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> source =
+  std::shared_ptr<SHiP::IGeometrySource> const source =
       std::make_shared<GeoModelGeometrySource>(db_file, std::move(sv));
 
   aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",

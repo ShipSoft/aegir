@@ -47,6 +47,18 @@
 #   -cppcoreguidelines-avoid-non-const-global-variables if gGeoManager-style
 #   globals do.
 #
+#   Check aliases have to be negated by name. An alias is a second check name
+#   bound to the same implementation, so switching the target off leaves the
+#   alias on through its family glob and the finding comes back under the other
+#   name. The pairs that matter here:
+#     cert-dcl16-c                             readability-uppercase-literal-suffix
+#     cert-dcl37-c, cert-dcl51-cpp             bugprone-reserved-identifier
+#     cppcoreguidelines-narrowing-conversions  bugprone-narrowing-conversions
+#     cppcoreguidelines-avoid-c-arrays         modernize-avoid-c-arrays
+#   The last pair runs the other way round, because the cppcoreguidelines name
+#   is the alias, so the modernize name is the one to negate. Either way, an
+#   opt-out means negating both names.
+#
 #   Deliberately absent: readability-identifier-naming CheckOptions. The check
 #   is enabled by readability-* but stays silent while unconfigured.
 #   Repositories ready to enforce a convention opt in with a layer file.
@@ -60,6 +72,9 @@ Checks: >
   -bugprone-narrowing-conversions,
   -bugprone-reserved-identifier,
   cert-*,
+  -cert-dcl16-c,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
   clang-analyzer-*,
   -clang-analyzer-core.UndefinedBinaryOperatorResult,
   concurrency-*,
@@ -67,6 +82,7 @@ Checks: >
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
@@ -79,6 +95,7 @@ Checks: >
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   modernize-*,
+  -modernize-avoid-c-arrays,
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   performance-*,

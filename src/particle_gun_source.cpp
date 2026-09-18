@@ -44,10 +44,11 @@ class ParticleGun : public phlex::source {
 
     // Sampling stays on raw numbers so the Philox stream is bit-identical;
     // the bounds are unwrapped in the canonical units on the same lines.
-    double p = rng.uniform(p_min_.numerical_value_in(su::GeV_per_c),
-                           p_max_.numerical_value_in(su::GeV_per_c));
-    double theta = rng.uniform(0.0, max_theta_.numerical_value_in(su::rad));
-    double phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
+    double const p = rng.uniform(p_min_.numerical_value_in(su::GeV_per_c),
+                                 p_max_.numerical_value_in(su::GeV_per_c));
+    double const theta =
+        rng.uniform(0.0, max_theta_.numerical_value_in(su::rad));
+    double const phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
 
     SHiP::MCParticle mc;
     mc.pdgCode = pdg_;
@@ -88,14 +89,16 @@ class ParticleGun : public phlex::source {
 PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
-  auto pdg = config.get<int>("pdg", 13);  // muon
-  auto p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
-  auto p_max = aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
-  auto max_theta = aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
-  auto vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
-  auto vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
+  auto const pdg = config.get<int>("pdg", 13);  // muon
+  auto const p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
+  auto const p_max =
+      aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
+  auto const max_theta =
+      aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
+  auto const vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
+  auto const vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
   // Default: upstream of the target.
-  auto vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
+  auto const vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
   auto seed = aegir::resolve_seed(config, "particle_gun");
 
   s.add_source<ParticleGun>("particle_gun", pdg, p_min, p_max, max_theta,

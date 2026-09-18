@@ -128,10 +128,13 @@ class Geant4Sim {
   explicit Geant4Sim(Geant4SimConfig cfg) : cfg_{std::move(cfg)} {}
 
   ~Geant4Sim() {
-    if (!master_constructed_) return;
-    if (int kernels = built_kernels_.load(); kernels > 0)
+    if (!master_constructed_) {
+      return;
+    }
+    if (int kernels = built_kernels_.load(); kernels > 0) {
       spdlog::info("geant4: {} worker kernel(s) built for {} configured slots",
                    kernels, cfg_.concurrency);
+    }
     // Empty the geometry stores now, on the geometry thread. Their static
     // singletons' destructors run at process exit on the program's main
     // thread, which never initialised Geant4's thread-local split-class
@@ -166,7 +169,7 @@ class Geant4Sim {
     // "constructed twice" abort, masking the original error. Store the
     // exception instead and rethrow it on this and every later call — phlex
     // logs it at shutdown and terminates the job cleanly.
-    std::call_once(init_flag_, [this, &geo, &field]() {
+    std::call_once(init_flag_, [this, &geo, &field] {
       try {
         init_master(geo, field);
       } catch (std::exception const& e) {
@@ -177,9 +180,13 @@ class Geant4Sim {
         init_error_ = std::current_exception();
       }
     });
-    if (init_error_) std::rethrow_exception(init_error_);
+    if (init_error_) {
+      std::rethrow_exception(init_error_);
+    }
 
-    if (!tl_kernel) init_worker();
+    if (!tl_kernel) {
+      init_worker();
+    }
 
     // Seed the calling worker's engine from the data-cell index so the
     // event↔RNG pairing does not depend on which thread processes which
@@ -214,13 +221,14 @@ class Geant4Sim {
           // Warn once per unseen code (per thread): FindParticle also returns
           // null for nuclear (10-digit) PDG codes, which would need
           // G4IonTable::GetIon() to resolve.
-          if (!it->second)
+          if (!it->second) {
             spdlog::warn(
                 "geant4_module: no G4 particle definition for PDG code {} — "
                 "such particles are skipped",
                 mc.pdgCode);
+          }
         }
-        auto* def = it->second;
+        auto const* def = it->second;
         if (!def) {
           ++unknown_pdg;
           continue;
@@ -241,13 +249,14 @@ class Geant4Sim {
         vertex->SetPrimary(particle);
         event->AddPrimaryVertex(vertex);
       }
-      if (unknown_pdg > 0 || no_momentum > 0)
+      if (unknown_pdg > 0 || no_momentum > 0) {
         spdlog::warn(
             "geant4_module: event {}: skipped {} of {} primaries ({} unknown "
             "PDG, {} non-positive momentum) — output mc_particles still "
             "contains them",
             event->GetEventID(), unknown_pdg + no_momentum, particles->size(),
             unknown_pdg, no_momentum);
+      }
     }
 
     // G4EventManager expects G4State_GeomClosed; it transitions to
@@ -293,7 +302,7 @@ class Geant4Sim {
   // event generation draw uncorrelated sequences), the counter is the full
   // index-path hash (unique across hierarchy levels, unlike number()).
   void seed_engine(std::size_t index_hash) const {
-    r123::Philox4x32 philox;
+    r123::Philox4x32 const philox;
     r123::Philox4x32::key_type const key{{cfg_.seed, 0x47345EEDu}};
     r123::Philox4x32::ctr_type const ctr{
         {static_cast<std::uint32_t>(index_hash),
@@ -316,15 +325,17 @@ class Geant4Sim {
     // remain Geant4's responsibility. Failing before the G4MTRunManager is
     // constructed keeps the failure cheap: nothing has been built yet.
     if (!cfg_.export_gdml.empty()) {
-      if (std::filesystem::exists(cfg_.export_gdml))
+      if (std::filesystem::exists(cfg_.export_gdml)) {
         throw std::runtime_error(
             "geant4_module: export_gdml target '" + cfg_.export_gdml +
             "' already exists — remove it or choose another path");
-      auto parent = std::filesystem::path(cfg_.export_gdml).parent_path();
-      if (!parent.empty() && !std::filesystem::exists(parent))
+      }
+      auto const parent = std::filesystem::path(cfg_.export_gdml).parent_path();
+      if (!parent.empty() && !std::filesystem::exists(parent)) {
         throw std::runtime_error(
             "geant4_module: export_gdml target directory '" + parent.string() +
             "' does not exist");
+      }
     }
 
     // Validate the physics list before constructing anything. Like export_gdml
@@ -334,9 +345,10 @@ class Geant4Sim {
     // the process. Failing this early also keeps the failure cheap: nothing has
     // been built yet. G4PhysListFactory only consults a static name table (it
     // creates no geometry), so validating on the calling thread is safe.
-    G4PhysListFactory phys_factory;
-    if (!phys_factory.IsReferencePhysList(cfg_.physics_list))
+    G4PhysListFactory const phys_factory;
+    if (!phys_factory.IsReferencePhysList(cfg_.physics_list)) {
       throw std::runtime_error("Unknown physics list: " + cfg_.physics_list);
+    }
 
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
@@ -398,18 +410,19 @@ class Geant4Sim {
 
   void init_worker() {
     AEGIR_TRACE_EVENT("g4", "init_worker");
-    int id = next_thread_id_.fetch_add(1);
+    int const id = next_thread_id_.fetch_add(1);
     // TBB does not promise that the same OS threads serve this transform
     // for the whole run, so more kernels than configured slots can appear
     // (each new thread that ever runs simulate builds one). Geant4 11
     // tolerates thread ids beyond SetNumberOfThreads in this direct-
     // injection flow, but each extra kernel costs memory and a fresh RNG
     // stream — make it visible instead of silent.
-    if (id >= cfg_.concurrency)
+    if (id >= cfg_.concurrency) {
       spdlog::warn(
           "geant4: initialising worker kernel #{} beyond the {} configured "
           "slots (TBB thread churn)",
           id + 1, cfg_.concurrency);
+    }
     AEGIR_TRACE_THREAD_NAME("g4_worker_" + std::to_string(id));
     G4Threading::G4SetThreadId(id);
     G4WorkerThread::BuildGeometryAndPhysicsVector();
@@ -425,8 +438,9 @@ class Geant4Sim {
 
     auto* evt_mgr = tl_kernel->GetEventManager();
     evt_mgr->SetUserAction(new TrackingAction(cfg_.particle_ke_cut));
-    if (cfg_.energy_cut)
+    if (cfg_.energy_cut) {
       evt_mgr->SetUserAction(new EnergyCutAction(cfg_.energy_cut_threshold));
+    }
 
     tl_kernel->RunInitialization();
     G4StateManager::GetStateManager()->SetNewState(G4State_GeomClosed);
@@ -474,15 +488,17 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   namespace su = ship::units;
 
-  auto sd_mode_str = config.get<std::string>("sd_mode", std::string{"scoring"});
-  auto ke_threshold =
+  auto const sd_mode_str =
+      config.get<std::string>("sd_mode", std::string{"scoring"});
+  auto const ke_threshold =
       aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
-  auto regions_map = config.get<std::map<std::string, double>>(
+  auto const regions_map = config.get<std::map<std::string, double>>(
       "regions", std::map<std::string, double>{});
   std::vector<std::pair<std::string, ship::Length>> regions;
   regions.reserve(regions_map.size());
-  for (auto const& [pattern, cut_mm] : regions_map)
+  for (auto const& [pattern, cut_mm] : regions_map) {
     regions.emplace_back(pattern, cut_mm * su::mm);
+  }
 
   // Default to the framework's TBB parallelism (phlex -j) so G4 workers
   // match the threads that can actually run them. A configured value above
@@ -511,14 +527,15 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .progress_interval = config.get<int>("progress_interval", 100),
   };
 
-  if (cfg.concurrency > active_parallelism)
+  if (cfg.concurrency > active_parallelism) {
     spdlog::warn(
         "geant4 concurrency ({}) exceeds framework parallelism ({}); "
         "at most {} events run concurrently — raise phlex -j or lower "
         "the module's concurrency",
         cfg.concurrency, active_parallelism, active_parallelism);
+  }
 
-  auto num_threads = cfg.concurrency;
+  auto const num_threads = cfg.concurrency;
   auto g4 = m.make<Geant4Sim>(std::move(cfg));
 
   g4.transform("simulate", &Geant4Sim::simulate,

@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace aegir {
@@ -31,10 +32,11 @@ using PythiaTime = mp_units::quantity<ship::units::mm_per_c, double>;
 // [1, 900000000]. extra_streams reserves headroom for consecutive
 // per-instance seeds (PythiaParallel seeds helper i with Random:seed + i).
 inline int pythia_seed(std::uint32_t base, int extra_streams = 0) {
-  if (extra_streams < 0 || extra_streams >= 900000000)
+  if (extra_streams < 0 || extra_streams >= 900000000) {
     throw std::invalid_argument("pythia_seed: extra_streams " +
                                 std::to_string(extra_streams) +
                                 " must be in [0, 900000000)");
+  }
   auto const range = static_cast<std::uint32_t>(900000000 - extra_streams);
   return static_cast<int>(base % range) + 1;
 }
@@ -62,8 +64,10 @@ void stabilise_long_lived(Pythia& pythia, PythiaTime tau0_threshold) {
       tau0_threshold.numerical_value_in(ship::units::mm_per_c);
   for (auto it = pythia.particleData.begin(); it != pythia.particleData.end();
        ++it) {
-    auto& entry = it->second;  // ParticleDataEntryPtr (shared_ptr-like)
-    if (entry && entry->tau0() > threshold) entry->setMayDecay(false);
+    auto const& entry = it->second;  // ParticleDataEntryPtr (shared_ptr-like)
+    if (entry && entry->tau0() > threshold) {
+      entry->setMayDecay(false);
+    }
   }
 }
 
@@ -75,8 +79,11 @@ void stabilise_long_lived(Pythia& pythia, PythiaTime tau0_threshold) {
 template <typename Pythia>
 void next_event(Pythia& pythia, std::string_view source_name,
                 int max_attempts = 10) {
-  for (int attempt = 0; attempt < max_attempts; ++attempt)
-    if (pythia.next()) return;
+  for (int attempt = 0; attempt < max_attempts; ++attempt) {
+    if (pythia.next()) {
+      return;
+    }
+  }
   throw std::runtime_error(std::string(source_name) +
                            ": Pythia8 event generation failed " +
                            std::to_string(max_attempts) + " times in a row");
@@ -103,7 +110,9 @@ std::vector<MCParticle> extract_particles(
 
   for (int i = 0; i < event.size(); ++i) {
     auto const& p = event[i];
-    if (!p.isFinal()) continue;
+    if (!p.isFinal()) {
+      continue;
+    }
 
     out_index[static_cast<std::size_t>(i)] = static_cast<int>(particles.size());
 
@@ -127,8 +136,8 @@ std::vector<MCParticle> extract_particles(
   }
 
   for (auto& mc : particles) {
-    int m = mc.motherId;
-    mc.motherId = (m >= 0 && m < static_cast<int>(out_index.size()))
+    int const m = mc.motherId;
+    mc.motherId = (m >= 0 && std::cmp_less(m, out_index.size()))
                       ? out_index[static_cast<std::size_t>(m)]
                       : -1;
   }

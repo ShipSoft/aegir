@@ -26,6 +26,8 @@
 // Local MCParticle struct matching data_products.hpp layout, so the benchmark
 // stays free of the SHiP data-model dependency while sharing the extraction
 // logic via aegir::extract_particles<MCParticle>.
+namespace {
+
 struct MCParticle {
   std::int32_t pdgCode{0};
   std::array<double, 3> vertex{0, 0, 0};
@@ -48,15 +50,19 @@ struct Stats {
 Stats compute_stats(std::vector<double> const& times) {
   Stats s{};
   s.count = static_cast<int>(times.size());
-  if (s.count == 0) return s;
+  if (s.count == 0) {
+    return s;
+  }
 
   s.total = std::accumulate(times.begin(), times.end(), 0.0);
   s.mean = s.total / s.count;
-  s.min = *std::min_element(times.begin(), times.end());
-  s.max = *std::max_element(times.begin(), times.end());
+  s.min = *std::ranges::min_element(times);
+  s.max = *std::ranges::max_element(times);
 
   double sq_sum = 0.0;
-  for (auto t : times) sq_sum += (t - s.mean) * (t - s.mean);
+  for (auto const t : times) {
+    sq_sum += (t - s.mean) * (t - s.mean);
+  }
   s.stddev = std::sqrt(sq_sum / s.count);
 
   return s;
@@ -110,21 +116,21 @@ struct Config {
 Config parse_args(int argc, char* argv[]) {
   Config cfg;
   for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
-    if (arg == "--events" && i + 1 < argc)
+    std::string const arg = argv[i];
+    if (arg == "--events" && i + 1 < argc) {
       cfg.events = std::stoi(argv[++i]);
-    else if (arg == "--warmup" && i + 1 < argc)
+    } else if (arg == "--warmup" && i + 1 < argc) {
       cfg.warmup = std::stoi(argv[++i]);
-    else if (arg == "--threads" && i + 1 < argc)
+    } else if (arg == "--threads" && i + 1 < argc) {
       cfg.threads = std::stoi(argv[++i]);
-    else if (arg == "--beam-energy" && i + 1 < argc)
+    } else if (arg == "--beam-energy" && i + 1 < argc) {
       cfg.beam_energy = std::stod(argv[++i]);
-    else if (arg == "--process" && i + 1 < argc) {
+    } else if (arg == "--process" && i + 1 < argc) {
       cfg.process = argv[++i];
       cfg.fairship = false;
-    } else if (arg == "--fairship")
+    } else if (arg == "--fairship") {
       cfg.fairship = true;
-    else if (arg == "--help" || arg == "-h") {
+    } else if (arg == "--help" || arg == "-h") {
       std::cout << "Usage: " << argv[0] << " [options]\n"
                 << "  --events N        Number of events (default: 1000)\n"
                 << "  --warmup N        Warmup events (default: 10)\n"
@@ -144,20 +150,25 @@ Config parse_args(int argc, char* argv[]) {
 }
 
 std::string xml_dir() {
-  if (auto const* env = std::getenv("PYTHIA8DATA")) return std::string{env};
+  if (auto const* env = std::getenv("PYTHIA8DATA")) {
+    return std::string{env};
+  }
   return std::string{"../share/Pythia8/xmldoc"};
 }
 
+}  // namespace
+
 int main(int argc, char* argv[]) {
-  auto cfg = parse_args(argc, argv);
+  auto const cfg = parse_args(argc, argv);
 
   std::cout << "=== Pythia8 Standalone Benchmark ===\n"
             << "Events: " << cfg.events << ", Warmup: " << cfg.warmup
             << ", Beam energy: " << cfg.beam_energy << " GeV\n"
             << "Config: " << (cfg.fairship ? "FairShip-like" : cfg.process)
             << "\n";
-  if (cfg.threads > 0)
+  if (cfg.threads > 0) {
     std::cout << "PythiaParallel threads: " << cfg.threads << "\n";
+  }
   std::cout << "\n";
 
   // ── Serial benchmarks ──────────────────────────────────────────────
@@ -166,19 +177,22 @@ int main(int argc, char* argv[]) {
     Pythia8::Pythia pythia(xml_dir(), false);
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
-    if (cfg.fairship)
+    if (cfg.fairship) {
       aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+    }
 
     // Warmup
-    for (int i = 0; i < cfg.warmup; ++i) pythia.next();
+    for (int i = 0; i < cfg.warmup; ++i) {
+      pythia.next();
+    }
 
     // Generation only
     std::vector<double> gen_times;
     gen_times.reserve(cfg.events);
     for (int i = 0; i < cfg.events; ++i) {
-      auto t0 = Clock::now();
+      auto const t0 = Clock::now();
       pythia.next();
-      auto t1 = Clock::now();
+      auto const t1 = Clock::now();
       gen_times.push_back(elapsed_ms(t0, t1));
     }
     print_stats("Serial: generation only", compute_stats(gen_times));
@@ -188,8 +202,9 @@ int main(int argc, char* argv[]) {
     Pythia8::Pythia pythia(xml_dir(), false);
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
-    if (cfg.fairship)
+    if (cfg.fairship) {
       aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+    }
 
     // Warmup
     for (int i = 0; i < cfg.warmup; ++i) {
@@ -201,10 +216,10 @@ int main(int argc, char* argv[]) {
     std::vector<double> full_times;
     full_times.reserve(cfg.events);
     for (int i = 0; i < cfg.events; ++i) {
-      auto t0 = Clock::now();
+      auto const t0 = Clock::now();
       pythia.next();
-      auto parts = aegir::extract_particles<MCParticle>(pythia.event);
-      auto t1 = Clock::now();
+      auto const parts = aegir::extract_particles<MCParticle>(pythia.event);
+      auto const t1 = Clock::now();
       full_times.push_back(elapsed_ms(t0, t1));
     }
     print_stats("Serial: generation + extraction", compute_stats(full_times));
@@ -218,8 +233,9 @@ int main(int argc, char* argv[]) {
     pythia.readString("Parallelism:numThreads = " +
                       std::to_string(cfg.threads));
     pythia.init();
-    if (cfg.fairship)
+    if (cfg.fairship) {
       aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+    }
 
     // Warmup
     int warmup_count = 0;
@@ -234,18 +250,19 @@ int main(int argc, char* argv[]) {
     pythia2.readString("Parallelism:numThreads = " +
                        std::to_string(cfg.threads));
     pythia2.init();
-    if (cfg.fairship)
+    if (cfg.fairship) {
       aegir::stabilise_long_lived(pythia2, 1.0 * ship::units::mm_per_c);
+    }
 
     int event_count = 0;
-    auto t0 = Clock::now();
+    auto const t0 = Clock::now();
     pythia2.run(cfg.events, [&](Pythia8::Pythia* p) {
       aegir::extract_particles<MCParticle>(p->event);
       ++event_count;
     });
-    auto t1 = Clock::now();
+    auto const t1 = Clock::now();
 
-    double total_ms = elapsed_ms(t0, t1);
+    double const total_ms = elapsed_ms(t0, t1);
     std::cout << "PythiaParallel (" << cfg.threads << " threads):\n"
               << "  events:     " << event_count << "\n"
               << "  total:      " << total_ms << " ms\n"

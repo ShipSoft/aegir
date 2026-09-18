@@ -19,6 +19,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "phlex/configuration.hpp"
 
@@ -29,18 +30,21 @@ namespace aegir {
   auto const configured_seed = config.get_if_present<std::int64_t>("seed");
   if (configured_seed &&
       (*configured_seed < 0 ||
-       *configured_seed > std::numeric_limits<std::uint32_t>::max()))
+       std::cmp_greater(*configured_seed,
+                        std::numeric_limits<std::uint32_t>::max()))) {
     throw std::runtime_error(component + ": seed " +
                              std::to_string(*configured_seed) +
                              " is outside the valid range [0, 4294967295]");
+  }
   auto const seed = configured_seed
                         ? static_cast<std::uint32_t>(*configured_seed)
                         : static_cast<std::uint32_t>(std::random_device{}());
-  if (!configured_seed)
+  if (!configured_seed) {
     spdlog::info(
         "{}: no seed configured — drew random seed {}; set 'seed: {}' to "
         "reproduce this run",
         component, seed, seed);
+  }
   return seed;
 }
 

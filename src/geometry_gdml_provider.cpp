@@ -30,13 +30,14 @@ class GDMLGeometrySource : public SHiP::IGeometrySource {
       : gdml_path_{std::move(path)}, sensitive_vols_{std::move(sv)} {}
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
-    std::call_once(init_flag_, [this]() {
+    std::call_once(init_flag_, [this] {
       G4GDMLParser parser;
       parser.Read(gdml_path_, /*validate=*/false);
       world_ = parser.GetWorldVolume();
-      if (!world_)
+      if (!world_) {
         throw std::runtime_error("GDMLGeometrySource: no world volume in " +
                                  gdml_path_);
+      }
     });
     return world_;
   }
@@ -52,12 +53,12 @@ class GDMLGeometrySource : public SHiP::IGeometrySource {
 PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
-  auto gdml_file = config.get<std::string>("gdml_file");
+  auto const gdml_file = config.get<std::string>("gdml_file");
   auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
 
   // Publish as the interface type: consumers request
   // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> source =
+  std::shared_ptr<SHiP::IGeometrySource> const source =
       std::make_shared<GDMLGeometrySource>(gdml_file, std::move(sv));
 
   aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",

@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: CERN for the benefit of the SHiP Collaboration
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# Layered on top of the synced .clang-tidy at the repository root, which
+# config-sync owns. This file is ours.
+#
+# src/ is phlex plugin modules. Their entry points are PHLEX_REGISTER_SOURCE,
+# PHLEX_REGISTER_PROVIDERS and PHLEX_REGISTER_ALGORITHMS, and the symbols those
+# macros define have to stay externally visible for phlex to find them at load
+# time. misc-use-internal-linkage sees free functions nothing in the same
+# translation unit calls and asks for them to be made static, which compiles and
+# links but leaves the plugin unloadable. Internal linkage is the wrong default
+# here, so the check is off for this directory only; benchmarks/ still gets it.
+InheritParentConfig: true
+Checks: >
+  -misc-use-internal-linkage,
+
+# phlex reads an algorithm's parameter types to work out which products to feed
+# it, and phlex::handle has to be taken by value for that to work: turning it
+# into a const reference trips a static_assert in phlex/model/handle.hpp.
+# performance-unnecessary-value-param cannot know that contract, so exempt the
+# type rather than the check.
+CheckOptions:
+  performance-unnecessary-value-param.AllowedTypes: 'phlex::handle;handle'

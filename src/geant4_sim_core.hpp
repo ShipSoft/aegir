@@ -34,13 +34,13 @@ using DetectorIdMap = std::unordered_map<G4LogicalVolume*, int>;
 
 inline SimHit make_base_hit(G4Step const* step,
                             DetectorIdMap const& detector_ids) {
-  auto* pre = step->GetPreStepPoint();
-  auto pos = pre->GetPosition();
-  auto mom = pre->GetMomentum();
+  auto const* pre = step->GetPreStepPoint();
+  auto const pos = pre->GetPosition();
+  auto const mom = pre->GetMomentum();
   auto* lv = pre->GetTouchable()->GetVolume()->GetLogicalVolume();
 
   SimHit hit;
-  auto it = detector_ids.find(lv);
+  auto const it = detector_ids.find(lv);
   hit.detectorId = it != detector_ids.end() ? it->second : -1;
   hit.trackId = step->GetTrack()->GetTrackID();
   hit.pdgCode = step->GetTrack()->GetDefinition()->GetPDGEncoding();
@@ -56,8 +56,10 @@ class ScoringSD : public G4VSensitiveDetector {
       : G4VSensitiveDetector(name), detector_ids_{std::move(detector_ids)} {}
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
-    double edep = step->GetTotalEnergyDeposit();
-    if (edep <= 0) return false;
+    double const edep = step->GetTotalEnergyDeposit();
+    if (edep <= 0) {
+      return false;
+    }
 
     auto hit = make_base_hit(step, detector_ids_);
     ship::view::setEnergyDeposit(hit, aegir::clhep::energy(edep));
@@ -82,10 +84,14 @@ class CrossingSD : public G4VSensitiveDetector {
         ke_threshold_{aegir::clhep::g4(ke_threshold)} {}
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
-    if (!step->IsFirstStepInVolume()) return false;
+    if (!step->IsFirstStepInVolume()) {
+      return false;
+    }
 
-    auto* track = step->GetTrack();
-    if (track->GetKineticEnergy() < ke_threshold_) return false;
+    auto const* track = step->GetTrack();
+    if (track->GetKineticEnergy() < ke_threshold_) {
+      return false;
+    }
 
     auto hit = make_base_hit(step, detector_ids_);
     hit.energyDeposit = 0;
@@ -125,8 +131,9 @@ class TrackingAction : public G4UserTrackingAction {
 
   void PreUserTrackingAction(const G4Track* track) override {
     if (particle_ke_cut_ > 0 && track->GetParentID() != 0 &&
-        track->GetKineticEnergy() < particle_ke_cut_)
+        track->GetKineticEnergy() < particle_ke_cut_) {
       return;
+    }
 
     SimParticle p;
     p.trackId = track->GetTrackID();
@@ -138,7 +145,7 @@ class TrackingAction : public G4UserTrackingAction {
     ship::view::setEnergy(p, aegir::clhep::energy(track->GetKineticEnergy()));
     ship::view::setTime(p, aegir::clhep::time(track->GetGlobalTime()));
 
-    auto* creator = track->GetCreatorProcess();
+    const auto* creator = track->GetCreatorProcess();
     p.creatorProcess = creator ? creator->GetProcessSubType() : 0;
 
     tl_track_map[p.trackId] = tl_particles.size();
@@ -146,7 +153,7 @@ class TrackingAction : public G4UserTrackingAction {
   }
 
   void PostUserTrackingAction(const G4Track* track) override {
-    auto it = tl_track_map.find(track->GetTrackID());
+    auto const it = tl_track_map.find(track->GetTrackID());
     if (it != tl_track_map.end()) {
       ship::view::setEndpoint(tl_particles[it->second],
                               aegir::clhep::position(track->GetPosition()));

@@ -75,9 +75,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
           matched = true;
         }
       }
-      if (!matched)
+      if (!matched) {
         throw std::runtime_error("Production-cut region '" + pattern +
                                  "' matches no logical volumes");
+      }
     }
 
     return world;
@@ -88,7 +89,7 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     DetectorIdMap detector_ids;
 
     for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
-      for (int i = 0; i < static_cast<int>(sv_names.size()); ++i) {
+      for (int i = 0; std::cmp_less(i, sv_names.size()); ++i) {
         if (G4StrUtil::contains(lv->GetName(), std::string_view{sv_names[i]})) {
           detector_ids.emplace(lv, i);
           break;
@@ -124,10 +125,11 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
           matched = true;
         }
       }
-      if (!matched)
+      if (!matched) {
         throw std::runtime_error("Field region '" + fr.name +
                                  "': volume_pattern '" + fr.volume_pattern +
                                  "' matches no logical volumes");
+      }
     }
   }
 };

@@ -70,22 +70,25 @@ class FileSource : public phlex::source {
       : skip_{skip}, read_sim_{product == "sim_particles"} {
     // skip_ is cast to the unsigned ROOT::NTupleSize_t in generate(); reject a
     // negative skip here rather than let it wrap around to a huge offset.
-    if (skip < 0)
+    if (skip < 0) {
       throw std::runtime_error(
           "file_source: 'skip' must be non-negative, got " +
           std::to_string(skip));
+    }
 
-    if (product != "mc_particles" && product != "sim_particles")
+    if (product != "mc_particles" && product != "sim_particles") {
       throw std::runtime_error(
           "file_source: unknown product '" + product +
           "' (expected 'mc_particles' or 'sim_particles')");
+    }
 
     reader_ = ROOT::RNTupleReader::Open(ntuple, input_file);
     n_entries_ = reader_->GetNEntries();
-    if (read_sim_)
+    if (read_sim_) {
       sim_view_ = reader_->GetView<std::vector<SHiP::SimParticle>>(product);
-    else
+    } else {
       mc_view_ = reader_->GetView<std::vector<SHiP::MCParticle>>(product);
+    }
   }
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
@@ -101,8 +104,9 @@ class FileSource : public phlex::source {
       auto const& sim_particles = (*sim_view_)(entry);
       std::vector<SHiP::MCParticle> particles;
       particles.reserve(sim_particles.size());
-      for (auto const& sp : sim_particles)
+      for (auto const& sp : sim_particles) {
         particles.push_back(to_mc_particle(sp));
+      }
       return particles;
     }
     return (*mc_view_)(entry);
@@ -133,11 +137,12 @@ class FileSource : public phlex::source {
 PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
-  auto input_file = config.get<std::string>("input_file");
-  auto ntuple = config.get<std::string>("ntuple", std::string{"events"});
-  auto product =
+  auto const input_file = config.get<std::string>("input_file");
+  auto const ntuple = config.get<std::string>("ntuple", std::string{"events"});
+  auto const product =
       config.get<std::string>("product", std::string{"mc_particles"});
-  auto skip = config.get<long>("skip", 0L);  // start reading at this entry
+  auto const skip =
+      config.get<long>("skip", 0L);  // start reading at this entry
 
   s.add_source<FileSource>("file_source", input_file, ntuple, product, skip);
 }

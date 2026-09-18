@@ -23,15 +23,15 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   for (auto const& m :
        config.get<std::vector<phlex::configuration>>("magnets")) {
     magnets.push_back({
-        m.get<std::string>("name"),
-        m.get<std::string>("volume_pattern"),
-        m.get<std::string>("cvf_file"),
+        .name = m.get<std::string>("name"),
+        .volume_pattern = m.get<std::string>("volume_pattern"),
+        .cvf_file = m.get<std::string>("cvf_file"),
     });
   }
 
   // Publish as the interface type: consumers request
   // std::shared_ptr<ship::IFieldSource>.
-  std::shared_ptr<ship::IFieldSource> source =
+  std::shared_ptr<ship::IFieldSource> const source =
       std::make_shared<ship::CovfieFieldSource>(std::move(magnets));
 
   aegir::provide_constant(s, "create_field", source, "field", "map", "job");

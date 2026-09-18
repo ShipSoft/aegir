@@ -159,7 +159,7 @@ class MCRNTupleWriter {
 
   void write(std::vector<SHiP::MCParticle> const& particles,
              SHiP::EventHeader const& header) {
-    auto lease = pool_->acquire();
+    auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind the inputs directly for the duration of Fill (which only reads
     // them), avoiding a full copy of the particle vector every event.
@@ -208,9 +208,11 @@ class SimRNTupleWriter {
              SHiP::SimResult const& result, SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
-    if (filter_empty_ && result.hits.empty()) return;
+    if (filter_empty_ && result.hits.empty()) {
+      return;
+    }
 
-    auto lease = pool_->acquire();
+    auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind inputs directly for the duration of Fill (read-only), avoiding a
     // full copy of each vector every event.
@@ -262,7 +264,7 @@ class MCHistogrammer {
     for (auto const& p : particles) {
       // Histograms are filled in the storage units straight off the persisted
       // structs; no unit conversion occurs (docs/units.md).
-      double pmag = aegir::magnitude(p.momentum);
+      double const pmag = aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
       ctxs.pdg->Fill(static_cast<double>(p.pdgCode));
     }
@@ -275,7 +277,8 @@ class MCHistogrammer {
     fill_contexts_.clear();
     try {
       auto file = RFile::Recreate(filename_);
-      auto put = [&](char const* name, char const* title, HistD const& h) {
+      auto const put = [&](char const* name, char const* title,
+                           HistD const& h) {
         auto th1 = ROOT::Experimental::Hist::ConvertToTH1D(h);
         th1->SetNameTitle(name, title);
         file->Put(name, *th1);
@@ -347,7 +350,7 @@ class SimHistogrammer {
     }
     ctxs.mc_multiplicity->Fill(static_cast<double>(particles.size()));
     for (auto const& p : particles) {
-      double pmag = aegir::magnitude(p.momentum);
+      double const pmag = aegir::magnitude(p.momentum);
       ctxs.mc_momentum->Fill(pmag);
     }
     ctxs.hit_multiplicity->Fill(static_cast<double>(result.hits.size()));
@@ -365,7 +368,8 @@ class SimHistogrammer {
     fill_contexts_.clear();
     try {
       auto file = RFile::Recreate(filename_);
-      auto put = [&](char const* name, char const* title, HistD const& h) {
+      auto const put = [&](char const* name, char const* title,
+                           HistD const& h) {
         auto th1 = ROOT::Experimental::Hist::ConvertToTH1D(h);
         th1->SetNameTitle(name, title);
         file->Put(name, *th1);
@@ -435,10 +439,10 @@ class SimNoop {
 PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
-  auto mode = config.get<std::string>("mode", std::string{"mc_only"});
-  auto rntuple_file =
+  auto const mode = config.get<std::string>("mode", std::string{"mc_only"});
+  auto const rntuple_file =
       config.get<std::string>("rntuple_file", std::string{"sim_output.root"});
-  auto histo_file =
+  auto const histo_file =
       config.get<std::string>("histo_file", std::string{"validation.root"});
   // Writer memory is bounded by fill_contexts x per-context buffering (which
   // scales with cluster_size_mib); see issue #77. The pool defaults to
@@ -448,20 +452,22 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   // active value here is the framework's thread count.
   auto const max_threads = tbb::global_control::active_value(
       tbb::global_control::max_allowed_parallelism);
-  auto cluster_mib = config.get<int>("cluster_size_mib", 32);
-  auto n_contexts = config.get<int>(
+  auto const cluster_mib = config.get<int>("cluster_size_mib", 32);
+  auto const n_contexts = config.get<int>(
       "fill_contexts", static_cast<int>(std::min<std::size_t>(
                            4, std::max<std::size_t>(1, max_threads))));
 
   if (mode != "mc_only" && mode != "full" && mode != "noop" &&
-      mode != "noop_full")
+      mode != "noop_full") {
     throw std::runtime_error(
         "Unknown sim_output_module mode: '" + mode +
         "' (expected 'mc_only', 'full', 'noop', or 'noop_full')");
-  if (cluster_mib <= 0 || n_contexts <= 0)
+  }
+  if (cluster_mib <= 0 || n_contexts <= 0) {
     throw std::runtime_error(
         "sim_output_module: cluster_size_mib and fill_contexts must be "
         "positive");
+  }
 
   if (mode == "noop") {
     auto noop = m.make<MCNoop>();
@@ -499,7 +505,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
   } else {
-    auto filter_empty = config.get<bool>("filter_empty", false);
+    auto const filter_empty = config.get<bool>("filter_empty", false);
 
     auto writer = m.make<SimRNTupleWriter>(
         rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),

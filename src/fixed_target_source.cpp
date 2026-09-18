@@ -52,7 +52,8 @@ class FixedTargetSource : public phlex::source {
     // Consecutive seeds give the two instances distinct Pythia streams —
     // sharing one seed would replay the same random sequence in both.
     // pythia_seed's headroom of 1 keeps the +1 inside Pythia's valid range.
-    auto configure_pythia_seed = [seed](Pythia8::Pythia& pythia, int offset) {
+    auto const configure_pythia_seed = [seed](Pythia8::Pythia& pythia,
+                                              int offset) {
       pythia.readString("Random:setSeed = on");
       pythia.readString("Random:seed = " +
                         std::to_string(aegir::pythia_seed(seed, 1) + offset));
@@ -84,16 +85,16 @@ class FixedTargetSource : public phlex::source {
     aegir::PhiloxRng rng{seed_, 0xF14ED0A7, event_number};
 
     // Select target: proton with probability Z/A, else neutron
-    double z_over_a =
+    double const z_over_a =
         static_cast<double>(target_z_) / static_cast<double>(target_a_);
-    bool proton_target = rng.uniform() < z_over_a;
+    bool const proton_target = rng.uniform() < z_over_a;
 
     // Sample interaction point z from truncated exponential
-    ship::Length target_length = target_z_end_ - target_z_start_;
-    double u = rng.uniform();
-    double exp_ratio = std::exp(-(target_length / interaction_length_)
-                                     .numerical_value_in(mp_units::one));
-    ship::Length z_interaction =
+    ship::Length const target_length = target_z_end_ - target_z_start_;
+    double const u = rng.uniform();
+    double const exp_ratio = std::exp(-(target_length / interaction_length_)
+                                           .numerical_value_in(mp_units::one));
+    ship::Length const z_interaction =
         target_z_start_ -
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
@@ -131,21 +132,23 @@ class FixedTargetSource : public phlex::source {
 PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
-  auto xml_dir = config.get<std::string>("xml_dir", [] {
-    if (auto const* env = std::getenv("PYTHIA8DATA")) return std::string{env};
+  auto const xml_dir = config.get<std::string>("xml_dir", [] {
+    if (auto const* env = std::getenv("PYTHIA8DATA")) {
+      return std::string{env};
+    }
     return std::string{"../share/Pythia8/xmldoc"};
   }());
-  auto beam_energy =
+  auto const beam_energy =
       aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV);
-  auto target_z = config.get<int>("target_z", 74);
-  auto target_a = config.get<int>("target_a", 184);
-  auto target_z_start =
+  auto const target_z = config.get<int>("target_z", 74);
+  auto const target_a = config.get<int>("target_a", 184);
+  auto const target_z_start =
       aegir::get_quantity(config, "target_z_start", 0.0 * su::mm);
-  auto target_z_end =
+  auto const target_z_end =
       aegir::get_quantity(config, "target_z_end", 1164.0 * su::mm);
-  auto interaction_length =
+  auto const interaction_length =
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
-  auto tau0_threshold =
+  auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
   auto seed = aegir::resolve_seed(config, "fixed_target");
 

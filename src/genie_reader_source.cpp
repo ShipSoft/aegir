@@ -21,6 +21,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "mc_particle_source.hpp"
@@ -51,17 +52,19 @@ class GenieReaderSource : public phlex::source {
                                "': " + e.what());
     }
     tree_ = file_->Get<TTree>(tree_name);
-    if (!tree_)
+    if (!tree_) {
       throw std::runtime_error("genie_reader_source: no TTree '" + tree_name +
                                "' in '" + file + "'");
+    }
 
     // The StdHep branches are variable-length arrays indexed by StdHepN; size
     // the buffers from the count leaf's file-wide maximum so GetEntry can
     // never write past them.
     int capacity = kDefaultMaxParticles;
-    if (auto* leaf = tree_->GetLeaf("StdHepPdg")) {
-      if (auto* count = leaf->GetLeafCount())
+    if (auto const* leaf = tree_->GetLeaf("StdHepPdg")) {
+      if (auto const* count = leaf->GetLeafCount()) {
         capacity = std::max(capacity, static_cast<int>(count->GetMaximum()));
+      }
     }
     pdg_.resize(capacity);
     status_.resize(capacity);
@@ -79,7 +82,7 @@ class GenieReaderSource : public phlex::source {
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto const entry = first_entry_ + static_cast<long long>(id.number());
-    if (entry >= tree_->GetEntries())
+    if (entry >= tree_->GetEntries()) {
       throw std::runtime_error(
           "genie_reader_source: input exhausted — the workflow requested "
           "entry " +
@@ -87,13 +90,15 @@ class GenieReaderSource : public phlex::source {
           std::to_string(tree_->GetEntries()) +
           " events. Reduce the driver's event count or provide a larger "
           "file.");
+    }
     tree_->GetEntry(entry);
 
     auto const n = n_particles_;
-    if (n < 0 || n > static_cast<int>(pdg_.size()))
+    if (n < 0 || std::cmp_greater(n, pdg_.size())) {
       throw std::runtime_error("genie_reader_source: corrupt entry " +
                                std::to_string(entry) +
                                ": StdHepN = " + std::to_string(n));
+    }
 
     // The interaction vertex is per event (EvtVtx, SI units); the per-particle
     // StdHepX4 positions are nuclear-scale offsets and irrelevant for
@@ -109,7 +114,9 @@ class GenieReaderSource : public phlex::source {
     std::vector<int> out_index(static_cast<std::size_t>(n), -1);
 
     for (int i = 0; i < n; ++i) {
-      if (status_[i] != kStableFinalState) continue;
+      if (status_[i] != kStableFinalState) {
+        continue;
+      }
 
       out_index[static_cast<std::size_t>(i)] =
           static_cast<int>(particles.size());
@@ -154,11 +161,12 @@ class GenieReaderSource : public phlex::source {
  private:
   template <typename T>
   void enable_branch(std::string const& name, T* address) {
-    if (!tree_->GetBranch(name.c_str()))
+    if (!tree_->GetBranch(name.c_str())) {
       throw std::runtime_error("genie_reader_source: branch '" + name +
                                "' missing from '" + file_name_ +
                                "' — is this a rootracker file (gntpc -f "
                                "rootracker)?");
+    }
     tree_->SetBranchStatus(name.c_str(), true);
     tree_->SetBranchAddress(name.c_str(), address);
   }
@@ -185,11 +193,12 @@ class GenieReaderSource : public phlex::source {
 }  // namespace
 
 PHLEX_REGISTER_SOURCE(s, config) {
-  auto file = config.get<std::string>("file");
-  auto tree = config.get<std::string>("tree", std::string{"gRooTracker"});
-  auto first_entry = config.get<long>("first_entry", 0L);
-  if (first_entry < 0)
+  auto const file = config.get<std::string>("file");
+  auto const tree = config.get<std::string>("tree", std::string{"gRooTracker"});
+  auto const first_entry = config.get<long>("first_entry", 0L);
+  if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
+  }
 
   s.add_source<GenieReaderSource>("genie_reader", file, tree,
                                   static_cast<long long>(first_entry));

@@ -8,7 +8,9 @@
 #   - count_entries.py reports the written event count (the read-all helper),
 #   - reading the whole file processes every event,
 #   - the `skip` offset starts at the requested entry and processes exactly the
-#     requested number of events, serving the correct entries.
+#     requested number of events, serving the correct entries,
+#   - the event header is read back from the input, and falls back to the
+#     unweighted default for a file written before that field existed.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -181,5 +183,112 @@ got=$(python3 "$here/count_entries.py" "$workdir/g4_sim.root")
 [ "$got" = "$sn" ] || { echo "geant4 sim read: expected $sn events, got $got"; exit 1; }
 python3 "$workdir/check_nonempty.py" "$workdir/g4_sim.root" sim_particles SimParticle
 
-echo "file_source round-trip passed: count helper, read-all, skip offset, and"
-echo "Geant4 re-simulation (MCParticle and SimParticle inputs) all correct"
+# Build a small MCParticle file whose event headers are all distinguishable from
+# the unweighted default (1.0, -1). The particle gun publishes that default for
+# every event, so a gun-written file cannot tell a header that was really read
+# back from one that fell through to the default. With --no-header the
+# event_header field is left out entirely, reproducing a file written before the
+# field existed.
+cat >"$workdir/make_header_input.py" <<'EOF'
+import os
+import sys
+
+import ROOT
+
+out, n = sys.argv[1], int(sys.argv[2])
+with_header = "--no-header" not in sys.argv
+
+model = ROOT.RNTupleModel.Create()
+model.MakeField["std::vector<SHiP::MCParticle>"]("mc_particles")
+if with_header:
+    model.MakeField["SHiP::EventHeader"]("event_header")
+writer = ROOT.RNTupleWriter.Recreate(ROOT.std.move(model), "events", out)
+entry = writer.CreateEntry()
+
+for i in range(n):
+    particles = entry["mc_particles"]
+    particles.clear()
+    p = ROOT.SHiP.MCParticle()
+    p.pdgCode = 13
+    p.vertex[2] = -500.0
+    p.momentum[2] = 10.0 + i
+    p.energy = 10.0 + i
+    p.motherId = -1
+    p.status = 1
+    particles.push_back(p)
+    if with_header:
+        header = entry["event_header"]
+        header.weight = 2.0 + i  # never 1.0, the default
+        header.original_event_id = 100 + i
+    writer.Fill(entry)
+
+del writer  # flushes and closes the file
+os._exit(0)
+EOF
+
+# Compare the event headers a file_source run published against the input they
+# came from, or (--default) assert they are all the unweighted default. Same
+# multiset comparison as check_offset.py: the parallel writer emits in
+# completion order, not event order.
+cat >"$workdir/check_header.py" <<'EOF'
+import os
+import sys
+
+import ROOT
+
+# Keep every reader and view alive until os._exit, as in check_offset.py.
+alive = []
+
+
+def headers(path):
+    reader = ROOT.RNTupleReader.Open("events", path)
+    view = reader.GetView["SHiP::EventHeader"]("event_header")
+    alive.extend((reader, view))
+    return sorted(
+        (int(view(i).original_event_id), float(view(i).weight))
+        for i in range(reader.GetNEntries())
+    )
+
+
+got = headers(sys.argv[1])
+if sys.argv[2] == "--default":
+    want = [(-1, 1.0)] * len(got)
+else:
+    want = headers(sys.argv[2])
+ok = bool(got) and got == want
+if not ok:
+    print(f"event_header mismatch: got {got}, expected {want}")
+sys.stdout.flush()  # os._exit skips the buffer flush
+os._exit(0 if ok else 1)
+EOF
+
+# 8. The event header survives a read-back: file_source must publish the header
+#    stored in the input, not the unweighted default.
+python3 "$workdir/make_header_input.py" "$workdir/header_input.root" "$n"
+phlex -c <(jsonnet \
+  --ext-str events="$n" \
+  --ext-str infile="$workdir/header_input.root" \
+  --ext-str skip=0 \
+  --ext-str simout="$workdir/sim_header.root" \
+  --ext-str histo="$workdir/valid_header.root" \
+  "$workdir/read.jsonnet")
+python3 "$workdir/check_header.py" "$workdir/sim_header.root" \
+  "$workdir/header_input.root"
+
+# 9. A file written before the event_header field existed still replays, and
+#    publishes the unweighted default rather than failing to open the view.
+python3 "$workdir/make_header_input.py" "$workdir/legacy_input.root" "$n" --no-header
+phlex -c <(jsonnet \
+  --ext-str events="$n" \
+  --ext-str infile="$workdir/legacy_input.root" \
+  --ext-str skip=0 \
+  --ext-str simout="$workdir/sim_legacy.root" \
+  --ext-str histo="$workdir/valid_legacy.root" \
+  "$workdir/read.jsonnet")
+got=$(python3 "$here/count_entries.py" "$workdir/sim_legacy.root")
+[ "$got" = "$n" ] || { echo "legacy read: expected $n events, got $got"; exit 1; }
+python3 "$workdir/check_header.py" "$workdir/sim_legacy.root" --default
+
+echo "file_source round-trip passed: count helper, read-all, skip offset,"
+echo "Geant4 re-simulation (MCParticle and SimParticle inputs), and the event"
+echo "header (preserved when stored, default when the field is absent)"

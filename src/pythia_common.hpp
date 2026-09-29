@@ -102,18 +102,23 @@ void next_event(Pythia& pythia, std::string_view source_name,
 // consumer can tell the two apart — geant4_module tracks exactly status 1.
 // Pythia's entry 0, the "system" pseudo-particle, is never emitted.
 //
-// motherId is remapped from the Pythia-record index to the index within the
-// returned vector, or -1 when the mother was not itself written out. In
-// final_state mode that is the common case, since mothers of final-state
-// particles generally are not final state themselves; in full mode the map
-// degenerates to "record index minus one", with -1 for the beams, whose
-// mother1() is 0. Either way motherId is a valid index into the emitted
-// collection rather than a dangling reference into a discarded record.
+// `mothers` is the complete mother list, taken from Pythia's motherList().
+// That accessor is derived from mother1, mother2 *and* the native status, so
+// it already resolves the six mother1/mother2 combinations — a carbon copy, a
+// single mother, an inclusive range of string-fragmentation mothers, two
+// genuinely distinct mothers — into one uniform list. It is empty for the
+// beam particles, whose history Pythia does not record.
 //
-// Only Pythia's mother1() is kept: MCParticle has a single mother index,
-// while Pythia encodes up to two (a carbon copy, a single mother, a range of
-// string-fragmentation mothers, or two genuinely distinct ones). Entries with
-// several mothers therefore keep only the first.
+// Indices are remapped from the Pythia record to the returned vector.
+// Mothers that were not themselves written out are dropped rather than
+// recorded as -1, because the data model reserves -1 for motherId alone and
+// requires every element of `mothers` to be a valid index. In final_state
+// mode most mothers are dropped, since mothers of final-state particles
+// generally are not final state themselves; in full mode the map degenerates
+// to "record index minus one" and the whole chain survives.
+//
+// motherId is then the first surviving mother, or -1 when none survived,
+// which keeps it equal to mothers.front() as the data model requires.
 template <typename MCParticle>
 std::vector<MCParticle> extract_particles(
     Pythia8::Event const& event, ship::Length z_offset = ship::Length::zero(),
@@ -149,16 +154,27 @@ std::vector<MCParticle> extract_particles(
     mc.energy = ship::raw(p.e() * su::GeV);
     // mm/c -> ns via the exact definition of c (no hand-typed constant).
     mc.time = (p.tProd() * su::mm_per_c).numerical_value_in(su::ns);
-    mc.motherId = p.mother1();  // record index, remapped below
     mc.status = p.statusHepMC();
+    // Record indices for now; remapped below, once out_index is complete.
+    for (int const m : p.motherList()) {
+      mc.mothers.push_back(m);
+    }
     particles.push_back(mc);
   }
 
   for (auto& mc : particles) {
-    int const m = mc.motherId;
-    mc.motherId = (m >= 0 && std::cmp_less(m, out_index.size()))
-                      ? out_index[static_cast<std::size_t>(m)]
-                      : -1;
+    std::vector<std::int32_t> mapped;
+    mapped.reserve(mc.mothers.size());
+    for (int const m : mc.mothers) {
+      if (m < 0 || std::cmp_greater_equal(m, out_index.size())) {
+        continue;
+      }
+      if (int const out = out_index[static_cast<std::size_t>(m)]; out >= 0) {
+        mapped.push_back(out);
+      }
+    }
+    mc.mothers = std::move(mapped);
+    mc.motherId = mc.mothers.empty() ? -1 : mc.mothers.front();
   }
   return particles;
 }

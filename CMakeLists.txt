@@ -23,7 +23,7 @@ option(
 )
 
 # Dependencies
-find_package(SHiPDataModel REQUIRED)
+find_package(SHiPDataModel 0.5 REQUIRED)
 find_package(SHiPFieldService 0.2 REQUIRED COMPONENTS G4Adapter MapIO)
 
 find_package(spdlog REQUIRED)

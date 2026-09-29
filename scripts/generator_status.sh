@@ -13,6 +13,8 @@
 #     the aggregated skip line,
 #   - `track_all_primaries` restores the old behaviour, which tracks the
 #     decayed and beam entries too.
+# The fixture itself is checked against the data model's mother invariants, so
+# the record's provenance chain is verified along the way.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -32,7 +34,7 @@ local lib = import 'lib.libsonnet';
   driver: lib.driver(std.parseInt(std.extVar('events'))),
   sources: {
     pythia8: lib.pythia8 {
-      record: 'full',
+      record: std.extVar('record'),
       seed: std.parseInt(std.extVar('seed')),
     },
   },
@@ -79,6 +81,8 @@ import sys
 
 import ROOT
 
+ROOT.gInterpreter.Declare('#include "SHiP/MCParticle.hpp"')
+
 path = sys.argv[1]
 alive = []
 
@@ -98,9 +102,16 @@ for i in range(reader.GetNEntries()):
     # it silently refuses to track the short-lived ones (partons, strings).
     trackable = sum(1 for p in parts if p.status in (1, 2, 4))
     mothers = sum(1 for p in parts if p.motherId >= 0)
-    bad = sum(1 for p in parts if not -1 <= p.motherId < total)
+    # The data model's own invariant checks: indices in range, no -1 inside
+    # the list, mothers.front() == motherId, elements distinct and never
+    # self-referential. "Populated" additionally requires that an entry with a
+    # mother carries the whole list, which only current-schema data can do.
+    bad = 0 if ROOT.SHiP.mothersAreConsistent(parts) else 1
+    if not ROOT.SHiP.mothersArePopulated(parts):
+        bad += 1
+    multi = sum(1 for p in parts if len(p.mothers) > 1)
     primaries = sum(1 for p in sim(i) if p.parentId == 0) if sim else -1
-    print(f"{total} {final} {trackable} {mothers} {bad} {primaries}")
+    print(f"{total} {final} {trackable} {mothers} {bad} {primaries} {multi}")
 
 sys.stdout.flush()
 os._exit(0)
@@ -110,17 +121,24 @@ EOF
 phlex -c <(jsonnet -J "$workflows" \
   --ext-str events="$n" \
   --ext-str seed="$seed" \
+  --ext-str record=full \
   --ext-str outfile="$workdir/full.root" \
   --ext-str histofile="$workdir/full_hist.root" \
   "$workdir/write_full.jsonnet")
 
 # 2. It must genuinely be mixed, or the rest of the test proves nothing: every
-# event needs non-final-state entries, and the mother links must be valid
-# indices into the emitted collection with at least one real mother.
+# event needs non-final-state entries, and the mother links must satisfy the
+# data model's invariants, with at least one real mother and at least one
+# entry carrying several — the case a single motherId could not represent.
 python3 "$workdir/counts.py" "$workdir/full.root" >"$workdir/fixture.txt"
-while read -r total final trackable mothers bad _; do
-  [ "$bad" = 0 ] || { echo "fixture: $bad out-of-range motherId"; exit 1; }
+while read -r total final trackable mothers bad _ multi; do
+  [ "$bad" = 0 ] || { echo "fixture: mother invariants violated"; exit 1; }
   [ "$mothers" -gt 0 ] || { echo "fixture: no entry has a mother"; exit 1; }
+  [ "$multi" -gt 0 ] || {
+    echo "fixture: no entry has several mothers — the full record should"
+    echo "contain string-fragmentation hadrons with many parents"
+    exit 1
+  }
   [ "$final" -lt "$total" ] || {
     echo "fixture: all $total entries are final state — record is not mixed"
     exit 1
@@ -130,6 +148,36 @@ while read -r total final trackable mothers bad _; do
     exit 1
   }
 done <"$workdir/fixture.txt"
+
+# 2b. The same record in final_state mode. Every mother of a final-state
+# particle is itself dropped, so this is what exercises the "drop, do not
+# record -1" half of the remap: pushing the sentinel into the list instead
+# would fail mothersAreConsistent, which rejects any index outside [0, N).
+phlex -c <(jsonnet -J "$workflows" \
+  --ext-str events="$n" \
+  --ext-str seed="$seed" \
+  --ext-str record=final_state \
+  --ext-str outfile="$workdir/fs.root" \
+  --ext-str histofile="$workdir/fs_hist.root" \
+  "$workdir/write_full.jsonnet")
+
+python3 "$workdir/counts.py" "$workdir/fs.root" >"$workdir/fs.txt"
+while read -r total final _ mothers bad _ _; do
+  [ "$bad" = 0 ] || {
+    echo "final_state: mother invariants violated — a dropped mother was"
+    echo "probably recorded as -1 instead of being left out"
+    exit 1
+  }
+  [ "$mothers" = 0 ] || {
+    echo "final_state: $mothers entries kept a mother, but no mother of a"
+    echo "final-state particle survives the filter"
+    exit 1
+  }
+  [ "$final" = "$total" ] || {
+    echo "final_state: $((total - final)) of $total entries are not final state"
+    exit 1
+  }
+done <"$workdir/fs.txt"
 
 # 3. Replay with the filter on (the default).
 phlex -c <(jsonnet -J "$workflows" \
@@ -143,7 +191,7 @@ phlex -c <(jsonnet -J "$workflows" \
 # Exactly the status-1 entries became primaries. The two other skip reasons are
 # read back out of the aggregated warning rather than assumed to be zero.
 python3 "$workdir/counts.py" "$workdir/sim_filtered.root" >"$workdir/filtered.txt"
-while read -r total final _ _ _ primaries; do
+while read -r total final _ _ _ primaries _; do
   # Skips for this event, matched by its mc_particles count.
   line=$(grep -F "of $total primaries" "$workdir/filtered.log" || true)
   lost=0
@@ -188,7 +236,7 @@ fi
 # entries (partons, strings, diquarks), so the count lands between "status 1
 # only" and "every entry Geant4 has a non-short-lived definition for".
 python3 "$workdir/counts.py" "$workdir/sim_all.root" >"$workdir/all.txt"
-while read -r _ final trackable _ _ primaries; do
+while read -r _ final trackable _ _ primaries _; do
   [ "$primaries" -gt "$final" ] || {
     echo "track_all_primaries: tracked $primaries, no more than the $final"
     echo "final-state entries — the filter made no difference"

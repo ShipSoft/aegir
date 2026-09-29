@@ -71,10 +71,32 @@ remap usually yields `-1`; under `full` it is the record index minus one
 (Pythia's entry 0, the "system" pseudo-particle, is never emitted), with `-1`
 for the beam particles.
 
-Only the **first** mother is kept. Pythia encodes up to two, in six documented
-combinations — a carbon copy of the mother, a single mother, an inclusive
-*range* of string-fragmentation mothers, two genuinely distinct mothers, and
-an order-reversed variant. `SHiP::MCParticle` has one index, so entries with
-several mothers keep only `mother1()`; the same applies to GENIE, whose
-`StdHepLm` (last mother) branch is not read. Adding a second index to the data
-model would close this gap and is proposed separately.
+An entry can have more than one mother, so `mothers` carries the complete
+list and `motherId` is its first element (`-1` when the list is empty).
+
+For Pythia the list comes straight from `Particle::motherList()`. That
+accessor derives from `mother1`, `mother2` **and** the native status, so it
+already resolves the six documented `mother1`/`mother2` combinations — a
+carbon copy of the mother, a single mother, an inclusive *range* of
+string-fragmentation mothers, two genuinely distinct mothers, and an
+order-reversed variant — into one uniform list. Reading the raw pair instead
+could not tell a range from a pair, because the discriminator is the native
+status that `statusHepMC()` discards. It is empty for the beam particles,
+whose history Pythia does not record.
+
+For GENIE the list is built from `StdHepFm` and `StdHepLm`, treated as two
+distinct parents rather than the endpoints of a range. `StdHepLm` is optional:
+files written without it read as single-mother throughout.
+
+Mothers that did not survive the filter are **dropped** from the list, not
+recorded as `-1` — the data model reserves that sentinel for `motherId`. Under
+`record: 'final_state'` that usually empties the list entirely, since the
+mothers of final-state particles are generally not final state themselves.
+Under `full` the whole chain survives; a typical 400 GeV record has multi-mother
+entries with up to six parents apiece.
+
+`SHiP::mothersAreConsistent()` checks the resulting invariants (every index in
+range, no `-1` in the list, `mothers.front() == motherId`, elements distinct
+and never self-referential); `SHiP::mothersArePopulated()` additionally
+requires that an entry with a mother carries the full list. The
+`generator_status` test asserts both on generated records.

@@ -35,6 +35,7 @@ struct MCParticle {
   double energy{0};
   double time{0};
   std::int32_t motherId{-1};
+  std::vector<std::int32_t> mothers;
   std::int32_t status{1};
 };
 

@@ -14,6 +14,7 @@
 #include <numbers>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
 #include "philox_rng.hpp"
 #include "seed_config.hpp"
@@ -61,7 +62,7 @@ class ParticleGun : public phlex::source {
     ship::view::setEnergy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
     ship::view::setTime(mc, ship::Time::zero());
     mc.motherId = -1;
-    mc.status = 1;
+    mc.status = aegir::hepmc::final_state;
 
     return {mc};
   }

@@ -153,7 +153,7 @@ PHLEX_REGISTER_SOURCE(s, config) {
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
-  auto record = aegir::parse_record_mode(
+  auto const record = aegir::parse_record_mode(
       config.get<std::string>("record", std::string{"final_state"}),
       "fixed_target");
   auto seed = aegir::resolve_seed(config, "fixed_target");

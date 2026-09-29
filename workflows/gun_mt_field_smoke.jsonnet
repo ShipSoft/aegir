@@ -1,7 +1,7 @@
-// Multi-threaded smoke with the covfie field: same setup as
-// gun_st_field_smoke.jsonnet but with 4 worker threads. Validates that the
-// per-call covfie field_view construction is thread-safe and that the
-// G4FieldManager wiring survives the master/worker handoff.
+// Multi-threaded field smoke: same setup as gun_st_field_smoke.jsonnet but
+// with 4 worker threads. Validates that the shared field evaluator is
+// thread-safe and that the G4FieldManager wiring survives the master/worker
+// handoff.
 local lib = import 'lib.libsonnet';
 {
   driver: lib.driver(200),

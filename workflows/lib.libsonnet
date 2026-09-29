@@ -14,17 +14,22 @@
   // ── sources ────────────────────────────────────────────────────────────
   null_field:: { cpp: 'field_null_provider' },
 
-  covfie_field(magnets):: {
-    cpp: 'field_covfie_provider',
+  // Field maps in the SHiP field-map format. Each magnet names a `file`
+  // (bare names resolve via $SHIPFIELD_ROOT/share/field/), the `map` inside
+  // it, and optionally a `translation` [x, y, z] in mm placing the map's
+  // origin in the global frame.
+  field_map(magnets):: {
+    cpp: 'field_map_provider',
     magnets: magnets,
   },
 
   // 0.5 T constant By over the whole World volume — the field-smoke setup.
-  world_field_05T_y:: self.covfie_field([
+  world_field_05T_y:: self.field_map([
     {
       name: 'WorldField',
       volume_pattern: 'World',
-      cvf_file: 'world_05T_y.cvf',
+      file: 'world_05T_y.root',
+      map: 'world_05T_y',
     },
   ]),
 

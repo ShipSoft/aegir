@@ -24,7 +24,7 @@ option(
 
 # Dependencies
 find_package(SHiPDataModel REQUIRED)
-find_package(SHiPFieldService REQUIRED COMPONENTS G4Adapter)
+find_package(SHiPFieldService REQUIRED COMPONENTS G4Adapter MapIO)
 
 # Phlex's cmake config does not call find_dependency for its transitive deps
 # (still true as of phlex 0.3.0: its generated deps block is empty), so declare
@@ -150,7 +150,7 @@ if(AEGIR_TLS_INITIAL_EXEC)
     target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
 endif()
 
-aegir_add_plugin(field_covfie_provider LIBS SHiPFieldService::SHiPFieldService)
+aegir_add_plugin(field_map_provider LIBS SHiPFieldService::MapIO)
 aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
 
 aegir_add_plugin(

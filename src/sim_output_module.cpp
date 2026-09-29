@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "TH1D.h"
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
 #include "phlex/module.hpp"
@@ -260,14 +261,23 @@ class MCHistogrammer {
       ctxs.momentum = f_momentum_.CreateFillContext();
       ctxs.pdg = f_pdg_.CreateFillContext();
     }
-    ctxs.multiplicity->Fill(static_cast<double>(particles.size()));
+    // Only final-state particles are histogrammed, so the plots mean "what
+    // was handed to the detector simulation" whichever record mode the
+    // generator ran in. Under `record: 'full'` the collection also holds
+    // beams, strings and decayed mothers, which would swamp the PDG axis and
+    // overflow the multiplicity one. The written product is unaffected — the
+    // full record still reaches disk.
+    std::size_t multiplicity = 0;
     for (auto const& p : particles) {
+      if (!aegir::hepmc::is_final_state(p.status)) continue;
+      ++multiplicity;
       // Histograms are filled in the storage units straight off the persisted
       // structs; no unit conversion occurs (docs/units.md).
       double const pmag = aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
       ctxs.pdg->Fill(static_cast<double>(p.pdgCode));
     }
+    ctxs.multiplicity->Fill(static_cast<double>(multiplicity));
   }
 
   ~MCHistogrammer() {
@@ -348,11 +358,17 @@ class SimHistogrammer {
       ctxs.hit_momentum = f_hit_momentum_.CreateFillContext();
       ctxs.particle_multiplicity = f_particle_multiplicity_.CreateFillContext();
     }
-    ctxs.mc_multiplicity->Fill(static_cast<double>(particles.size()));
+    // Final-state entries only, for the reason given in MCHistogrammer.
+    std::size_t mc_multiplicity = 0;
     for (auto const& p : particles) {
+      if (!aegir::hepmc::is_final_state(p.status)) {
+        continue;
+      }
+      ++mc_multiplicity;
       double const pmag = aegir::magnitude(p.momentum);
       ctxs.mc_momentum->Fill(pmag);
     }
+    ctxs.mc_multiplicity->Fill(static_cast<double>(mc_multiplicity));
     ctxs.hit_multiplicity->Fill(static_cast<double>(result.hits.size()));
     for (auto const& hit : result.hits) {
       ctxs.hit_edep->Fill(hit.energyDeposit);

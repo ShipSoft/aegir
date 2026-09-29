@@ -28,7 +28,9 @@
 #include <utility>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
+#include "record_mode.hpp"
 
 namespace {
 
@@ -36,8 +38,41 @@ namespace su = ship::units;
 
 using ROOT::Experimental::RFile;
 
-// GENIE GHepStatus: 1 = stable final state (trackable by Geant4).
-constexpr int kStableFinalState = 1;
+// GENIE GHepStatus codes (Framework/GHEP/GHepStatus.h). Only the ones needing
+// a distinct HepMC translation are named; the rest are nuclear/intermediate
+// bookkeeping handled by the default branch below.
+constexpr int kUndefined = -1;
+constexpr int kInitialState = 0;
+constexpr int kStableFinalState = 1;  ///< "to be tracked by detector-level MC"
+constexpr int kDecayedState = 3;
+
+// Translate a GENIE status to the HepMC convention that SHiP::MCParticle
+// carries (see hepmc_status.hpp). GENIE's intermediate and nuclear codes
+// (2, 10-16) have no HepMC counterpart, so they map into the 11-200
+// generator-dependent band, offset to stay clear of it while remaining
+// reversible.
+constexpr int kGenieIntermediateOffset = 100;
+
+[[nodiscard]] constexpr int genie_status_to_hepmc(int status) noexcept {
+  switch (status) {
+    case kStableFinalState:
+      return aegir::hepmc::final_state;
+    case kInitialState:
+      // The incoming neutrino and the target nucleus.
+      return aegir::hepmc::beam;
+    case kDecayedState:
+      return aegir::hepmc::decayed;
+    case kUndefined:
+      return aegir::hepmc::empty;
+    default:
+      return kGenieIntermediateOffset + status;
+  }
+}
+
+static_assert(genie_status_to_hepmc(kStableFinalState) ==
+              aegir::hepmc::final_state);
+static_assert(genie_status_to_hepmc(2) <= aegir::hepmc::intermediate_max);
+static_assert(genie_status_to_hepmc(16) <= aegir::hepmc::intermediate_max);
 
 // Stock gntpc caps the StdHep arrays at 250 particles (kNPmax); the actual
 // buffer size is taken from the file in case it was produced with a larger
@@ -47,8 +82,8 @@ constexpr int kDefaultMaxParticles = 250;
 class GenieReaderSource : public phlex::source {
  public:
   GenieReaderSource(std::string const& file, std::string const& tree_name,
-                    long long first_entry)
-      : file_name_{file}, first_entry_{first_entry} {
+                    long long first_entry, aegir::record_mode record)
+      : file_name_{file}, first_entry_{first_entry}, record_{record} {
     try {
       file_ = RFile::Open(file);
     } catch (ROOT::RException const& e) {
@@ -120,12 +155,13 @@ class GenieReaderSource : public phlex::source {
       ship::Time const time = (vtx_[3] * su::s).in(su::ns);
 
       particles.reserve(static_cast<std::size_t>(n));
-      // StdHep-record index -> output index for written (final-state)
-      // particles.
+      // StdHep-record index -> output index for written particles. In full
+      // mode every entry is written, so this becomes the identity.
       out_index.assign(static_cast<std::size_t>(n), -1);
 
       for (int i = 0; i < n; ++i) {
-        if (status_[i] != kStableFinalState) {
+        if (record_ == aegir::record_mode::final_state &&
+            status_[i] != kStableFinalState) {
           continue;
         }
 
@@ -143,7 +179,7 @@ class GenieReaderSource : public phlex::source {
         ship::view::setEnergy(mc, p4(i, 3) * su::GeV);
         ship::view::setTime(mc, time);
         mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
-        mc.status = 1;
+        mc.status = genie_status_to_hepmc(status_[i]);
         particles.push_back(mc);
       }
     }
@@ -263,6 +299,7 @@ class GenieReaderSource : public phlex::source {
 
   std::string file_name_;
   long long first_entry_;
+  aegir::record_mode record_;
   // Declaration order matters: the TTree stays attached to the underlying
   // file for lazy basket reads, so it must be destroyed before file_.
   std::unique_ptr<RFile> file_;
@@ -296,7 +333,10 @@ PHLEX_REGISTER_SOURCE(s, config) {
   if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
   }
+  auto const record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "genie_reader_source");
 
   s.add_source<GenieReaderSource>("genie_reader", file, tree,
-                                  static_cast<long long>(first_entry));
+                                  static_cast<long long>(first_entry), record);
 }

@@ -119,15 +119,15 @@ Skipped primaries are counted and reported once per event in an aggregated
 warning; they remain in the output `mc_particles` product, so the record is
 not lost.
 
-Every generator here pre-filters to final state before writing
-`mc_particles`, so today the check is a no-op: it is a guard for an input
-that does not, such as a stored file or a generator that emits its whole
-record.
+This filter is a no-op for a generator running in the default
+`record: 'final_state'` mode, where every emitted entry is status 1. It
+matters under `record: 'full'` — see [generator_record.md](generator_record.md).
 
-Without it the failure mode would be *silent and partial* rather than loud.
-Geant4 declines to track short-lived definitions (quarks, gluons, diquarks,
-strings) on its own, but it happily tracks decayed hadrons and beam particles
-alongside the daughters they already produced.
+Without it the failure mode is *silent and partial* rather than loud: Geant4
+declines to track short-lived definitions (quarks, gluons, diquarks, strings)
+on its own, but happily tracks decayed hadrons and beam particles. Setting
+`track_all_primaries` on a full record demonstrates this — the primary count
+rises to exactly the number of status 1, 2 and 4 entries.
 
 ### Shutdown
 

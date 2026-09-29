@@ -42,12 +42,14 @@ class FixedTargetSource : public phlex::source {
   FixedTargetSource(std::string const& xml_dir, ship::Energy beam_energy,
                     int target_z, int target_a, ship::Length target_z_start,
                     ship::Length target_z_end, ship::Length interaction_length,
-                    aegir::PythiaTime tau0_threshold, std::uint32_t seed)
+                    aegir::PythiaTime tau0_threshold, aegir::record_mode record,
+                    std::uint32_t seed)
       : target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
         interaction_length_{interaction_length},
+        record_{record},
         seed_{seed} {
     // Consecutive seeds give the two instances distinct Pythia streams —
     // sharing one seed would replay the same random sequence in both.
@@ -103,7 +105,7 @@ class FixedTargetSource : public phlex::source {
                                             : "FixedTargetSource (pn)");
 
     return aegir::extract_particles<SHiP::MCParticle>(pythia.event,
-                                                      z_interaction);
+                                                      z_interaction, record_);
   }
 
   phlex::detail::provider_bundles create_providers(
@@ -124,6 +126,7 @@ class FixedTargetSource : public phlex::source {
   ship::Length interaction_length_;
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
+  aegir::record_mode record_;
   std::uint32_t seed_;
 };
 
@@ -150,9 +153,12 @@ PHLEX_REGISTER_SOURCE(s, config) {
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
+  auto record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "fixed_target");
   auto seed = aegir::resolve_seed(config, "fixed_target");
 
   s.add_source<FixedTargetSource>(
       "fixed_target", xml_dir, beam_energy, target_z, target_a, target_z_start,
-      target_z_end, interaction_length, tau0_threshold, seed);
+      target_z_end, interaction_length, tau0_threshold, record, seed);
 }

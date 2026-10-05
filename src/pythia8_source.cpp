@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <exception>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -27,6 +28,7 @@
 
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
+#include "pythia_philox_engine.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
@@ -41,18 +43,22 @@ class Pythia8Source : public phlex::source {
   Pythia8Source(std::string stage, std::string const& xml_dir,
                 ship::Energy beam_energy, std::string const& process,
                 std::uint32_t seed)
-      : stage_{std::move(stage)} {
+      : stage_{std::move(stage)}, seed_{seed} {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
+    // Philox engine re-keyed to the event number before every event, so the
+    // events do not depend on the order they are processed in (see
+    // pythia_philox_engine.hpp). Pythia also draws while initialising.
+    engine_->reset(seed, aegir::kPythiaInitStream, 0);
+    pythia_->setRndmEnginePtr(engine_);
     aegir::configure_beams(*pythia_, 2212, 2212, beam_energy);
     pythia_->readString(process + " = on");
     pythia_->readString("Print:quiet = on");
-    pythia_->readString("Random:setSeed = on");
-    pythia_->readString("Random:seed = " +
-                        std::to_string(aegir::pythia_seed(seed)));
     pythia_->init();
   }
 
-  std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const&) {
+  std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
+    engine_->reset(seed_, aegir::kPythiaEventStream,
+                   static_cast<std::uint32_t>(id.number()));
     aegir::next_event(*pythia_, "Pythia8Source");
     return aegir::extract_particles<SHiP::MCParticle>(pythia_->event);
   }
@@ -67,6 +73,9 @@ class Pythia8Source : public phlex::source {
 
  private:
   std::string stage_;
+  std::uint32_t seed_;
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_;
 };
 
@@ -105,7 +114,8 @@ class Pythia8MTSource : public phlex::source {
         // keeps every helper inside the valid range. Per-run statistics are
         // reproducible per seed (helpers divide the events evenly by
         // default), but arrival order through the queue is not — compare
-        // aggregates, not per-event content.
+        // aggregates, not per-event content. The serial source (parallel:
+        // false) is reproducible per event.
         pythia.readString("Random:setSeed = on");
         pythia.readString("Random:seed = " + std::to_string(aegir::pythia_seed(
                                                  seed, num_threads)));

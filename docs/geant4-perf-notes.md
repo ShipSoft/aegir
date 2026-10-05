@@ -89,9 +89,14 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   run draws a random base seed (logged at startup, so any run can still
   be reproduced by configuring the logged value). The generator sources
   (particle gun, pythia8, fixed target) follow the same convention with
-  their own `seed` key, so unseeded runs also vary in their primaries;
-  the Pythia-based sources always forward a definite seed to Pythia
-  (mapped into its valid `Random:seed` range [1, 900000000]). Workflows
+  their own `seed` key, so unseeded runs also vary in their primaries.
+  The fixed-target and serial pythia8 sources drive Pythia from a Philox
+  engine re-keyed to (seed, event number) before every event
+  (`src/pythia_philox_engine.hpp`), so each event is the same whatever
+  order events are processed in (issue #133). The parallel pythia8
+  source (PythiaParallel) forwards a definite seed to Pythia (mapped into
+  its valid `Random:seed` range [1, 900000000]); its events reach the job
+  in arbitrary order, so only its aggregates are reproducible. Workflows
   whose output is compared across runs — the CI smokes, the benchmarks,
   and `gun_st_full` used by the determinism check — pin both the module
   and source seeds explicitly; the large-scale MT workflows accept a

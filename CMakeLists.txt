@@ -60,6 +60,7 @@ set_target_properties(
 )
 
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
+find_package(SHiPRandom 0.2 REQUIRED)
 
 # >=0.3: ship::geometry_thread() and SHiPGeometryService::sharedFromFile,
 # shared between geant4_module and any other Geant4 geometry user (e.g.
@@ -86,8 +87,7 @@ endfunction()
 
 aegir_add_plugin(
     particle_gun_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog
-    INCLUDES ${Random123_INCLUDE_DIR}
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog SHiP::Random
 )
 
 aegir_add_plugin(
@@ -156,7 +156,7 @@ aegir_add_plugin(
 aegir_add_plugin(
     fixed_target_source
     LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
-    INCLUDES ${Random123_INCLUDE_DIR}
+        SHiP::Random
 )
 
 aegir_add_plugin(

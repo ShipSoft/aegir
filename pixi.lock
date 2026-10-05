@@ -391,6 +391,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-core-0.2.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.2.0-h4c13c63_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-mapio-0.2.0-h4c13c63_0.conda
+      - conda: https://prefix.dev/ship/linux-64/field-service-tools-0.2.0-h10e6422_0.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.5.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_3.conda
@@ -775,6 +776,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-core-0.2.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.2.0-h4c13c63_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-mapio-0.2.0-h4c13c63_0.conda
+      - conda: https://prefix.dev/ship/linux-64/field-service-tools-0.2.0-h10e6422_0.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.5.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_3.conda
@@ -1168,6 +1170,7 @@ environments:
       - conda: https://prefix.dev/ship/linux-64/field-service-core-0.2.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-g4-0.2.0-h4c13c63_0.conda
       - conda: https://prefix.dev/ship/linux-64/field-service-mapio-0.2.0-h4c13c63_0.conda
+      - conda: https://prefix.dev/ship/linux-64/field-service-tools-0.2.0-h10e6422_0.conda
       - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship/linux-64/shipdatamodel-0.5.0-h0518e97_0.conda
       - conda: https://prefix.dev/ship/linux-64/shipgeometry-0.2.1-hb0f4dca_3.conda
@@ -7823,6 +7826,21 @@ packages:
     weak:
     - field-service-mapio >=0.2.0,<0.3.0a0
   size: 179336
+  timestamp: 1790879297661
+- conda: https://prefix.dev/ship/linux-64/field-service-tools-0.2.0-h10e6422_0.conda
+  sha256: 98d50ae81d9cc2adae5830ebd6f1d2d634d04a62b4990f52be4ea6bce5d35b8b
+  md5: 28fdca46821e0414f234c332dbf27631
+  depends:
+  - field-service-mapio ==0.2.0 h4c13c63_0
+  - libstdcxx >=16
+  - libgcc >=16
+  - __glibc >=2.17,<3.0.a0
+  - shipdatamodel >=0.5.0,<0.6.0a0
+  - root_cxx_standard ==23
+  - root_base >=6.40.4,<6.40.5.0a0
+  license: LGPL-3.0-or-later
+  run_exports: {}
+  size: 86310
   timestamp: 1790879297661
 - conda: https://prefix.dev/ship/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
   sha256: 98eb61e874a65c8172a6dc7ed7a111f68934c563955ff4448f14b681e8686dca

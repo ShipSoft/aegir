@@ -13,6 +13,7 @@
 #include <Pythia8/Pythia.h>
 
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/random/philox_rng.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -20,7 +21,6 @@
 #include <vector>
 
 #include "mc_particle_source.hpp"
-#include "philox_rng.hpp"
 #include "pythia_common.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
@@ -84,7 +84,7 @@ class FixedTargetSource : public phlex::source {
     auto event_number = static_cast<std::uint32_t>(id.number());
     // 0xF14ED0A7: independent stream from the particle gun (0xBEEFCAFE
     // default).
-    aegir::PhiloxRng rng{seed_, 0xF14ED0A7, event_number};
+    SHiP::random::PhiloxRng rng{seed_, 0xF14ED0A7, event_number};
 
     // Select target: proton with probability Z/A, else neutron
     double const z_over_a =

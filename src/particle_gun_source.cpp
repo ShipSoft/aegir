@@ -9,13 +9,13 @@
 
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/QuantityView.hpp>
+#include <SHiP/random/philox_rng.hpp>
 #include <cmath>
 #include <cstdint>
 #include <numbers>
 #include <vector>
 
 #include "mc_particle_source.hpp"
-#include "philox_rng.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
@@ -41,7 +41,7 @@ class ParticleGun : public phlex::source {
     // 0xBEEFCAFE: the gun's stream, independent of fixed_target (0xF14ED0A7)
     // and geant4 (0x47345EED); the event number selects the counter
     // sub-stream so events stay decorrelated for any base seed.
-    aegir::PhiloxRng rng{seed_, 0xBEEFCAFE, event_number};
+    SHiP::random::PhiloxRng rng{seed_, 0xBEEFCAFE, event_number};
 
     // Sampling stays on raw numbers so the Philox stream is bit-identical;
     // the bounds are unwrapped in the canonical units on the same lines.

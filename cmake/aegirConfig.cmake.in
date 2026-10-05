@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(phlex 0.4.1)
+find_dependency(SHiPDataModel)
+
+include("${CMAKE_CURRENT_LIST_DIR}/aegirTargets.cmake")
+check_required_components(aegir)

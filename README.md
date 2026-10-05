@@ -101,14 +101,17 @@ the default search path.
 common ones. `ls workflows/` shows the full set (multi-threaded variants, no-op
 sinks, GeoModel-based geometry, etc.).
 
-Phlex requires every job to name its processing stage, and stores that name
-with the products the job writes. The aegir workflows set `stage:
+Phlex requires every job to name its processing stage, and labels the
+products the job creates with that name. The aegir workflows set `stage:
 'simulation'` at the top level (`lib.stage` in
 [`workflows/lib.libsonnet`](workflows/lib.libsonnet)). The event generator
 sources need the same name in their own block (`stage: 'simulation'`), because
 Phlex does not pass the top-level setting on to them. The `lib` blocks already
 include it. If you write a workflow from scratch, set both. `phlex --stage`
-overrides only the top-level setting, not the one in the source blocks.
+overrides only the top-level setting. With `phlex --stage foo`, the generator
+products keep the `simulation` label while the geometry, field and Geant4
+products get `foo`. The job still runs, but its products carry two different
+stage labels.
 
 ### From `pixi shell` (interactive)
 

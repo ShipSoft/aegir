@@ -183,11 +183,53 @@ target_include_directories(
 
 # Install
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 get_property(PLUGIN_TARGETS GLOBAL PROPERTY AEGIR_PLUGIN_TARGETS)
 install(TARGETS ${PLUGIN_TARGETS} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(TARGETS pythia8_benchmark RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY workflows/ DESTINATION share/aegir/workflows)
+
+# The generator-source helper, for event-generator plugins built outside
+# aegir (e.g. aegir-genie): find_package(aegir), link aegir::source_helper
+# and #include <aegir/mc_particle_source.hpp>.
+add_library(aegir_source_helper INTERFACE)
+add_library(aegir::source_helper ALIAS aegir_source_helper)
+set_target_properties(aegir_source_helper PROPERTIES EXPORT_NAME source_helper)
+target_include_directories(
+    aegir_source_helper
+    INTERFACE $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_link_libraries(
+    aegir_source_helper
+    INTERFACE phlex::module SHiP::SHiPDataModel
+)
+install(
+    FILES src/mc_particle_source.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aegir
+)
+install(TARGETS aegir_source_helper EXPORT aegirTargets)
+install(
+    EXPORT aegirTargets
+    NAMESPACE aegir::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
+configure_package_config_file(
+    cmake/aegirConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/aegirConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
+# 0.x: a minor release may change the helper's interface.
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/aegirConfigVersion.cmake
+    COMPATIBILITY SameMinorVersion
+)
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/aegirConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/aegirConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
 
 # Tests
 enable_testing()

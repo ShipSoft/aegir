@@ -1,7 +1,9 @@
 local lib = import 'lib.libsonnet';
 // Pass --tla-code seed=N (e.g. a batch job id) for reproducible large-scale
 // runs — it seeds both the generator source and Geant4; without it each
-// draws its own random seed.
+// draws its own random seed. With parallel: true (PythiaParallel), events
+// arrive in arbitrary order, so only aggregates reproduce; drop it for
+// event-by-event reproducibility.
 function(seed=null) {
   stage: lib.stage,
   driver: lib.driver(100),

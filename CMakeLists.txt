@@ -230,6 +230,13 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/physics_list_failure.sh
 )
 
+# Source stage: a generator source block without its own `stage` key, or with
+# the reserved 'CURRENT', must fail with a clear error.
+add_test(
+    NAME source_stage
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/source_stage.sh
+)
+
 # Writer pool: many threads share few fill contexts with tiny clusters; no
 # event may be lost or duplicated (issue #77).
 add_test(

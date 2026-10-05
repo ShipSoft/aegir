@@ -64,6 +64,9 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
 - `configure` — run CMake with `CMAKE_PREFIX_PATH=$CONDA_PREFIX`.
 - `build` — `cmake --build build -j`. Depends on `configure`.
 - `install` — `cmake --install build`, populating `$CONDA_PREFIX/lib` and `bin`.
+  It also installs a CMake package for event-generator plugins built outside
+  aegir (such as aegir-genie): `find_package(aegir)`, link
+  `aegir::source_helper` and include `<aegir/mc_particle_source.hpp>`.
 - `test` — `ctest --test-dir build --output-on-failure`. Runs the integration
   tests registered in [`CMakeLists.txt`](CMakeLists.txt), each a script in
   [`scripts/`](scripts/). CI runs this task.

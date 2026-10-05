@@ -18,6 +18,8 @@ field-service-core = ">=0.2.0"
 field-service-g4 = ">=0.2.0"
 # Field-map file I/O (SHiPFieldService::MapIO), used by field_map_provider.
 field-service-mapio = ">=0.2.0"
+# generate_constant_fieldmap, used by the field_deflection test.
+field-service-tools = ">=0.2.0"
 phlex = ">=0.3.0"
 root = ">=6.40"
 # aegir/phlex are C++23 — pull the matching ROOT build variant.

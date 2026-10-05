@@ -241,3 +241,10 @@ add_test(
     NAME writer_pool
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/writer_pool.sh
 )
+
+# Field deflection: a generated 0.5 T map goes through field_map_provider and
+# the muon must follow the analytic circle (needs field-service-tools).
+add_test(
+    NAME field_deflection
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/field_deflection.sh
+)

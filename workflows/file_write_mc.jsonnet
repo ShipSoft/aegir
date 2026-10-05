@@ -2,7 +2,9 @@
 // Runs the particle gun and writes MC-only output (no Geant4).
 //   jsonnet --ext-str events=20 --ext-str outfile=input.root file_write_mc.jsonnet
 local n_events = std.parseInt(std.extVar('events'));
+local stage = 'simulation';
 {
+  stage: stage,
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
@@ -10,6 +12,7 @@ local n_events = std.parseInt(std.extVar('events'));
   sources: {
     gun: {
       cpp: 'particle_gun_source',
+      stage: stage,
       pdg: 13,
       p_min: 10.0,
       p_max: 100.0,

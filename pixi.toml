@@ -20,7 +20,7 @@ field-service-g4 = ">=0.2.0"
 field-service-mapio = ">=0.2.0"
 # generate_constant_fieldmap, used by the field_deflection test.
 field-service-tools = ">=0.2.0"
-phlex = ">=0.3.0"
+phlex = ">=0.4.1"
 root = ">=6.40"
 # aegir/phlex are C++23 — pull the matching ROOT build variant.
 root_cxx_standard = "==23"

@@ -27,10 +27,12 @@ n=8  # events written to the input file
 cat >"$workdir/read.jsonnet" <<'EOF'
 local n_events = std.parseInt(std.extVar('events'));
 {
+  stage: 'simulation',
   driver: { cpp: 'generate_layers', layers: { event: { total: n_events } } },
   sources: {
     input: {
       cpp: 'file_source',
+      stage: 'simulation',
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: 0,

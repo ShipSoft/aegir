@@ -5,7 +5,9 @@
 //   jsonnet --ext-str events=$n --ext-str infile=input.root \
 //       --ext-str simout=sim.root --ext-str histo=valid.root file_read.jsonnet
 local n_events = std.parseInt(std.extVar('events'));
+local stage = 'simulation';
 {
+  stage: stage,
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
@@ -15,6 +17,7 @@ local n_events = std.parseInt(std.extVar('events'));
     geometry: { cpp: 'geometry_builtin_provider' },
     input: {
       cpp: 'file_source',
+      stage: stage,
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: 0,  // start reading at this entry

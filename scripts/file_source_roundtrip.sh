@@ -28,10 +28,12 @@ nread=5   # events processed in the offset read (n - skip)
 cat >"$workdir/read.jsonnet" <<'EOF'
 local n_events = std.parseInt(std.extVar('events'));
 {
+  stage: 'simulation',
   driver: { cpp: 'generate_layers', layers: { event: { total: n_events } } },
   sources: {
     input: {
       cpp: 'file_source',
+      stage: 'simulation',
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: std.parseInt(std.extVar('skip')),

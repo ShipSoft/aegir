@@ -3,6 +3,7 @@ local lib = import 'lib.libsonnet';
 // runs — it seeds both the generator source and Geant4; without it each
 // draws its own random seed.
 function(seed=null) {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     field: lib.null_field,

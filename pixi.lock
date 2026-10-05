@@ -1,6 +1,11 @@
 version: 7
 platforms:
 - name: linux-64
+  virtual-packages:
+  - __unix=0=0
+  - __linux=4.18
+  - __glibc=2.28
+  - __archspec=0=x86_64
 environments:
   bench:
     channels:
@@ -182,6 +187,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/lz4-c-1.10.0-hee9eb32_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/lzo-2.10-hebe6cf0_1003.conda
       - conda: https://prefix.dev/conda-forge/linux-64/markupsafe-3.0.3-py314h67df5f8_1.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/ms-gsl-5.0.1-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ninja-1.13.2-h171cf75_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/nlohmann_json-3.12.0-h54a6638_2.conda
@@ -193,7 +199,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/pango-1.58.2-h7bb47b9_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pcre-8.45-h9c3ff4c_0.tar.bz2
       - conda: https://prefix.dev/conda-forge/linux-64/pcre2-10.47-h8b3dc9c_1.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.3.2-np2py314h7da9284_3.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.4.2-np2py314h7da9284_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pixman-0.46.4-h54a6638_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/portalocker-3.2.0-py314hdafbbf9_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/psutil-7.2.2-py314hfe1a184_3.conda
@@ -569,6 +575,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/llvmlite-0.49.0-py314h264585c_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/lz4-c-1.10.0-hee9eb32_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/markupsafe-3.0.3-py314h67df5f8_1.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/ms-gsl-5.0.1-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ninja-1.13.2-h171cf75_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/nlohmann_json-3.12.0-h54a6638_2.conda
@@ -579,7 +586,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/pango-1.58.2-h7bb47b9_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pcre-8.45-h9c3ff4c_0.tar.bz2
       - conda: https://prefix.dev/conda-forge/linux-64/pcre2-10.47-h8b3dc9c_1.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.3.2-np2py314h7da9284_3.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.4.2-np2py314h7da9284_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pixman-0.46.4-h54a6638_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/portalocker-3.2.0-py314hdafbbf9_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/psutil-7.2.2-py314hfe1a184_3.conda
@@ -958,6 +965,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/llvmlite-0.49.0-py314h264585c_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/lz4-c-1.10.0-hee9eb32_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/markupsafe-3.0.3-py314h67df5f8_1.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/ms-gsl-5.0.1-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/ninja-1.13.2-h171cf75_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/nlohmann_json-3.12.0-h54a6638_2.conda
@@ -968,7 +976,7 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/pango-1.58.2-h7bb47b9_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pcre-8.45-h9c3ff4c_0.tar.bz2
       - conda: https://prefix.dev/conda-forge/linux-64/pcre2-10.47-h8b3dc9c_1.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.3.2-np2py314h7da9284_3.conda
+      - conda: https://prefix.dev/conda-forge/linux-64/phlex-0.4.2-np2py314h7da9284_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/pixman-0.46.4-h54a6638_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/portalocker-3.2.0-py314hdafbbf9_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/prek-0.5.4-hf19af3b_0.conda
@@ -4131,6 +4139,19 @@ packages:
   run_exports: {}
   size: 27424
   timestamp: 1772445227915
+- conda: https://prefix.dev/conda-forge/linux-64/ms-gsl-5.0.1-h4dbf13b_0.conda
+  sha256: e0fcb1ed3718b5f7fc8e274a1def49fa2131648df909177e0f297d5231add547
+  md5: 64569136996b71f505e2f1f6b01c9ddb
+  depends:
+  - libstdcxx >=15
+  - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
+  license: MIT
+  license_family: MIT
+  purls: []
+  run_exports: {}
+  size: 29664
+  timestamp: 1790169329201
 - conda: https://prefix.dev/conda-forge/linux-64/ncurses-6.6-hdb14827_1.conda
   sha256: 5d46557214ed184381dafe835b7c94a474a1c3b307a08a250b1ea4779b44ffb3
   md5: ee6c0cd80a60961a1f48aa3e0b91f986
@@ -4318,32 +4339,37 @@ packages:
     - pcre2 >=10.47,<10.48.0a0
   size: 1218833
   timestamp: 1787294571916
-- conda: https://prefix.dev/conda-forge/linux-64/phlex-0.3.2-np2py314h7da9284_3.conda
-  sha256: a3bc2992b48b94f10c5231f5ca860d114243b74e13435a530146bc8c9f87d8fd
-  md5: 93985092e97db8d23825b41f5aef4748
+- conda: https://prefix.dev/conda-forge/linux-64/phlex-0.4.2-np2py314h7da9284_0.conda
+  sha256: cc822e46fa55d0df5e77ac5414986abdcefeaeb4c76a8787e7e0fe787f9e944a
+  md5: 86557a3de4dcce7724fc16fff8bd162c
   depends:
   - python
+  - libboost-devel
+  - fmt
+  - tbb-devel
+  - ms-gsl
+  - spdlog
   - libstdcxx >=15
   - libgcc >=15
   - __glibc >=2.17,<3.0.a0
-  - tbb >=2023.1.0
-  - fmt >=12.1.0,<12.2.0a0
-  - spdlog >=1.17.0,<1.18.0a0
-  - python_abi 3.14.* *_cp314
-  - libffi >=3.7.0,<3.8.0a0
   - libboost >=1.90.0,<1.91.0a0
   - libjsonnet >=0.22.0,<0.23.0a0
+  - libffi >=3.7.0,<3.8.0a0
+  - python_abi 3.14.* *_cp314
   - root_base >=6.40.4,<6.40.5.0a0
-  - root_cxx_standard ==23
+  - tbb >=2023.1.0
+  - spdlog >=1.17.0,<1.18.0a0
+  - fmt >=12.1.0,<12.2.0a0
   - numpy >=1.25,<3
+  - root_cxx_standard ==23
   license: Apache-2.0
   license_family: APACHE
   purls: []
   run_exports:
     weak:
-    - phlex >=0.3.2,<0.4.0a0
-  size: 1033473
-  timestamp: 1789838312011
+    - phlex >=0.4.2,<0.5.0a0
+  size: 1091914
+  timestamp: 1791267758149
 - conda: https://prefix.dev/conda-forge/linux-64/pixman-0.46.4-h54a6638_3.conda
   sha256: 829d8288764282de5a9f7b9169acb75cc7dc0b6c3fe2535cfe87dea3436bbc5d
   md5: 0ee5bb30034b081a1386c1e2c98ab0a7
@@ -4759,7 +4785,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml-clib?source=compressed-mapping
+  - pkg:pypi/ruamel-yaml-clib?source=hash-mapping
   run_exports: {}
   size: 160103
   timestamp: 1788881212732

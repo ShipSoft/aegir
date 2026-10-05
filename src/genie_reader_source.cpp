@@ -46,9 +46,9 @@ constexpr int kDefaultMaxParticles = 250;
 
 class GenieReaderSource : public phlex::source {
  public:
-  GenieReaderSource(std::string const& file, std::string const& tree_name,
-                    long long first_entry)
-      : file_name_{file}, first_entry_{first_entry} {
+  GenieReaderSource(std::string stage, std::string const& file,
+                    std::string const& tree_name, long long first_entry)
+      : stage_{std::move(stage)}, file_name_{file}, first_entry_{first_entry} {
     try {
       file_ = RFile::Open(file);
     } catch (ROOT::RException const& e) {
@@ -173,10 +173,10 @@ class GenieReaderSource : public phlex::source {
         .original_event_id = static_cast<std::int64_t>(evt_num_)};
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial,
         [this](phlex::data_cell_index const& id) {
@@ -184,9 +184,9 @@ class GenieReaderSource : public phlex::source {
         });
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
+
   template <typename T>
   void enable_branch(std::string const& name, T* address) {
     if (!tree_->GetBranch(name.c_str())) {
@@ -297,6 +297,8 @@ PHLEX_REGISTER_SOURCE(s, config) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
   }
 
-  s.add_source<GenieReaderSource>("genie_reader", file, tree,
+  auto stage = aegir::source_stage(config, "genie_reader_source");
+
+  s.add_source<GenieReaderSource>("genie_reader", std::move(stage), file, tree,
                                   static_cast<long long>(first_entry));
 }

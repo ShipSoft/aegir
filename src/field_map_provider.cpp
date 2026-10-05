@@ -8,6 +8,7 @@
 // Job-layer product.
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -36,6 +37,11 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
         throw std::invalid_argument("field_map_provider: magnet '" +
                                     magnet.name +
                                     "': translation needs 3 values (mm)");
+      }
+      if (!std::ranges::all_of(*t, [](double v) { return std::isfinite(v); })) {
+        throw std::invalid_argument("field_map_provider: magnet '" +
+                                    magnet.name +
+                                    "': translation values must be finite");
       }
       std::ranges::copy(*t, magnet.translation.begin());
     }

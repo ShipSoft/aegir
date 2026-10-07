@@ -297,7 +297,7 @@ class Geant4Sim {
 
  private:
   // Derive a per-data-cell engine seed with Philox, following the
-  // counter-based convention of src/philox_rng.hpp: the key selects the
+  // counter-based convention of SHiP::random::PhiloxRng: the key selects the
   // stream (config seed + a G4-specific constant so detector simulation and
   // event generation draw uncorrelated sequences), the counter is the full
   // index-path hash (unique across hierarchy levels, unlike number()).

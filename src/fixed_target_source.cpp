@@ -9,6 +9,8 @@
 // - Interaction point sampled from truncated exponential in target material
 // - Long-lived particles made stable for G4 decay
 // - Multiple physics processes matching FairShip defaults
+// - Every random number an event uses is keyed to its event number, so
+//   the output does not depend on the order events are processed in
 
 #include <Pythia8/Pythia.h>
 
@@ -16,12 +18,14 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "mc_particle_source.hpp"
 #include "philox_rng.hpp"
 #include "pythia_common.hpp"
+#include "pythia_philox_engine.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
@@ -51,19 +55,21 @@ class FixedTargetSource : public phlex::source {
         target_z_end_{target_z_end},
         interaction_length_{interaction_length},
         seed_{seed} {
-    // Consecutive seeds give the two instances distinct Pythia streams —
-    // sharing one seed would replay the same random sequence in both.
-    // pythia_seed's headroom of 1 keeps the +1 inside Pythia's valid range.
-    auto const configure_pythia_seed = [seed](Pythia8::Pythia& pythia,
-                                              int offset) {
-      pythia.readString("Random:setSeed = on");
-      pythia.readString("Random:seed = " +
-                        std::to_string(aegir::pythia_seed(seed, 1) + offset));
-    };
+    // Both instances draw from Philox engines that generate() re-keys to the
+    // event number before every event (see pythia_philox_engine.hpp). Pythia
+    // also draws while initialising; distinct init sub-streams keep the two
+    // instances apart there.
+    auto const attach_engine =
+        [seed](Pythia8::Pythia& pythia,
+               std::shared_ptr<aegir::PhiloxRndmEngine> const& engine,
+               std::uint32_t init_substream) {
+          engine->reset(seed, aegir::kPythiaInitStream, init_substream);
+          pythia.setRndmEnginePtr(engine);
+        };
 
     // Proton target (p-p)
     pythia_pp_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
-    configure_pythia_seed(*pythia_pp_, 0);
+    attach_engine(*pythia_pp_, engine_pp_, 0);
     aegir::configure_beams(*pythia_pp_, 2212, 2212, beam_energy);
     configure_processes(*pythia_pp_);
     pythia_pp_->readString("Print:quiet = on");
@@ -72,7 +78,7 @@ class FixedTargetSource : public phlex::source {
 
     // Neutron target (p-n)
     pythia_pn_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
-    configure_pythia_seed(*pythia_pn_, 1);
+    attach_engine(*pythia_pn_, engine_pn_, 1);
     aegir::configure_beams(*pythia_pn_, 2212, 2112, beam_energy);
     configure_processes(*pythia_pn_);
     pythia_pn_->readString("Print:quiet = on");
@@ -101,6 +107,9 @@ class FixedTargetSource : public phlex::source {
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
     auto& pythia = proton_target ? *pythia_pp_ : *pythia_pn_;
+    // Key Pythia's draws to this event, whatever order events arrive in.
+    (proton_target ? engine_pp_ : engine_pn_)
+        ->reset(seed_, aegir::kPythiaEventStream, event_number);
     aegir::next_event(pythia, proton_target ? "FixedTargetSource (pp)"
                                             : "FixedTargetSource (pn)");
 
@@ -123,6 +132,10 @@ class FixedTargetSource : public phlex::source {
   ship::Length target_z_start_;
   ship::Length target_z_end_;
   ship::Length interaction_length_;
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pp_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pn_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
   std::uint32_t seed_;

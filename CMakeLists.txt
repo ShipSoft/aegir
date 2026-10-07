@@ -151,6 +151,7 @@ aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
 aegir_add_plugin(
     pythia8_source
     LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
+    INCLUDES ${Random123_INCLUDE_DIR}
 )
 
 aegir_add_plugin(
@@ -249,4 +250,11 @@ add_test(
 add_test(
     NAME field_deflection
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/field_deflection.sh
+)
+
+# Thread independence: the Pythia-based generators write the same events at
+# -j 1 and -j 8 for a fixed seed (issue #133).
+add_test(
+    NAME thread_independence
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/thread_independence.sh
 )

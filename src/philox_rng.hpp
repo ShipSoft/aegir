@@ -47,6 +47,22 @@ class PhiloxRng {
 
   double uniform(double lo, double hi) { return lo + (hi - lo) * uniform(); }
 
+  // Uniform in [0, 1) with full double resolution: combines two consecutive
+  // 32-bit words into a 64-bit integer and keeps the top 53 bits. If only
+  // one word is left in the buffer, it is skipped. Same algorithm as
+  // ship::random::PhiloxRng::uniform53().
+  double uniform53() {
+    if (idx_ > 2) {
+      buf_ = rng_(ctr_, key_);
+      ctr_[0]++;
+      idx_ = 0;
+    }
+    std::uint64_t const hi = buf_[idx_++];
+    std::uint64_t const lo = buf_[idx_++];
+    std::uint64_t const bits = (hi << 32U) | lo;
+    return static_cast<double>(bits >> 11U) * (1.0 / 9007199254740992.0);
+  }
+
  private:
   r123::Philox4x32 rng_;
   r123::Philox4x32::key_type key_;

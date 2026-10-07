@@ -39,7 +39,7 @@ SHiP-specific packages live there, with rattler-build recipes in
 do not need to install these manually when using pixi.
 
 - [SHiPDataModel](https://github.com/ShipSoft/data-model) (event data classes)
-- [Phlex](https://github.com/Framework-R-D/phlex) (+ Boost, TBB, spdlog)
+- [Phlex](https://github.com/Framework-R-D/phlex) 0.4.1+ (+ Boost, TBB, spdlog)
 - ROOT 6.40+ (Core, RIO, Hist, MathCore, ROOTNTuple)
 - Geant4 11.3+ (with multi-threading enabled)
 - Pythia8 8.3+
@@ -100,6 +100,18 @@ the default search path.
 `workflows/` ships a sampler of jsonnet configs; the snippets below pick five
 common ones. `ls workflows/` shows the full set (multi-threaded variants, no-op
 sinks, GeoModel-based geometry, etc.).
+
+Phlex requires every job to name its processing stage, and labels the
+products the job creates with that name. The aegir workflows set `stage:
+'simulation'` at the top level (`lib.stage` in
+[`workflows/lib.libsonnet`](workflows/lib.libsonnet)). The event generator
+sources need the same name in their own block (`stage: 'simulation'`), because
+Phlex does not pass the top-level setting on to them. The `lib` blocks already
+include it. If you write a workflow from scratch, set both. `phlex --stage`
+overrides only the top-level setting. With `phlex --stage foo`, the generator
+products keep the `simulation` label while the geometry, field and Geant4
+products get `foo`. The job still runs, but its products carry two different
+stage labels.
 
 ### From `pixi shell` (interactive)
 

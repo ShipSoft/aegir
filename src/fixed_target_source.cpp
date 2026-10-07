@@ -39,11 +39,13 @@ void configure_processes(Pythia8::Pythia& pythia) {
 
 class FixedTargetSource : public phlex::source {
  public:
-  FixedTargetSource(std::string const& xml_dir, ship::Energy beam_energy,
-                    int target_z, int target_a, ship::Length target_z_start,
-                    ship::Length target_z_end, ship::Length interaction_length,
+  FixedTargetSource(std::string stage, std::string const& xml_dir,
+                    ship::Energy beam_energy, int target_z, int target_a,
+                    ship::Length target_z_start, ship::Length target_z_end,
+                    ship::Length interaction_length,
                     aegir::PythiaTime tau0_threshold, std::uint32_t seed)
-      : target_z_{target_z},
+      : stage_{std::move(stage)},
+        target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
@@ -106,17 +108,16 @@ class FixedTargetSource : public phlex::source {
                                                       z_interaction);
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial);
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
   int target_z_;
   int target_a_;
   ship::Length target_z_start_;
@@ -151,8 +152,10 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
   auto seed = aegir::resolve_seed(config, "fixed_target");
+  auto stage = aegir::source_stage(config, "fixed_target");
 
-  s.add_source<FixedTargetSource>(
-      "fixed_target", xml_dir, beam_energy, target_z, target_a, target_z_start,
-      target_z_end, interaction_length, tau0_threshold, seed);
+  s.add_source<FixedTargetSource>("fixed_target", std::move(stage), xml_dir,
+                                  beam_energy, target_z, target_a,
+                                  target_z_start, target_z_end,
+                                  interaction_length, tau0_threshold, seed);
 }

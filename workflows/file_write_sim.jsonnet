@@ -3,7 +3,9 @@
 // through Geant4 and writes full output (mc_particles + sim_particles + hits).
 //   jsonnet --ext-str events=20 --ext-str outfile=sim_input.root file_write_sim.jsonnet
 local n_events = std.parseInt(std.extVar('events'));
+local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
@@ -13,6 +15,7 @@ local n_events = std.parseInt(std.extVar('events'));
     geometry: { cpp: 'geometry_builtin_provider' },
     gun: {
       cpp: 'particle_gun_source',
+      stage: lib.stage,
       pdg: 13,
       p_min: 10.0,
       p_max: 100.0,

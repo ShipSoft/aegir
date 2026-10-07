@@ -4,6 +4,7 @@
 // handoff.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(200),
   sources: {
     geometry: lib.builtin_geometry,

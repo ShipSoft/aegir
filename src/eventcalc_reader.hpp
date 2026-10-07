@@ -18,6 +18,7 @@
 #pragma once
 
 #include <SHiP/Units.hpp>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -80,12 +81,17 @@ struct DecayEvent {
 // mm/c and converts to ns through the exact SI definition of c — the same
 // derived route Pythia's tProd() takes. Neglecting the flight of the parent
 // meson is a sub-ns approximation.
+//
+// Rounding in the input can leave E a hair below |p|c for a light, fast LLP,
+// which would put beta above 1 and the arrival ahead of light. beta is capped
+// at 1 instead: such an LLP is ultra-relativistic, so s/c is the right time.
 [[nodiscard]] inline ship::Time flight_time(
     ship::Vec3<ship::Length> const& vertex_from_target, Particle const& llp) {
   auto const p = aegir::magnitude(llp.momentum);
   if (p <= ship::Momentum::zero() || llp.energy <= ship::Energy::zero())
     return ship::Time::zero();
-  auto const beta = (p * su::c / llp.energy).in(mp_units::one);  // v/c
+  auto const beta = std::min((p * su::c / llp.energy).in(mp_units::one),
+                             1.0 * mp_units::one);  // v/c
   return (aegir::magnitude(vertex_from_target) / (beta * su::c)).in(su::ns);
 }
 

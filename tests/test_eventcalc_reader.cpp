@@ -139,6 +139,17 @@ int main(int argc, char** argv) {
   check_close("flight time at beta = 0.6 [ns]", t.numerical_value_in(su::ns),
               277.97008, 1e-6);
 
+  // E below |p|c (input rounding) would give beta > 1; it is capped at 1, so
+  // the time is s/c: 50 m takes 166.782048 ns, computed independently.
+  aegir::eventcalc::Particle superluminal;
+  superluminal.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+                           1.0 * su::GeV_per_c};
+  superluminal.energy = 0.5 * su::GeV;
+  auto const t_capped = aegir::eventcalc::flight_time(
+      {ship::Length::zero(), ship::Length::zero(), 50.0 * su::m}, superluminal);
+  check_close("flight time at beta capped to 1 [ns]",
+              t_capped.numerical_value_in(su::ns), 166.782048, 1e-6);
+
   // Unphysical kinematics fall back to t = 0: zero momentum, and separately
   // zero energy with non-zero momentum, so each guard condition is exercised.
   aegir::eventcalc::Particle const stopped;

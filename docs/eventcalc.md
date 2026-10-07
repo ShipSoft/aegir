@@ -128,7 +128,8 @@ The decay products are emitted as Geant4 primaries, all sharing the decay
 vertex. EventCalc records no time, so it is reconstructed from the LLP
 kinematics: the particle leaves the target at $t = 0$ and reaches the vertex
 after a path $s$ at speed $\beta c$, with $\beta = |p| / E$, giving
-$t = s / \beta c$. Neglecting the flight of the parent meson is a
+$t = s / \beta c$. If rounding in the input leaves $E$ just below $|p|c$,
+$\beta$ is capped at 1, so a decay never arrives ahead of light. Neglecting the flight of the parent meson is a
 sub-nanosecond approximation, but setting $t = 0$ would
 not be — a vertex tens of metres downstream would arrive impossibly early for
 the timing detector.

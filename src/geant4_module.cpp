@@ -66,6 +66,7 @@
 #include "detector_construction.hpp"
 #include "geant4_sim_core.hpp"
 #include "geometry_source.hpp"
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
 #include "phlex/model/handle.hpp"
@@ -115,6 +116,11 @@ struct Geant4SimConfig {
   bool energy_cut = false;
   ship::Energy energy_cut_threshold = ship::Energy::zero();
   ship::Energy particle_ke_cut = ship::Energy::zero();
+  // Hand every primary to Geant4 regardless of its generator status.
+  // Escape hatch for inputs whose `status` does not follow the HepMC
+  // convention (see hepmc_status.hpp); by default only final-state
+  // (status 1) entries are tracked.
+  bool track_all_primaries = false;
   std::vector<std::pair<std::string, ship::Length>> regions;
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
@@ -213,7 +219,19 @@ class Geant4Sim {
       AEGIR_TRACE_EVENT("g4", "build_primaries");
       std::size_t unknown_pdg = 0;
       std::size_t no_momentum = 0;
+      std::size_t not_final_state = 0;
       for (auto const& mc : *particles) {
+        // Only entries the generator left undecayed are ours to track:
+        // decayed (2), documentation (3), beam (4) and intermediate (11-200)
+        // entries are the generator's own bookkeeping, and tracking them
+        // alongside their daughters would double-count the event. Checked
+        // before the PDG lookup so that record-keeping entries (strings,
+        // diquarks, nuclei) do not also trip the warning below.
+        if (!cfg_.track_all_primaries &&
+            !aegir::hepmc::is_final_state(mc.status)) {
+          ++not_final_state;
+          continue;
+        }
         auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdgCode, nullptr);
         if (inserted) {
           it->second =
@@ -249,13 +267,14 @@ class Geant4Sim {
         vertex->SetPrimary(particle);
         event->AddPrimaryVertex(vertex);
       }
-      if (unknown_pdg > 0 || no_momentum > 0) {
+      if (auto const skipped = unknown_pdg + no_momentum + not_final_state;
+          skipped > 0) {
         spdlog::warn(
             "geant4_module: event {}: skipped {} of {} primaries ({} unknown "
-            "PDG, {} non-positive momentum) — output mc_particles still "
-            "contains them",
-            event->GetEventID(), unknown_pdg + no_momentum, particles->size(),
-            unknown_pdg, no_momentum);
+            "PDG, {} non-positive momentum, {} not final state (HepMC status "
+            "!= 1)) — output mc_particles still contains them",
+            event->GetEventID(), skipped, particles->size(), unknown_pdg,
+            no_momentum, not_final_state);
       }
     }
 
@@ -522,6 +541,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           config, "energy_cut_threshold", ship::Energy{ke_threshold}),
       .particle_ke_cut =
           aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
+      .track_all_primaries = config.get<bool>("track_all_primaries", false),
       .regions = std::move(regions),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
       .progress_interval = config.get<int>("progress_interval", 100),
@@ -533,6 +553,14 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         "at most {} events run concurrently — raise phlex -j or lower "
         "the module's concurrency",
         cfg.concurrency, active_parallelism, active_parallelism);
+  }
+
+  if (cfg.track_all_primaries) {
+    spdlog::warn(
+        "geant4_module: track_all_primaries is set — primaries are tracked "
+        "regardless of generator status, so decayed (2), documentation (3) "
+        "and beam (4) entries in the input are tracked too and will "
+        "double-count the event");
   }
 
   auto const num_threads = cfg.concurrency;

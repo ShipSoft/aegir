@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "mc_particle_source.hpp"
 
@@ -62,7 +63,7 @@ SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   // SimParticle::parentId is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.
   mc.motherId = sp.parentId == 0 ? -1 : sp.parentId;
-  mc.status = 1;
+  mc.status = aegir::hepmc::final_state;
   return mc;
 }
 

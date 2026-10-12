@@ -307,3 +307,10 @@ add_test(
     NAME generator_status
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_status.sh
 )
+# Scoring planes: neutrinos and muons fired through planes placed in the
+# builtin geometry are recorded where the geometry says they cross, the
+# killing plane stops them, and bad plane configurations fail cleanly.
+add_test(
+    NAME scoring_planes
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/scoring_planes.sh
+)

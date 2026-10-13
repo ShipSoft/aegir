@@ -2,6 +2,70 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-10-13
+
+### Features
+
+- *(output)* Publish EventHeader from every generator source (#94)
+- *(units)* Add a quantity overload of magnitude
+- *(sources)* Propagate EventHeader from genie_reader and file sources
+- [**breaking**] Load field maps in the SHiP field-map format
+- [**breaking**] Require phlex 0.4.1
+- *(cmake)* Install the generator-source helper for external plugins
+- *(geant4)* Track only final-state primaries
+- Write each event's phlex event number
+- *(generators)* Add a full-record output mode
+- *(generators)* Record every mother, not just the first
+
+### Bug fixes
+
+- Build the SHiP siblings from source in the dev environment
+- Let a failed git diff fail the clang-tidy-diff task
+- Reject non-finite translations and place gun_st_field's maps
+- Key Pythia's random numbers to the event number
+
+### Refactor
+
+- *(io)* Finish the TFile-to-RFile migration
+- *(units)* Replace comment fences with typed acquisition
+- *(workflows)* Take the stage name from lib in the file workflows
+- Take PhiloxRng from ship-random
+
+### Documentation
+
+- Adopt AI policy
+- Describe what the clang-tidy gate actually does, and fix the local check
+- Say what a mismatched phlex --stage does to product labels
+- *(genie)* Describe both mother branches
+
+### Styling
+
+- Satisfy ruff 0.16 default lint in scripts
+- Apply the clang-tidy fixes that can be applied automatically
+
+### Testing
+
+- Check muon deflection in a generated field map
+- Check that generator sources require their own stage key
+- *(generator_status)* Match skip warnings to events by event number
+
+### Miscellaneous
+
+- Update pixi lock file
+- Remove redundant PR checklist template
+- Grant config-sync job explicit permissions
+- Sync shared configs
+- Update pixi lock file
+- Gate merges on uniform aggregator checks
+- Check C++ against the Core Guidelines with clang-tidy
+- Update pixi lock file
+- Update pixi lock file
+
+### Build
+
+- Require field-service 0.2.0
+- Require Pythia 8.312
+
 ## [0.3.0] - 2026-07-25
 
 ### Features

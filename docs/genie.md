@@ -72,10 +72,14 @@ status mapping. Either way the emitted `status` is the HepMC code (GENIE's
 entries.
 
 All particles of an event share the interaction vertex (`EvtVtx`), converted
-from GENIE's SI units to aegir's mm/ns. `motherId` is remapped to index the
-emitted collection and is `-1` when the mother was not itself emitted — the
-common case under `record: 'final_state'`. Only GENIE's first mother
-(`StdHepFm`) is read.
+from GENIE's SI units to aegir's mm/ns. The `mothers` list is built from
+`StdHepFm` and, where the file has it, `StdHepLm`. These are two separate
+parents and not the ends of a range: GENIE itself uses the last-mother slot
+for a second mother. The indices are remapped to the emitted collection, and
+mothers that were not emitted are dropped. `motherId` is the first mother left
+after that, or `-1` if none is left, which is the usual case under
+`record: 'final_state'`. Files without `StdHepLm` read as single-mother. See
+[generator_record.md](generator_record.md) for the full rules.
 
 Per-event metadata is copied into the `EventHeader`: the GENIE event weight
 (`EvtWght`) becomes `weight` and the event number (`EvtNum`) becomes

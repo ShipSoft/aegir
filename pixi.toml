@@ -25,7 +25,7 @@ root = ">=6.40"
 # aegir/phlex are C++23 — pull the matching ROOT build variant.
 root_cxx_standard = "==23"
 geant4 = ">=11.3"
-pythia8 = ">=8.3"
+pythia8 = ">=8.312"
 random123 = "*"
 # SHiP::random::PhiloxRng, the generators' per-event RNG.
 ship-random = ">=0.2"

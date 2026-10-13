@@ -42,7 +42,7 @@ do not need to install these manually when using pixi.
 - [Phlex](https://github.com/Framework-R-D/phlex) 0.4.1+ (+ Boost, TBB, spdlog)
 - ROOT 6.40+ (Core, RIO, Hist, MathCore, ROOTNTuple)
 - Geant4 11.3+ (with multi-threading enabled)
-- Pythia8 8.3+
+- Pythia8 8.312+
 - Random123
 - Optional: SHiPGeometryService (for GeoModel geometry)
 

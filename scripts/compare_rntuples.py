@@ -7,11 +7,13 @@
 
 Used by the thread-independence check: a job run with different thread
 counts must write the same events. The multi-threaded writer stores events
-in whatever order they finish, so each RNTuple's entries are compared as a
-sorted list. An entry holds everything written for one event (generator
-particles and, in full output, the Geant4 result), so an event paired with
-another event's content shows up as a difference. Exits non-zero on any
-mismatch.
+in whatever order they finish, so aegir's "events" RNTuple is compared
+event by event, keyed by the phlex event number each entry carries. An entry
+holds everything written for one event (generator particles and, in full
+output, the Geant4 result), so both an event paired with another event's
+content and the same events written under different event numbers show up
+as differences. Other RNTuples have no event number and are compared as
+sorted lists of entries. Exits non-zero on any mismatch.
 """
 
 import os
@@ -36,6 +38,7 @@ ROOT.gInterpreter.Declare(
 #include <functional>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -76,15 +79,28 @@ struct Hasher {
   }
 };
 
-std::vector<std::uint64_t> entry_hashes(std::string const& name,
-                                        std::string const& path) {
-  auto reader = ROOT::RNTupleReader::Open(name, path);
+// One hash per entry; for aegir's "events" RNTuple also each entry's phlex
+// event number (`keyed`), for everything else entry order only.
+struct Entries {
+  bool keyed = false;
+  std::vector<std::uint64_t> numbers;
   std::vector<std::uint64_t> hashes;
+};
+
+Entries entry_hashes(std::string const& name, std::string const& path) {
+  auto reader = ROOT::RNTupleReader::Open(name, path);
+  Entries result;
+  auto& hashes = result.hashes;
   auto const& desc = reader->GetDescriptor();
   auto has = [&](char const* field) {
     return desc.FindFieldId(field) != ROOT::kInvalidDescriptorId;
   };
   if (name == "events" && has("mc_particles")) {
+    if (!has("event_number")) {
+      throw std::runtime_error(path + ": events has no event_number field");
+    }
+    result.keyed = true;
+    auto number = reader->GetView<std::uint64_t>("event_number");
     auto mc = reader->GetView<std::vector<SHiP::MCParticle>>("mc_particles");
     std::optional<ROOT::RNTupleView<SHiP::EventHeader>> header;
     std::optional<ROOT::RNTupleView<std::vector<SHiP::SimHit>>> hits;
@@ -98,24 +114,36 @@ std::vector<std::uint64_t> entry_hashes(std::string const& name,
       if (header) { h.add((*header)(i).weight); h.add((*header)(i).original_event_id); }
       if (hits) h.add((*hits)(i));
       if (parts) h.add((*parts)(i));
+      result.numbers.push_back(number(i));
       hashes.push_back(h.h);
     }
-    return hashes;
+    return result;
   }
   for (auto i : reader->GetEntryRange()) {
     std::ostringstream out;
     reader->Show(i, out);
     hashes.push_back(std::hash<std::string>{}(out.str()));
   }
-  return hashes;
+  return result;
 }
 }  // namespace aegir_compare
 """
 )
 
 
+def keyed_or_sorted(name, path):
+    """Return {event number: hash} for "events", else sorted entry hashes."""
+    e = ROOT.aegir_compare.entry_hashes(name, path)
+    if not e.keyed:
+        return sorted(e.hashes)
+    by_number = dict(zip(e.numbers, e.hashes))
+    if len(by_number) != len(e.hashes):
+        raise RuntimeError(f"{path}: {name} repeats event numbers")
+    return by_number
+
+
 def entries(path):
-    """Map each RNTuple in the file to its sorted list of entry hashes."""
+    """Map each RNTuple in the file to its entries (see keyed_or_sorted)."""
     file = ROOT.TFile.Open(path)
     if not file or file.IsZombie():
         raise RuntimeError(f"cannot open {path}")
@@ -127,8 +155,13 @@ def entries(path):
     file.Close()
     result = {}
     for name in names:
-        result[name] = sorted(ROOT.aegir_compare.entry_hashes(name, path))
+        result[name] = keyed_or_sorted(name, path)
     return result
+
+
+def differing_events(a, b):
+    """Event numbers whose entries differ or exist in only one file."""
+    return sorted(n for n in a.keys() | b.keys() if a.get(n) != b.get(n))
 
 
 def compare(path_a, path_b):
@@ -145,6 +178,16 @@ def compare(path_a, path_b):
         if len(a[name]) != len(b[name]):
             print(f"{name}: {len(a[name])} vs {len(b[name])} entries")
             ok = False
+        elif isinstance(a[name], dict):
+            differing = differing_events(a[name], b[name])
+            if differing:
+                shown = ", ".join(str(n) for n in differing[:10])
+                more = ", ..." if len(differing) > 10 else ""
+                print(
+                    f"{name}: {len(differing)} of {len(a[name])} events differ"
+                    f" (event numbers {shown}{more})"
+                )
+                ok = False
         elif a[name] != b[name]:
             differing = sum((Counter(a[name]) - Counter(b[name])).values())
             print(f"{name}: {differing} of {len(a[name])} entries differ")

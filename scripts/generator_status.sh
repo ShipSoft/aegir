@@ -71,10 +71,11 @@ local lib = import 'lib.libsonnet';
 EOF
 
 # Report, per event, how many stored MCParticles fall in each HepMC status
-# class and how many Geant4 primaries the simulation produced. Primaries are
-# the SimParticles whose parentId is 0 (G4Track::GetParentID() is 0 exactly for
-# primaries), which is order-independent — the parallel writer emits entries in
-# completion order. os._exit avoids a spurious PyROOT teardown crash, and every
+# class and how many Geant4 primaries the simulation produced. The first column
+# is the phlex event number the writer stores with each entry, the same number
+# the Geant4 skip warning prints. Primaries are the SimParticles whose parentId
+# is 0 (G4Track::GetParentID() is 0 exactly for primaries), which is
+# order-independent — the parallel writer emits entries in completion order. os._exit avoids a spurious PyROOT teardown crash, and every
 # reader/view is kept alive until then.
 cat >"$workdir/counts.py" <<'EOF'
 import os
@@ -87,7 +88,8 @@ alive = []
 
 reader = ROOT.RNTupleReader.Open("events", path)
 mc = reader.GetView["std::vector<SHiP::MCParticle>"]("mc_particles")
-alive.extend((reader, mc))
+number = reader.GetView["std::uint64_t"]("event_number")
+alive.extend((reader, mc, number))
 sim = None
 if "sim_particles" in [f.GetFieldName() for f in reader.GetDescriptor().GetTopLevelFields()]:
     sim = reader.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
@@ -95,6 +97,7 @@ if "sim_particles" in [f.GetFieldName() for f in reader.GetDescriptor().GetTopLe
 
 for i in range(reader.GetNEntries()):
     parts = mc(i)
+    event = number(i)
     total = len(parts)
     final = sum(1 for p in parts if p.status == 1)
     # Entries Geant4 would build a primary from with the filter disabled:
@@ -103,7 +106,7 @@ for i in range(reader.GetNEntries()):
     mothers = sum(1 for p in parts if p.motherId >= 0)
     bad = sum(1 for p in parts if not -1 <= p.motherId < total)
     primaries = sum(1 for p in sim(i) if p.parentId == 0) if sim else -1
-    print(f"{total} {final} {trackable} {mothers} {bad} {primaries}")
+    print(f"{event} {total} {final} {trackable} {mothers} {bad} {primaries}")
 
 sys.stdout.flush()
 os._exit(0)
@@ -121,7 +124,7 @@ phlex -c <(jsonnet -J "$workflows" \
 # event needs non-final-state entries, and the mother links must be valid
 # indices into the emitted collection with at least one real mother.
 python3 "$workdir/counts.py" "$workdir/full.root" >"$workdir/fixture.txt"
-while read -r total final trackable mothers bad _; do
+while read -r _ total final trackable mothers bad _; do
   [ "$bad" = 0 ] || { echo "fixture: $bad out-of-range motherId"; exit 1; }
   [ "$mothers" -gt 0 ] || { echo "fixture: no entry has a mother"; exit 1; }
   [ "$final" -lt "$total" ] || {
@@ -146,9 +149,9 @@ phlex -c <(jsonnet -J "$workflows" \
 # Exactly the status-1 entries became primaries. The two other skip reasons are
 # read back out of the aggregated warning rather than assumed to be zero.
 python3 "$workdir/counts.py" "$workdir/sim_filtered.root" >"$workdir/filtered.txt"
-while read -r total final _ _ _ primaries; do
-  # Skips for this event, matched by its mc_particles count.
-  line=$(grep -F "of $total primaries" "$workdir/filtered.log" || true)
+while read -r event total final _ _ _ primaries; do
+  # Skips for this event, matched by its event id.
+  line=$(grep -F "event $event: skipped" "$workdir/filtered.log" || true)
   lost=0
   if [ -n "$line" ]; then
     unknown=$(echo "$line" | sed -n 's/.*(\([0-9]*\) unknown PDG.*/\1/p')
@@ -191,7 +194,7 @@ fi
 # entries (partons, strings, diquarks), so the count lands between "status 1
 # only" and "every entry Geant4 has a non-short-lived definition for".
 python3 "$workdir/counts.py" "$workdir/sim_all.root" >"$workdir/all.txt"
-while read -r _ final trackable _ _ primaries; do
+while read -r _ _ final trackable _ _ primaries; do
   [ "$primaries" -gt "$final" ] || {
     echo "track_all_primaries: tracked $primaries, no more than the $final"
     echo "final-state entries — the filter made no difference"

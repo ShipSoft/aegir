@@ -187,6 +187,11 @@ sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg
 # validates every environment even when only the default one is used.
 # To test a colleague's PR without a local checkout, use a git spec instead:
 #   shipdatamodel = { git = "https://github.com/ShipSoft/data-model", branch = "<pr-branch>" }
+# When geometry and geometry_service are both path entries, also set
+# `shipgeometry = { path = "../geometry" }` under [package.host-dependencies]
+# in geometry_service's pixi.toml (do not commit that either). Otherwise it
+# builds against the released shipgeometry, which can pin an older
+# geomodel-core than ../geometry picks up, and the dev environment won't solve.
 # See the Developer Guide (SHiP Documentation site) for the full workflow.
 #
 # [feature.dev]

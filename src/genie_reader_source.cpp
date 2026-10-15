@@ -28,7 +28,9 @@
 #include <utility>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
+#include "record_mode.hpp"
 
 namespace {
 
@@ -36,8 +38,65 @@ namespace su = ship::units;
 
 using ROOT::Experimental::RFile;
 
-// GENIE GHepStatus: 1 = stable final state (trackable by Geant4).
-constexpr int kStableFinalState = 1;
+// GENIE GHepStatus codes (Framework/GHEP/GHepStatus.h). Only the ones needing
+// a distinct HepMC translation are named; the rest are nuclear/intermediate
+// bookkeeping handled by the default branch below.
+constexpr int kUndefined = -1;
+constexpr int kInitialState = 0;
+constexpr int kStableFinalState = 1;  ///< "to be tracked by detector-level MC"
+constexpr int kDecayedState = 3;
+
+// Translate a GENIE status to the HepMC convention that SHiP::MCParticle
+// carries (see hepmc_status.hpp). GENIE's intermediate and nuclear codes
+// (2, 10-16) have no HepMC counterpart, so they map into the 11-200
+// generator-dependent band, offset to stay clear of it while remaining
+// reversible.
+constexpr int kGenieIntermediateOffset = 100;
+
+[[nodiscard]] constexpr int genie_status_to_hepmc(int status) noexcept {
+  switch (status) {
+    case kStableFinalState:
+      return aegir::hepmc::final_state;
+    case kInitialState:
+      // The incoming neutrino and the target nucleus.
+      return aegir::hepmc::beam;
+    case kDecayedState:
+      return aegir::hepmc::decayed;
+    case kUndefined:
+      return aegir::hepmc::empty;
+    default:
+      return kGenieIntermediateOffset + status;
+  }
+}
+
+static_assert(genie_status_to_hepmc(kStableFinalState) ==
+              aegir::hepmc::final_state);
+static_assert(genie_status_to_hepmc(2) <= aegir::hepmc::intermediate_max);
+static_assert(genie_status_to_hepmc(16) <= aegir::hepmc::intermediate_max);
+
+// Remap mother indices from the full StdHep record to the emitted collection.
+// Mothers that were not themselves written out are dropped rather than
+// recorded as -1, which the data model reserves for motherId alone; motherId
+// is then the first survivor, keeping it equal to mothers.front(). Under
+// record_mode::final_state most mothers disappear, since the neutrino, the
+// struck nucleus and the intermediate states are not final state.
+void remap_mothers(std::vector<SHiP::MCParticle>& particles,
+                   std::vector<int> const& out_index, int n) {
+  for (auto& mc : particles) {
+    std::vector<std::int32_t> mapped;
+    mapped.reserve(mc.mothers.size());
+    for (auto const m : mc.mothers) {
+      if (m < 0 || m >= n) {
+        continue;
+      }
+      if (auto const out = out_index[static_cast<std::size_t>(m)]; out >= 0) {
+        mapped.push_back(out);
+      }
+    }
+    mc.mothers = std::move(mapped);
+    mc.motherId = mc.mothers.empty() ? -1 : mc.mothers.front();
+  }
+}
 
 // Stock gntpc caps the StdHep arrays at 250 particles (kNPmax); the actual
 // buffer size is taken from the file in case it was produced with a larger
@@ -46,9 +105,13 @@ constexpr int kDefaultMaxParticles = 250;
 
 class GenieReaderSource : public phlex::source {
  public:
-  GenieReaderSource(std::string const& file, std::string const& tree_name,
-                    long long first_entry)
-      : file_name_{file}, first_entry_{first_entry} {
+  GenieReaderSource(std::string stage, std::string const& file,
+                    std::string const& tree_name, long long first_entry,
+                    aegir::record_mode record)
+      : stage_{std::move(stage)},
+        file_name_{file},
+        first_entry_{first_entry},
+        record_{record} {
     try {
       file_ = RFile::Open(file);
     } catch (ROOT::RException const& e) {
@@ -73,6 +136,9 @@ class GenieReaderSource : public phlex::source {
     pdg_.resize(capacity);
     status_.resize(capacity);
     first_mother_.resize(capacity);
+    // -1 is GENIE's "no mother", so an absent StdHepLm branch reads as "no
+    // second mother" for every entry rather than as index 0.
+    last_mother_.assign(static_cast<std::size_t>(capacity), -1);
     p4_.resize(4 * static_cast<std::size_t>(capacity));
 
     tree_->SetBranchStatus("*", false);
@@ -81,6 +147,12 @@ class GenieReaderSource : public phlex::source {
     enable_branch("StdHepPdg", pdg_.data());
     enable_branch("StdHepStatus", status_.data());
     enable_branch("StdHepFm", first_mother_.data());
+    // The second mother, where GENIE recorded one. Bound only if present:
+    // rootracker files written by older gntpc versions lack it, and the
+    // buffer's -1 default then reads as "single mother" throughout.
+    if (tree_->GetBranch("StdHepLm")) {
+      bind_branch("StdHepLm", last_mother_.data());
+    }
     enable_branch("StdHepP4", p4_.data());
     // Event-level provenance for the EventHeader. Optional: files produced
     // without these branches keep the unweighted defaults (weight 1.0, id -1)
@@ -120,12 +192,13 @@ class GenieReaderSource : public phlex::source {
       ship::Time const time = (vtx_[3] * su::s).in(su::ns);
 
       particles.reserve(static_cast<std::size_t>(n));
-      // StdHep-record index -> output index for written (final-state)
-      // particles.
+      // StdHep-record index -> output index for written particles. In full
+      // mode every entry is written, so this becomes the identity.
       out_index.assign(static_cast<std::size_t>(n), -1);
 
       for (int i = 0; i < n; ++i) {
-        if (status_[i] != kStableFinalState) {
+        if (record_ == aegir::record_mode::final_state &&
+            status_[i] != kStableFinalState) {
           continue;
         }
 
@@ -142,22 +215,25 @@ class GenieReaderSource : public phlex::source {
                  p4(i, 2) * su::GeV_per_c});
         ship::view::setEnergy(mc, p4(i, 3) * su::GeV);
         ship::view::setTime(mc, time);
-        mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
-        mc.status = 1;
+        mc.status = genie_status_to_hepmc(status_[i]);
+        // StdHep record indices for now; remapped below, once out_index is
+        // complete. GENIE gives a first and an optional second mother, which
+        // it uses as two distinct parents rather than as the endpoints of a
+        // range, so both are kept verbatim.
+        auto const fm = first_mother_[static_cast<std::size_t>(i)];
+        auto const lm = last_mother_[static_cast<std::size_t>(i)];
+        if (fm >= 0) {
+          mc.mothers.push_back(fm);
+        }
+        if (lm >= 0 && lm != fm) {
+          mc.mothers.push_back(lm);
+        }
         particles.push_back(mc);
       }
     }
 
-    // Remap motherId from the full StdHep record to the emitted collection, or
-    // -1 when the mother was not itself written out — the common case, since
-    // mothers of final-state particles (the neutrino, the struck nucleus,
-    // intermediate states) are generally not final state. Operates on local
-    // vectors only, so it needs no lock.
-    for (auto& mc : particles) {
-      int const m = mc.motherId;
-      mc.motherId =
-          (m >= 0 && m < n) ? out_index[static_cast<std::size_t>(m)] : -1;
-    }
+    // Operates on local vectors only, so it needs no lock.
+    remap_mothers(particles, out_index, n);
     return particles;
   }
 
@@ -173,10 +249,10 @@ class GenieReaderSource : public phlex::source {
         .original_event_id = static_cast<std::int64_t>(evt_num_)};
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial,
         [this](phlex::data_cell_index const& id) {
@@ -184,9 +260,9 @@ class GenieReaderSource : public phlex::source {
         });
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
+
   template <typename T>
   void enable_branch(std::string const& name, T* address) {
     if (!tree_->GetBranch(name.c_str())) {
@@ -263,6 +339,7 @@ class GenieReaderSource : public phlex::source {
 
   std::string file_name_;
   long long first_entry_;
+  aegir::record_mode record_;
   // Declaration order matters: the TTree stays attached to the underlying
   // file for lazy basket reads, so it must be destroyed before file_.
   std::unique_ptr<RFile> file_;
@@ -273,6 +350,7 @@ class GenieReaderSource : public phlex::source {
   std::vector<int> pdg_;
   std::vector<int> status_;
   std::vector<int> first_mother_;
+  std::vector<int> last_mother_;
   std::vector<double> p4_;  // [n][4]: px, py, pz, E (GeV)
 
   // Event-level provenance for the EventHeader; defaults survive when the
@@ -296,7 +374,12 @@ PHLEX_REGISTER_SOURCE(s, config) {
   if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
   }
+  auto const record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "genie_reader_source");
 
-  s.add_source<GenieReaderSource>("genie_reader", file, tree,
-                                  static_cast<long long>(first_entry));
+  auto stage = aegir::source_stage(config, "genie_reader_source");
+
+  s.add_source<GenieReaderSource>("genie_reader", std::move(stage), file, tree,
+                                  static_cast<long long>(first_entry), record);
 }

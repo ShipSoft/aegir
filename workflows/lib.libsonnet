@@ -4,6 +4,12 @@
 //   lib.geant4 { concurrency: 4 }
 // overrides or extends a block without repeating it.
 {
+  // Phlex requires every job to name its stage; products are labelled with
+  // it. Workflows set `stage: lib.stage` at the top level. Phlex does not
+  // pass that key on to sources, so the generator sources below carry their
+  // own copy for the products they publish.
+  stage:: 'simulation',
+
   driver(events):: {
     cpp: 'generate_layers',
     layers: {
@@ -48,6 +54,7 @@
   // Default spray gun: 10–100 GeV μ− in a narrow cone from z = −500 mm.
   gun:: {
     cpp: 'particle_gun_source',
+    stage: $.stage,
     pdg: 13,
     p_min: 10.0,  // GeV/c
     p_max: 100.0,  // GeV/c
@@ -58,6 +65,7 @@
   // Pencil beam for the field smokes: straight 20 GeV μ− from z = −2 m.
   pencil_gun:: {
     cpp: 'particle_gun_source',
+    stage: $.stage,
     pdg: 13,
     p_min: 20.0,  // GeV/c
     p_max: 20.0,  // GeV/c
@@ -65,14 +73,22 @@
     vertex_z: -2000.0,  // mm
   },
 
+  // `record` selects how much of the generator's event record is emitted:
+  // 'final_state' (only what Geant4 will track) or 'full' (the whole record,
+  // with HepMC statuses and mother links intact — several times larger; the
+  // geant4 module still tracks only status-1 entries). See
+  // docs/generator_record.md.
   pythia8:: {
     cpp: 'pythia8_source',
+    stage: $.stage,
     beam_energy: 400.0,  // GeV
     process: 'SoftQCD:inelastic',
+    record: 'final_state',
   },
 
   fixed_target:: {
     cpp: 'fixed_target_source',
+    stage: $.stage,
     beam_energy: 400.0,  // GeV
     target_z: 74,  // proton number, not a coordinate
     target_a: 184,
@@ -81,13 +97,16 @@
     target_z_end: 1164.0,  // mm
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
+    record: 'final_state',
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker
   // file (gntpc -f rootracker); see docs/genie.md for how to produce one.
   genie_reader:: {
     cpp: 'genie_reader_source',
+    stage: $.stage,
     file: 'genie_events.rootracker.root',
+    record: 'final_state',
   },
 
   // ── modules ────────────────────────────────────────────────────────────

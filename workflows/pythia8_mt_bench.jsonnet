@@ -1,6 +1,7 @@
 local lib = import 'lib.libsonnet';
 local num_events = std.parseInt(std.extVar('num_events'));
 {
+  stage: lib.stage,
   driver: lib.driver(num_events),
   sources: {
     field: lib.null_field,

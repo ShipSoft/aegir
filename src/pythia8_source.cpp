@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <exception>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -27,6 +28,7 @@
 
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
+#include "pythia_philox_engine.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
@@ -38,35 +40,45 @@ namespace {
 
 class Pythia8Source : public phlex::source {
  public:
-  Pythia8Source(std::string const& xml_dir, ship::Energy beam_energy,
-                std::string const& process, std::uint32_t seed) {
+  Pythia8Source(std::string stage, std::string const& xml_dir,
+                ship::Energy beam_energy, std::string const& process,
+                aegir::record_mode record, std::uint32_t seed)
+      : stage_{std::move(stage)}, seed_{seed}, record_{record} {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
+    // Philox engine re-keyed to the event number before every event, so the
+    // events do not depend on the order they are processed in (see
+    // pythia_philox_engine.hpp). Pythia also draws while initialising.
+    engine_->reset(seed, aegir::kPythiaInitStream, 0);
+    pythia_->setRndmEnginePtr(engine_);
     aegir::configure_beams(*pythia_, 2212, 2212, beam_energy);
     pythia_->readString(process + " = on");
     pythia_->readString("Print:quiet = on");
-    pythia_->readString("Random:setSeed = on");
-    pythia_->readString("Random:seed = " +
-                        std::to_string(aegir::pythia_seed(seed)));
     pythia_->init();
   }
 
-  std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const&) {
+  std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
+    engine_->reset(seed_, aegir::kPythiaEventStream,
+                   static_cast<std::uint32_t>(id.number()));
     aegir::next_event(*pythia_, "Pythia8Source");
-    return aegir::extract_particles<SHiP::MCParticle>(pythia_->event);
+    return aegir::extract_particles<SHiP::MCParticle>(
+        pythia_->event, ship::Length::zero(), record_);
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial);
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
+  std::uint32_t seed_;
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_;
+  aegir::record_mode record_;
 };
 
 // ============================================================================
@@ -75,10 +87,11 @@ class Pythia8Source : public phlex::source {
 
 class Pythia8MTSource : public phlex::source {
  public:
-  Pythia8MTSource(std::string const& xml_dir, ship::Energy beam_energy,
-                  std::string const& process, int num_threads, long num_events,
+  Pythia8MTSource(std::string stage, std::string const& xml_dir,
+                  ship::Energy beam_energy, std::string const& process,
+                  aegir::record_mode record, int num_threads, long num_events,
                   std::size_t max_queue_size, std::uint32_t seed)
-      : max_queue_size_{max_queue_size} {
+      : stage_{std::move(stage)}, max_queue_size_{max_queue_size} {
     pythia_thread_ = std::jthread([=, this] {
       // Ensure done_ is always signalled when the thread exits,
       // whether by normal completion or exception.
@@ -103,7 +116,8 @@ class Pythia8MTSource : public phlex::source {
         // keeps every helper inside the valid range. Per-run statistics are
         // reproducible per seed (helpers divide the events evenly by
         // default), but arrival order through the queue is not — compare
-        // aggregates, not per-event content.
+        // aggregates, not per-event content. The serial source (parallel:
+        // false) is reproducible per event.
         pythia.readString("Random:setSeed = on");
         pythia.readString("Random:seed = " + std::to_string(aegir::pythia_seed(
                                                  seed, num_threads)));
@@ -111,8 +125,9 @@ class Pythia8MTSource : public phlex::source {
 
         ready_promise_.set_value();
 
-        pythia.run(num_events, [this](Pythia8::Pythia* p) {
-          auto particles = aegir::extract_particles<SHiP::MCParticle>(p->event);
+        pythia.run(num_events, [record, this](Pythia8::Pythia* p) {
+          auto particles = aegir::extract_particles<SHiP::MCParticle>(
+              p->event, ship::Length::zero(), record);
           push(std::move(particles));
         });
       } catch (...) {
@@ -152,17 +167,17 @@ class Pythia8MTSource : public phlex::source {
     return pop();
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial);
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
+
   void push(std::vector<SHiP::MCParticle> particles) {
     std::unique_lock lock{mutex_};
     cv_push_.wait(lock,
@@ -229,10 +244,14 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto const process =
       config.get<std::string>("process", std::string{"SoftQCD:inelastic"});
   auto const parallel = config.get<bool>("parallel", false);
+  auto const record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}), "pythia8");
   auto seed = aegir::resolve_seed(config, "pythia8");
+  auto stage = aegir::source_stage(config, "pythia8");
 
   if (!parallel) {
-    s.add_source<Pythia8Source>("pythia8", xml_dir, beam_energy, process, seed);
+    s.add_source<Pythia8Source>("pythia8", std::move(stage), xml_dir,
+                                beam_energy, process, record, seed);
   } else {
     auto const num_threads = config.get<int>("num_threads", 4);
     auto const num_events = config.get<long>("num_events", 100);
@@ -242,8 +261,8 @@ PHLEX_REGISTER_SOURCE(s, config) {
                                std::to_string(queue_size));
     }
 
-    s.add_source<Pythia8MTSource>("pythia8", xml_dir, beam_energy, process,
-                                  num_threads, num_events,
-                                  static_cast<std::size_t>(queue_size), seed);
+    s.add_source<Pythia8MTSource>(
+        "pythia8", std::move(stage), xml_dir, beam_energy, process, record,
+        num_threads, num_events, static_cast<std::size_t>(queue_size), seed);
   }
 }

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(
     aegir
-    VERSION 0.3.0
+    VERSION 0.4.0
     DESCRIPTION "Phlex-based simulation framework for the SHiP experiment"
     LANGUAGES CXX
 )
@@ -23,16 +23,11 @@ option(
 )
 
 # Dependencies
-find_package(SHiPDataModel REQUIRED)
+find_package(SHiPDataModel 0.5...<0.6 REQUIRED)
 find_package(SHiPFieldService 0.2 REQUIRED COMPONENTS G4Adapter MapIO)
 
-# Phlex's cmake config does not call find_dependency for its transitive deps
-# (still true as of phlex 0.3.0: its generated deps block is empty), so declare
-# them explicitly before find_package(phlex).
-find_package(Boost REQUIRED COMPONENTS json)
-find_package(TBB REQUIRED)
 find_package(spdlog REQUIRED)
-find_package(phlex REQUIRED)
+find_package(phlex 0.4.1 REQUIRED)
 find_package(
     ROOT
     6.40
@@ -65,6 +60,7 @@ set_target_properties(
 )
 
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
+find_package(SHiPRandom 0.2 REQUIRED)
 
 # >=0.3: ship::geometry_thread() and SHiPGeometryService::sharedFromFile,
 # shared between geant4_module and any other Geant4 geometry user (e.g.
@@ -91,8 +87,7 @@ endfunction()
 
 aegir_add_plugin(
     particle_gun_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog
-    INCLUDES ${Random123_INCLUDE_DIR}
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog SHiP::Random
 )
 
 aegir_add_plugin(
@@ -156,12 +151,13 @@ aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
 aegir_add_plugin(
     pythia8_source
     LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
+        SHiP::Random
 )
 
 aegir_add_plugin(
     fixed_target_source
     LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
-    INCLUDES ${Random123_INCLUDE_DIR}
+        SHiP::Random
 )
 
 aegir_add_plugin(
@@ -188,11 +184,53 @@ target_include_directories(
 
 # Install
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 get_property(PLUGIN_TARGETS GLOBAL PROPERTY AEGIR_PLUGIN_TARGETS)
 install(TARGETS ${PLUGIN_TARGETS} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(TARGETS pythia8_benchmark RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY workflows/ DESTINATION share/aegir/workflows)
+
+# The generator-source helper, for event-generator plugins built outside
+# aegir (e.g. aegir-genie): find_package(aegir), link aegir::source_helper
+# and #include <aegir/mc_particle_source.hpp>.
+add_library(aegir_source_helper INTERFACE)
+add_library(aegir::source_helper ALIAS aegir_source_helper)
+set_target_properties(aegir_source_helper PROPERTIES EXPORT_NAME source_helper)
+target_include_directories(
+    aegir_source_helper
+    INTERFACE $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_link_libraries(
+    aegir_source_helper
+    INTERFACE phlex::module SHiP::SHiPDataModel
+)
+install(
+    FILES src/mc_particle_source.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aegir
+)
+install(TARGETS aegir_source_helper EXPORT aegirTargets)
+install(
+    EXPORT aegirTargets
+    NAMESPACE aegir::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
+configure_package_config_file(
+    cmake/aegirConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/aegirConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
+# 0.x: a minor release may change the helper's interface.
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/aegirConfigVersion.cmake
+    COMPATIBILITY SameMinorVersion
+)
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/aegirConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/aegirConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/aegir
+)
 
 # Tests
 enable_testing()
@@ -235,6 +273,13 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/physics_list_failure.sh
 )
 
+# Source stage: a generator source block without its own `stage` key, or with
+# the reserved 'CURRENT', must fail with a clear error.
+add_test(
+    NAME source_stage
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/source_stage.sh
+)
+
 # Writer pool: many threads share few fill contexts with tiny clusters; no
 # event may be lost or duplicated (issue #77).
 add_test(
@@ -247,4 +292,18 @@ add_test(
 add_test(
     NAME field_deflection
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/field_deflection.sh
+)
+
+# Thread independence: the Pythia-based generators write the same events at
+# -j 1 and -j 8 for a fixed seed (issue #133).
+add_test(
+    NAME thread_independence
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/thread_independence.sh
+)
+
+# Generator status: only HepMC status-1 (final-state) entries become Geant4
+# primaries; decayed and beam entries are skipped unless track_all_primaries.
+add_test(
+    NAME generator_status
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_status.sh
 )

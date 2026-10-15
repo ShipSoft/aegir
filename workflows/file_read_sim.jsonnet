@@ -6,7 +6,9 @@
 //   jsonnet --ext-str events=$n --ext-str infile=sim_input.root \
 //       --ext-str simout=sim.root --ext-str histo=valid.root file_read_sim.jsonnet
 local n_events = std.parseInt(std.extVar('events'));
+local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
@@ -16,6 +18,7 @@ local n_events = std.parseInt(std.extVar('events'));
     geometry: { cpp: 'geometry_builtin_provider' },
     input: {
       cpp: 'file_source',
+      stage: lib.stage,
       input_file: std.extVar('infile'),
       product: 'sim_particles',
       skip: 0,  // start reading at this entry

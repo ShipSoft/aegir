@@ -8,6 +8,7 @@
 //   - spectrometer: map origin at the magnet centre, z = 89570 mm.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.geomodel_geometry,

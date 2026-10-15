@@ -6,6 +6,7 @@
 // Geant4 must NOT call GetFieldValue while stepping outside the target.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.builtin_geometry,

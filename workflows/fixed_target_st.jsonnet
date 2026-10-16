@@ -1,9 +1,10 @@
 local lib = import 'lib.libsonnet';
 {
-  driver: lib.driver(100),
+  driver: lib.driver(10000),
   sources: {
     field: lib.null_field,
-    geometry: lib.geomodel_geometry,
+    #geometry: lib.builtin_geometry,
+    geometry: lib.my_geomodel_geometry,
     pythia8: lib.fixed_target,
   },
   modules: {

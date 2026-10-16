@@ -37,6 +37,12 @@
 #include <utility>
 #include <vector>
 
+#include <atomic>
+#include <boost/json.hpp>
+#include <cstdint>
+#include "TFile.h"
+#include "TObjString.h"
+
 #include "TH1D.h"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
@@ -184,7 +190,7 @@ class SimRNTupleWriter {
  public:
   SimRNTupleWriter(std::string filename, bool filter_empty,
                    std::size_t cluster_mib, std::size_t n_contexts)
-      : filter_empty_{filter_empty} {
+      : filter_empty_{filter_empty}, m_filename{filename} {
     auto model = RNTupleModel::CreateBare();
     model->MakeField<SHiP::EventHeader>("event_header");
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
@@ -204,14 +210,52 @@ class SimRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
+  ~SimRNTupleWrite() {
+    pool_.reset();
+    writer_.reset();
+    write_summary();
+  }
+
+  void write_summary() const noexcept {
+    try {
+      boost::json::object summary{
+          {"schema_version", 1},
+          {"producer", "aegir"},
+          {"filter_empty", filter_empty_},
+          {"n_events_generated", total_gen.load()},
+          {"n_events_written", total_written.load()},
+          {"max_aegir_event_id_saved", max_event_id.load()},
+      };
+
+      std::unique_ptr<TFile> file{TFile::Open(m_filename_.c_str(), "UPDATE")};
+      if (!file || file->IsZombie()) {
+        throw std::runtime_error("cannot open file for update");
+      }
+      TObjString const json{boost::json::serialize(summary).c_str()};
+      if (file->WriteObject(&json, "run_summary") <= 0) {
+        throw std::runtime_error("WriteObject failed");
+      }
+      spdlog::info("sim_output_module: wrote run_summary to '{}'", filename_);
+    } catch (std::exception const& e) {
+      try {
+        spdlog::error("sim_output_module: failed to write run_summary to '{}': {}",
+                      filename_, e.what());
+      } catch (...) {
+      }
+    }
+  }
+
   void write(std::vector<SHiP::MCParticle> const& particles,
              SHiP::SimResult const& result, SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
+    total_gen.fetch_add(1, std::memory_order_relaxed);
+
     if (filter_empty_ && result.hits.empty()) {
       return;
     }
-
+    update_max_event_id(header.aegir_event_id);
+    total_written.fetch_add(1, std::memory_order_relaxed);
     auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind inputs directly for the duration of Fill (read-only), avoiding a
@@ -230,12 +274,25 @@ class SimRNTupleWriter {
   }
 
  private:
+
+  void update_max_event_id(std::int64_t id) {
+    auto seen = max_event_id_.load(std::memory_order_relaxed);
+    while (id > seen &&
+           !max_event_id_.compare_exchange_weak(seen, id,
+                                                std::memory_order_relaxed)) {
+    }
+  }
+
   bool filter_empty_;
   // Member order matters: the pool (holding all fill contexts) must be
   // destroyed before the writer, which commits the dataset in its destructor
   // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
   std::optional<FillStatePool> pool_;
+  std::string filename;
+  std::atomic<std::uint64_t> total_gen{0};
+  std::atomic<std::uint64_t> total_written{0};
+  std::atomic<std::uint64_t> max_event_id{0};
 };
 
 // Validation histograms for MC particles (thread-safe via per-thread

@@ -6,7 +6,7 @@ function(seed=null) {
   driver: lib.driver(100000),
   sources: {
     field: lib.null_field,
-    geometry: lib.geomodel_geometry,
+    geometry: lib.my_geomodel_geometry,
     pythia8: lib.fixed_target { [if seed != null then 'seed']: seed },
   },
   modules: {

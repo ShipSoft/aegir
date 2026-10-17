@@ -16,7 +16,7 @@
 
 #include "phlex/configuration.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 /// Read config key `key` as a quantity in the unit of `fallback`, e.g.
 ///   auto beam_energy = get_quantity(config, "beam_energy", 400.0 * su::GeV);
@@ -27,4 +27,4 @@ template <auto U>
   return config.get<double>(key, fallback.numerical_value_in(U)) * U;
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

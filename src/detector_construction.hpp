@@ -30,7 +30,7 @@
 #include "geometry_source.hpp"
 #include "scoring_planes.hpp"
 
-namespace SHiP::g4 {
+namespace SHiP::aegir::g4 {
 
 enum class SDMode { scoring, crossing };
 
@@ -108,7 +108,7 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     for (auto const& [pattern, cut] : regions_) {
       auto* region = new G4Region(pattern);
       auto* cuts = new G4ProductionCuts();
-      cuts->SetProductionCut(aegir::clhep::g4(cut));
+      cuts->SetProductionCut(SHiP::aegir::clhep::g4(cut));
       region->SetProductionCuts(cuts);
       bool matched = false;
       for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
@@ -177,4 +177,4 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   }
 };
 
-}  // namespace SHiP::g4
+}  // namespace SHiP::aegir::g4

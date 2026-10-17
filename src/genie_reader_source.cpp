@@ -56,23 +56,24 @@ constexpr int kGenieIntermediateOffset = 100;
 [[nodiscard]] constexpr int genie_status_to_hepmc(int status) noexcept {
   switch (status) {
     case kStableFinalState:
-      return aegir::hepmc::final_state;
+      return SHiP::aegir::hepmc::final_state;
     case kInitialState:
       // The incoming neutrino and the target nucleus.
-      return aegir::hepmc::beam;
+      return SHiP::aegir::hepmc::beam;
     case kDecayedState:
-      return aegir::hepmc::decayed;
+      return SHiP::aegir::hepmc::decayed;
     case kUndefined:
-      return aegir::hepmc::empty;
+      return SHiP::aegir::hepmc::empty;
     default:
       return kGenieIntermediateOffset + status;
   }
 }
 
 static_assert(genie_status_to_hepmc(kStableFinalState) ==
-              aegir::hepmc::final_state);
-static_assert(genie_status_to_hepmc(2) <= aegir::hepmc::intermediate_max);
-static_assert(genie_status_to_hepmc(16) <= aegir::hepmc::intermediate_max);
+              SHiP::aegir::hepmc::final_state);
+static_assert(genie_status_to_hepmc(2) <= SHiP::aegir::hepmc::intermediate_max);
+static_assert(genie_status_to_hepmc(16) <=
+              SHiP::aegir::hepmc::intermediate_max);
 
 // Remap mother indices from the full StdHep record to the emitted collection.
 // Mothers that were not themselves written out are dropped rather than
@@ -107,7 +108,7 @@ class GenieReaderSource : public phlex::source {
  public:
   GenieReaderSource(std::string stage, std::string const& file,
                     std::string const& tree_name, long long first_entry,
-                    aegir::record_mode record)
+                    SHiP::aegir::record_mode record)
       : stage_{std::move(stage)},
         file_name_{file},
         first_entry_{first_entry},
@@ -197,7 +198,7 @@ class GenieReaderSource : public phlex::source {
       out_index.assign(static_cast<std::size_t>(n), -1);
 
       for (int i = 0; i < n; ++i) {
-        if (record_ == aegir::record_mode::final_state &&
+        if (record_ == SHiP::aegir::record_mode::final_state &&
             status_[i] != kStableFinalState) {
           continue;
         }
@@ -251,7 +252,7 @@ class GenieReaderSource : public phlex::source {
 
   phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial,
@@ -339,7 +340,7 @@ class GenieReaderSource : public phlex::source {
 
   std::string file_name_;
   long long first_entry_;
-  aegir::record_mode record_;
+  SHiP::aegir::record_mode record_;
   // Declaration order matters: the TTree stays attached to the underlying
   // file for lazy basket reads, so it must be destroyed before file_.
   std::unique_ptr<RFile> file_;
@@ -374,11 +375,11 @@ PHLEX_REGISTER_SOURCE(s, config) {
   if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
   }
-  auto const record = aegir::parse_record_mode(
+  auto const record = SHiP::aegir::parse_record_mode(
       config.get<std::string>("record", std::string{"final_state"}),
       "genie_reader_source");
 
-  auto stage = aegir::source_stage(config, "genie_reader_source");
+  auto stage = SHiP::aegir::source_stage(config, "genie_reader_source");
 
   s.add_source<GenieReaderSource>("genie_reader", std::move(stage), file, tree,
                                   static_cast<long long>(first_entry), record);

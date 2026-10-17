@@ -85,7 +85,17 @@
 
 namespace {
 
-using namespace SHiP::g4;
+using SHiP::aegir::g4::ConfigurableDetectorConstruction;
+using SHiP::aegir::g4::EnergyCutAction;
+using SHiP::aegir::g4::kScoringWorldName;
+using SHiP::aegir::g4::ScoringPlaneConfig;
+using SHiP::aegir::g4::ScoringShape;
+using SHiP::aegir::g4::SDMode;
+using SHiP::aegir::g4::tl_hits;
+using SHiP::aegir::g4::tl_particles;
+using SHiP::aegir::g4::tl_track_map;
+using SHiP::aegir::g4::TrackingAction;
+using SHiP::aegir::g4::validate_scoring_planes;
 
 // Required by G4MTRunManager::Initialize but never invoked — events are
 // built directly and passed to G4EventManager::ProcessOneEvent.
@@ -173,7 +183,7 @@ class Geant4Sim {
   }
 
   SHiP::SimResult simulate(
-      std::shared_ptr<SHiP::IGeometrySource> const& geo,
+      std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
       std::shared_ptr<SHiP::IFieldSource> const& field,
       phlex::handle<std::vector<SHiP::MCParticle>> particles) {
     AEGIR_TRACE_EVENT("g4", "simulate");
@@ -236,7 +246,7 @@ class Geant4Sim {
         // before the PDG lookup so that record-keeping entries (strings,
         // diquarks, nuclei) do not also trip the warning below.
         if (!cfg_.track_all_primaries &&
-            !aegir::hepmc::is_final_state(mc.status)) {
+            !SHiP::aegir::hepmc::is_final_state(mc.status)) {
           ++not_final_state;
           continue;
         }
@@ -260,13 +270,13 @@ class Geant4Sim {
           continue;
         }
         auto const mom = SHiP::view::momentum(mc);
-        if (aegir::magnitude(mom) <= SHiP::Momentum::zero()) {
+        if (SHiP::aegir::magnitude(mom) <= SHiP::Momentum::zero()) {
           ++no_momentum;
           continue;
         }
 
         auto const vtx = SHiP::view::vertex(mc);
-        namespace cb = aegir::clhep;
+        namespace cb = SHiP::aegir::clhep;
         auto* vertex =
             new G4PrimaryVertex(cb::g4(vtx[0]), cb::g4(vtx[1]), cb::g4(vtx[2]),
                                 cb::g4(SHiP::view::time(mc)));
@@ -342,7 +352,7 @@ class Geant4Sim {
     G4Random::getTheEngine()->setSeed(static_cast<long>(seed64), 0);
   }
 
-  void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
+  void init_master(std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
                    std::shared_ptr<SHiP::IFieldSource> const& field) {
     // Validate the export target up front, before anything is constructed:
     // G4GDMLParser::Write aborts via G4Exception on some write failures, so
@@ -625,9 +635,9 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
           SHiP::vec_of<SHiP::Length>({(*pos)[0], (*pos)[1], (*pos)[2]});
     }
     plane.after_volume = entry.get<std::string>("after_volume", std::string{});
-    plane.gap = aegir::get_quantity(entry, "gap", 0.0 * su::mm);
+    plane.gap = SHiP::aegir::get_quantity(entry, "gap", 0.0 * su::mm);
     plane.ke_threshold =
-        aegir::get_quantity(entry, "ke_threshold", 0.0 * su::GeV);
+        SHiP::aegir::get_quantity(entry, "ke_threshold", 0.0 * su::GeV);
     plane.kill = entry.get<bool>("kill", false);
     planes.push_back(std::move(plane));
   }
@@ -647,7 +657,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto const sd_mode_str =
       config.get<std::string>("sd_mode", std::string{"scoring"});
   auto const ke_threshold =
-      aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
+      SHiP::aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
   auto const regions_map = config.get<std::map<std::string, double>>(
       "regions", std::map<std::string, double>{});
   std::vector<std::pair<std::string, SHiP::Length>> regions;
@@ -663,7 +673,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto const active_parallelism =
       static_cast<int>(detail::max_allowed_parallelism::active_value());
 
-  auto const seed = aegir::resolve_seed(config, "geant4");
+  auto const seed = SHiP::aegir::resolve_seed(config, "geant4");
 
   Geant4SimConfig cfg{
       .physics_list =
@@ -674,10 +684,10 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .sd_mode = sd_mode_str == "crossing" ? SDMode::crossing : SDMode::scoring,
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),
-      .energy_cut_threshold = aegir::get_quantity(
+      .energy_cut_threshold = SHiP::aegir::get_quantity(
           config, "energy_cut_threshold", SHiP::Energy{ke_threshold}),
       .particle_ke_cut =
-          aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
+          SHiP::aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
       .track_all_primaries = config.get<bool>("track_all_primaries", false),
       .regions = std::move(regions),
       .scoring_planes = read_scoring_planes(config),

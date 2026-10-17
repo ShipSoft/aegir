@@ -24,7 +24,7 @@
 
 #include "record_mode.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Pythia8's native units: energies/momenta in GeV, positions in mm,
 // production times in mm/c.
@@ -179,4 +179,4 @@ std::vector<MCParticle> extract_particles(
   return particles;
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

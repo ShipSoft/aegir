@@ -27,7 +27,7 @@
 #include <SHiP/random/philox_rng.hpp>
 #include <cstdint>
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Philox stream keys for the Pythia engines, distinct from the other aegir
 // streams (particle gun 0xBEEFCAFE, fixed-target sampling 0xF14ED0A7,
@@ -59,4 +59,4 @@ class PhiloxRndmEngine : public Pythia8::RndmEngine {
   SHiP::random::PhiloxRng rng_{0};
 };
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

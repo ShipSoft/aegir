@@ -14,7 +14,7 @@
 
 #pragma once
 
-namespace aegir::hepmc {
+namespace SHiP::aegir::hepmc {
 
 inline constexpr int empty = 0;          ///< Empty entry — never tracked
 inline constexpr int final_state = 1;    ///< Not decayed by the generator
@@ -42,4 +42,4 @@ static_assert(!is_final_state(documentation));
 static_assert(!is_final_state(beam));
 static_assert(!is_final_state(intermediate_min));
 
-}  // namespace aegir::hepmc
+}  // namespace SHiP::aegir::hepmc

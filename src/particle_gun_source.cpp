@@ -63,14 +63,14 @@ class ParticleGun : public phlex::source {
     SHiP::view::set_energy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
     SHiP::view::set_time(mc, SHiP::Time::zero());
     mc.mother_id = -1;
-    mc.status = aegir::hepmc::final_state;
+    mc.status = SHiP::aegir::hepmc::final_state;
 
     return {mc};
   }
 
   phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::unlimited);
@@ -91,17 +91,19 @@ PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
   auto const pdg = config.get<int>("pdg", 13);  // muon
-  auto const p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
+  auto const p_min =
+      SHiP::aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
   auto const p_max =
-      aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
+      SHiP::aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
   auto const max_theta =
-      aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
-  auto const vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
-  auto const vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
+      SHiP::aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
+  auto const vx = SHiP::aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
+  auto const vy = SHiP::aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
   // Default: upstream of the target.
-  auto const vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
-  auto seed = aegir::resolve_seed(config, "particle_gun");
-  auto stage = aegir::source_stage(config, "particle_gun");
+  auto const vz =
+      SHiP::aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
+  auto seed = SHiP::aegir::resolve_seed(config, "particle_gun");
+  auto stage = SHiP::aegir::source_stage(config, "particle_gun");
 
   s.add_source<ParticleGun>("particle_gun", std::move(stage), pdg, p_min, p_max,
                             max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz},

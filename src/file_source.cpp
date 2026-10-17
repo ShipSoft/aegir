@@ -53,7 +53,7 @@ SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   // Same storage units on both sides — direct copies, no unit crossing.
   mc.vertex = sp.vertex;
   mc.momentum = sp.momentum;
-  auto const pc = (aegir::magnitude(SHiP::view::momentum(sp)) * su::c)
+  auto const pc = (SHiP::aegir::magnitude(SHiP::view::momentum(sp)) * su::c)
                       .in(su::GeV);           // |p|c; conversion factor is 1
   auto const e_kin = SHiP::view::energy(sp);  // SimParticle::energy is kinetic
   SHiP::view::set_energy(mc, e_kin > SHiP::Energy::zero()
@@ -63,7 +63,7 @@ SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   // SimParticle::parent_id is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.
   mc.mother_id = sp.parent_id == 0 ? -1 : sp.parent_id;
-  mc.status = aegir::hepmc::final_state;
+  mc.status = SHiP::aegir::hepmc::final_state;
   return mc;
 }
 
@@ -157,13 +157,13 @@ class FileSource : public phlex::source {
       phlex::product_selector const& selector) override {
     // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
     // additionally guards the reader against the concurrent header provider.
-    aegir::event_header_generator header_gen{};
+    SHiP::aegir::event_header_generator header_gen{};
     if (header_view_) {
       header_gen = [this](phlex::data_cell_index const& id) {
         return generate_header(id);
       };
     }
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial, std::move(header_gen));
@@ -196,7 +196,7 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("product", std::string{"mc_particles"});
   auto const skip =
       config.get<long>("skip", 0L);  // start reading at this entry
-  auto stage = aegir::source_stage(config, "file_source");
+  auto stage = SHiP::aegir::source_stage(config, "file_source");
 
   s.add_source<FileSource>("file_source", std::move(stage), input_file, ntuple,
                            product, skip);

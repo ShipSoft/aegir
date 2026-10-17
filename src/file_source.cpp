@@ -16,8 +16,10 @@
 // "sim_particles". SimParticles are simulation *output*, so when reading them
 // back as simulation *input* they are projected onto MCParticles.
 
+#include <TFile.h>
 #include <spdlog/spdlog.h>
 
+#include <ROOT/RNTuple.hxx>
 #include <ROOT/RNTupleDescriptor.hxx>
 #include <ROOT/RNTupleReader.hxx>
 #include <ROOT/RNTupleView.hxx>
@@ -88,7 +90,21 @@ class FileSource : public phlex::source {
           "' (expected 'mc_particles' or 'sim_particles')");
     }
 
-    reader_ = ROOT::RNTupleReader::Open(ntuple, input_file);
+    // Open the file through TFile first so its streamer infos are known to
+    // ROOT. data-model's I/O rules need them to read files written by an
+    // older data-model (e.g. v0.5.0 output read with 0.6); without them the
+    // read aborts in RFieldMeta (root-project/root#23146).
+    file_.reset(TFile::Open(input_file.c_str()));
+    if (!file_ || file_->IsZombie()) {
+      throw std::runtime_error("file_source: cannot open '" + input_file + "'");
+    }
+    std::unique_ptr<ROOT::RNTuple> anchor{
+        file_->Get<ROOT::RNTuple>(ntuple.c_str())};
+    if (!anchor) {
+      throw std::runtime_error("file_source: no RNTuple '" + ntuple + "' in '" +
+                               input_file + "'");
+    }
+    reader_ = ROOT::RNTupleReader::Open(*anchor);
     n_entries_ = reader_->GetNEntries();
     if (read_sim_) {
       sim_view_ = reader_->GetView<std::vector<SHiP::SimParticle>>(product);
@@ -174,6 +190,8 @@ class FileSource : public phlex::source {
   long skip_;
   bool read_sim_;
   ROOT::NTupleSize_t n_entries_{0};
+  // Declared before reader_, so it outlives the reader.
+  std::unique_ptr<TFile> file_;
   std::unique_ptr<ROOT::RNTupleReader> reader_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::MCParticle>>> mc_view_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::SimParticle>>> sim_view_;

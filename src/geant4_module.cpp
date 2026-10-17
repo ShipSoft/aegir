@@ -128,6 +128,9 @@ struct Geant4SimConfig {
   // convention (see hepmc_status.hpp); by default only final-state
   // (status 1) entries are tracked.
   bool track_all_primaries = false;
+  // keep_particles: 'hit_ancestry' — write only the particles that left a
+  // hit and their ancestors, instead of every recorded particle.
+  bool keep_hit_ancestry = false;
   std::vector<std::pair<std::string, ship::Length>> regions;
   std::vector<ScoringPlaneConfig> scoring_planes;
   // When set, write the constructed geometry to this GDML file after
@@ -305,6 +308,9 @@ class Geant4Sim {
       AEGIR_TRACE_COUNTER("g4", "particles", tl_particles.size());
       tl_hits_hwm = std::max(tl_hits_hwm, tl_hits.size());
       tl_particles_hwm = std::max(tl_particles_hwm, tl_particles.size());
+      if (cfg_.keep_hit_ancestry) {
+        prune_to_hit_ancestry(tl_particles, tl_hits);
+      }
       result.hits = std::move(tl_hits);
       result.particles = std::move(tl_particles);
     }
@@ -665,6 +671,14 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   auto const seed = aegir::resolve_seed(config, "geant4");
 
+  auto const keep_particles =
+      config.get<std::string>("keep_particles", std::string{"all"});
+  if (keep_particles != "all" && keep_particles != "hit_ancestry") {
+    throw std::invalid_argument("geant4_module: unknown keep_particles '" +
+                                keep_particles +
+                                "' (expected 'all' or 'hit_ancestry')");
+  }
+
   Geant4SimConfig cfg{
       .physics_list =
           config.get<std::string>("physics_list", std::string{"FTFP_BERT"}),
@@ -679,11 +693,20 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .particle_ke_cut =
           aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
       .track_all_primaries = config.get<bool>("track_all_primaries", false),
+      .keep_hit_ancestry = keep_particles == "hit_ancestry",
       .regions = std::move(regions),
       .scoring_planes = read_scoring_planes(config),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
       .progress_interval = config.get<int>("progress_interval", 100),
   };
+
+  // The pruning needs every ancestor recorded: with a particle_ke_cut, a
+  // skipped ancestor would leave its descendants' parent ids dangling.
+  if (cfg.keep_hit_ancestry && cfg.particle_ke_cut > ship::Energy::zero()) {
+    throw std::invalid_argument(
+        "geant4_module: keep_particles 'hit_ancestry' needs every ancestor "
+        "recorded; set particle_ke_cut to 0");
+  }
 
   if (cfg.concurrency > active_parallelism) {
     spdlog::warn(

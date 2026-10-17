@@ -33,9 +33,11 @@ ROOT.gInterpreter.Declare(
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
+#include <TFile.h>
 #include <bit>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -88,6 +90,10 @@ struct Entries {
 };
 
 Entries entry_hashes(std::string const& name, std::string const& path) {
+  // Opening the file through TFile first registers its streamer infos, which
+  // data-model's I/O rules need to read output written by an older
+  // data-model (root-project/root#23146).
+  std::unique_ptr<TFile> file{TFile::Open(path.c_str())};
   auto reader = ROOT::RNTupleReader::Open(name, path);
   Entries result;
   auto& hashes = result.hashes;

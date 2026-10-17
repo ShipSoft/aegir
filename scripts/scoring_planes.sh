@@ -68,21 +68,29 @@ for i in range(n):
     # Every primary crosses plane 1 and is killed on plane 3, whether or not
     # plane 3 records it.
     expect(len(planes[1]) == 1, f"{len(planes[1])} hits on plane 1")
-    ke = primary.energy  # initial kinetic energy [GeV]
-    if pdg in (12, 14, 16):
-        want3 = 1 if ke >= KE3 else 0  # no energy loss on the way
-    else:
-        # A muon loses a few GeV in the tungsten: only check clear cases.
-        want3 = 1 if ke > KE3 + 20.0 else (0 if ke < KE3 else None)
-    if want3 is not None:
-        expect(len(planes[3]) == want3, f"{len(planes[3])} hits on plane 3")
+    m = 0.0 if pdg in (12, 14, 16) else 0.1056584  # GeV
+
+    def kinetic(h):
+        p = math.sqrt(sum(c * c for c in h.momentum))
+        return math.sqrt(p * p + m * m) - m
+
+    # Whether plane 3 records the primary depends on its kinetic energy there.
+    # Between plane 1 and plane 3 there is only air and 0.6 mm of silicon, so
+    # the energy recorded on plane 1 predicts it; the tungsten before plane 1
+    # can take any amount of a muon's energy (radiative losses).
+    if planes[1]:
+        ke1 = kinetic(planes[1][0])
+        if abs(ke1 - KE3) > 1.0:
+            want3 = 1 if ke1 > KE3 else 0
+            expect(
+                len(planes[3]) == want3,
+                f"{len(planes[3])} hits on plane 3 ({ke1:.1f} GeV at plane 1)",
+            )
     for h in planes[1]:
         expect(abs(h.position[2] - Z1) < TOL, f"plane 1 hit at z={h.position[2]}")
     for h in planes[3]:
         expect(abs(h.position[2] - Z3) < TOL, f"plane 3 hit at z={h.position[2]}")
-        p3 = math.sqrt(sum(c * c for c in h.momentum))
-        m = 0.0 if pdg in (12, 14, 16) else 0.1056584  # GeV
-        ke3 = math.sqrt(p3 * p3 + m * m) - m
+        ke3 = kinetic(h)
         expect(ke3 >= KE3 - 1e-6, f"plane 3 recorded a track at {ke3:.2f} GeV")
     end_z = primary.endpoint[2]
     expect(Z3 - TOL < end_z < Z3 + 2.0 + TOL, f"primary ends at z={end_z}")

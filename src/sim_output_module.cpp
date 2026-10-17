@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -141,6 +142,18 @@ using ContextD = RHistFillContext<double>;
 std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
   return std::make_shared<HistD>(static_cast<std::uint64_t>(nbins),
                                  std::make_pair(low, high));
+}
+
+// The PDG histograms cover |PDG| <= 2500. Nuclei and ions (10LZZZAAAI) are
+// far outside that, so the plane-hit histogram fills them into one extra bin
+// on each side, at +-kIonPdgBin, rather than its overflow.
+constexpr double kIonPdgBin = 2501;
+
+double pdg_bin(std::int32_t pdg) {
+  if (std::abs(pdg) >= 1000000000) {
+    return pdg > 0 ? kIonPdgBin : -kIonPdgBin;
+  }
+  return pdg;
 }
 
 // RNTuple writer for MC particles only (used when no G4 simulation)
@@ -355,9 +368,9 @@ class SimHistogrammer {
         h_hit_detector_{make_hist(100, -0.5, 99.5)},
         h_hit_momentum_{make_hist(200, 0., 500.)},
         h_plane_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},
-        h_plane_hit_id_{make_hist(100, -0.5, 99.5)},
+        h_plane_hit_id_{make_hist(1000, -0.5, 999.5)},
         h_plane_hit_momentum_{make_hist(200, 0., 500.)},
-        h_plane_hit_pdg_{make_hist(5000, -2500.5, 2499.5)},
+        h_plane_hit_pdg_{make_hist(5003, -kIonPdgBin - 0.5, kIonPdgBin + 0.5)},
         h_particle_multiplicity_{make_hist(1000, -0.5, 999.5)},
         f_mc_multiplicity_{h_mc_multiplicity_},
         f_mc_momentum_{h_mc_momentum_},
@@ -407,7 +420,7 @@ class SimHistogrammer {
         ++plane_hits;
         ctxs.plane_hit_id->Fill(static_cast<double>(hit.geometryNodeId));
         ctxs.plane_hit_momentum->Fill(aegir::magnitude(hit.momentum));
-        ctxs.plane_hit_pdg->Fill(static_cast<double>(hit.pdgCode));
+        ctxs.plane_hit_pdg->Fill(pdg_bin(hit.pdgCode));
         continue;
       }
       ctxs.hit_edep->Fill(hit.energyDeposit);

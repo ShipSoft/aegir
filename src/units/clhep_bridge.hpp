@@ -19,7 +19,7 @@
 #include <G4Types.hh>
 #include <SHiP/Units.hpp>
 
-namespace aegir::clhep {
+namespace SHiP::aegir::clhep {
 
 namespace su = SHiP::units;
 
@@ -63,4 +63,4 @@ namespace su = SHiP::units;
   return p.numerical_value_in(su::GeV_per_c) * CLHEP::GeV;
 }
 
-}  // namespace aegir::clhep
+}  // namespace SHiP::aegir::clhep

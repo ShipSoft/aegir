@@ -40,7 +40,7 @@
 #include "phlex/model/products.hpp"
 #include "phlex/source.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Generator signature: produce the particles for a single data cell (event).
 using mc_particle_generator =
@@ -116,4 +116,4 @@ inline phlex::provider_bundles mc_particle_provider_bundles(
   return bundles;
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

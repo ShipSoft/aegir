@@ -28,7 +28,7 @@ import sys
 import ROOT
 
 path, pdg = sys.argv[1], int(sys.argv[2])
-SCORING_PLANE = 100  # SHiP::g4::kScoringPlaneDetectorId
+SCORING_PLANE = 100  # SHiP::aegir::g4::kScoringPlaneDetectorId
 TOL = 1e-3  # mm
 # Plane 1: upstream face 10 mm behind the target's end at z = 500 mm.
 # Plane 2: tube r = 80-81 mm, |z| <= 500 mm. Plane 3: upstream face at 2999 mm.

@@ -15,7 +15,7 @@
 #include <string>
 #include <string_view>
 
-namespace aegir {
+namespace SHiP::aegir {
 
 enum class record_mode : std::uint8_t {
   final_state,  ///< Only particles the generator left undecayed
@@ -38,4 +38,4 @@ enum class record_mode : std::uint8_t {
                            "' (expected 'final_state' or 'full')");
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

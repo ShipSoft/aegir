@@ -298,13 +298,13 @@ class MCHistogrammer {
     // full record still reaches disk.
     std::size_t multiplicity = 0;
     for (auto const& p : particles) {
-      if (!aegir::hepmc::is_final_state(p.status)) {
+      if (!SHiP::aegir::hepmc::is_final_state(p.status)) {
         continue;
       }
       ++multiplicity;
       // Histograms are filled in the storage units straight off the persisted
       // structs; no unit conversion occurs (docs/units.md).
-      double const pmag = aegir::magnitude(p.momentum);
+      double const pmag = SHiP::aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
       ctxs.pdg->Fill(static_cast<double>(p.pdg_code));
     }
@@ -407,27 +407,27 @@ class SimHistogrammer {
     // Final-state entries only, for the reason given in MCHistogrammer.
     std::size_t mc_multiplicity = 0;
     for (auto const& p : particles) {
-      if (!aegir::hepmc::is_final_state(p.status)) {
+      if (!SHiP::aegir::hepmc::is_final_state(p.status)) {
         continue;
       }
       ++mc_multiplicity;
-      double const pmag = aegir::magnitude(p.momentum);
+      double const pmag = SHiP::aegir::magnitude(p.momentum);
       ctxs.mc_momentum->Fill(pmag);
     }
     ctxs.mc_multiplicity->Fill(static_cast<double>(mc_multiplicity));
     std::size_t plane_hits = 0;
     for (auto const& hit : result.hits) {
-      if (hit.detector_id == SHiP::g4::kScoringPlaneDetectorId) {
+      if (hit.detector_id == SHiP::aegir::g4::kScoringPlaneDetectorId) {
         ++plane_hits;
         ctxs.plane_hit_id->Fill(static_cast<double>(hit.geometry_node_id));
-        ctxs.plane_hit_momentum->Fill(aegir::magnitude(hit.momentum));
+        ctxs.plane_hit_momentum->Fill(SHiP::aegir::magnitude(hit.momentum));
         ctxs.plane_hit_pdg->Fill(pdg_bin(hit.pdg_code));
         continue;
       }
       ctxs.hit_edep->Fill(hit.energy_deposit);
       ctxs.hit_z->Fill(hit.position[2]);
       ctxs.hit_detector->Fill(static_cast<double>(hit.detector_id));
-      ctxs.hit_momentum->Fill(aegir::magnitude(hit.momentum));
+      ctxs.hit_momentum->Fill(SHiP::aegir::magnitude(hit.momentum));
     }
     ctxs.hit_multiplicity->Fill(
         static_cast<double>(result.hits.size() - plane_hits));

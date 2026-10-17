@@ -202,6 +202,11 @@ def main():
     )
     args = parser.parse_args()
 
+    # Opening the file through TFile first registers its streamer infos, which
+    # data-model's I/O rules need to read output written by an older
+    # data-model (root-project/root#23146). Keep it open while reading.
+    tfile = ROOT.TFile.Open(args.input)  # noqa: F841
+
     try:
         mu_plus, mu_minus = read_muon_data(args.input, args.ntuple)
     except Exception as e:  # noqa: BLE001

@@ -31,7 +31,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 void configure_processes(Pythia8::Pythia& pythia) {
   pythia.readString("SoftQCD:inelastic = on");
@@ -44,9 +44,9 @@ void configure_processes(Pythia8::Pythia& pythia) {
 class FixedTargetSource : public phlex::source {
  public:
   FixedTargetSource(std::string stage, std::string const& xml_dir,
-                    ship::Energy beam_energy, int target_z, int target_a,
-                    ship::Length target_z_start, ship::Length target_z_end,
-                    ship::Length interaction_length,
+                    SHiP::Energy beam_energy, int target_z, int target_a,
+                    SHiP::Length target_z_start, SHiP::Length target_z_end,
+                    SHiP::Length interaction_length,
                     aegir::PythiaTime tau0_threshold, aegir::record_mode record,
                     std::uint32_t seed)
       : stage_{std::move(stage)},
@@ -100,11 +100,11 @@ class FixedTargetSource : public phlex::source {
     bool const proton_target = rng.uniform() < z_over_a;
 
     // Sample interaction point z from truncated exponential
-    ship::Length const target_length = target_z_end_ - target_z_start_;
+    SHiP::Length const target_length = target_z_end_ - target_z_start_;
     double const u = rng.uniform();
     double const exp_ratio = std::exp(-(target_length / interaction_length_)
                                            .numerical_value_in(mp_units::one));
-    ship::Length const z_interaction =
+    SHiP::Length const z_interaction =
         target_z_start_ -
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
@@ -131,9 +131,9 @@ class FixedTargetSource : public phlex::source {
   std::string stage_;
   int target_z_;
   int target_a_;
-  ship::Length target_z_start_;
-  ship::Length target_z_end_;
-  ship::Length interaction_length_;
+  SHiP::Length target_z_start_;
+  SHiP::Length target_z_end_;
+  SHiP::Length interaction_length_;
   std::shared_ptr<aegir::PhiloxRndmEngine> engine_pp_ =
       std::make_shared<aegir::PhiloxRndmEngine>();
   std::shared_ptr<aegir::PhiloxRndmEngine> engine_pn_ =

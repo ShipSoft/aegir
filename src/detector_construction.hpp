@@ -24,8 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "FieldService/G4MagFieldAdapter.h"
-#include "FieldService/IFieldSource.h"
+#include "SHiP/FieldService/G4MagFieldAdapter.h"
+#include "SHiP/FieldService/IFieldSource.h"
 #include "geant4_sim_core.hpp"
 #include "geometry_source.hpp"
 #include "scoring_planes.hpp"
@@ -37,10 +37,10 @@ enum class SDMode { scoring, crossing };
 class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   IGeometrySource const*
       source_;  // non-owning; Job-layer product outlives the G4 run
-  ship::IFieldSource const* field_source_;  // non-owning; may have no regions
+  SHiP::IFieldSource const* field_source_;  // non-owning; may have no regions
   SDMode sd_mode_;
-  ship::Energy ke_threshold_;  // used by CrossingSD
-  std::vector<std::pair<std::string, ship::Length>>
+  SHiP::Energy ke_threshold_;  // used by CrossingSD
+  std::vector<std::pair<std::string, SHiP::Length>>
       regions_;  // pattern -> production cut
   // The scoring planes' parallel world, or null without planes. Owned by
   // G4VUserDetectorConstruction once registered (leaked with it, like the
@@ -62,10 +62,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
 
  public:
   ConfigurableDetectorConstruction(
-      IGeometrySource const& source, ship::IFieldSource const& field_source,
+      IGeometrySource const& source, SHiP::IFieldSource const& field_source,
       SDMode sd_mode = SDMode::scoring,
-      ship::Energy ke_threshold = ship::Energy::zero(),
-      std::vector<std::pair<std::string, ship::Length>> regions = {},
+      SHiP::Energy ke_threshold = SHiP::Energy::zero(),
+      std::vector<std::pair<std::string, SHiP::Length>> regions = {},
       std::vector<ScoringPlaneConfig> scoring_planes = {})
       : source_{&source},
         field_source_{&field_source},
@@ -94,7 +94,7 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     return scoring_world_ != nullptr;
   }
 
-  // Called once, on ship::geometry_thread() (the run manager is initialised
+  // Called once, on SHiP::geometry_thread() (the run manager is initialised
   // there — the process's single Geant4 geometry-creating thread)
   G4VPhysicalVolume* Construct() override {
     auto* world = source_->construct();
@@ -158,7 +158,7 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     // pattern is treated as a hard configuration error (wrong field setup is
     // a silent physics bug otherwise).
     for (auto const& fr : field_source_->regions()) {
-      auto* adapter = new ship::G4MagFieldAdapter(fr.field);
+      auto* adapter = new SHiP::G4MagFieldAdapter(fr.field);
       auto* fmgr = new G4FieldManager(adapter);
       bool matched = false;
       for (auto* lv : volumes) {

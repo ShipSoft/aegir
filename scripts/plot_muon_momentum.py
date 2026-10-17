@@ -36,11 +36,11 @@ def read_muon_data(filename, ntuple_name="events"):
     ROOT::RVec<MuonHit> extract_muons(const ROOT::RVec<SHiP::SimHit>& hits) {
         ROOT::RVec<MuonHit> out;
         for (auto const& h : hits) {
-            if (std::abs(h.pdgCode) != 13) continue;
+            if (std::abs(h.pdg_code) != 13) continue;
             double px = h.momentum[0], py = h.momentum[1], pz = h.momentum[2];
             double p = std::sqrt(px*px + py*py + pz*pz);
             double pt = std::sqrt(px*px + py*py);
-            int charge = (h.pdgCode == 13) ? -1 : +1;
+            int charge = (h.pdg_code == 13) ? -1 : +1;
             out.push_back({p, pt, charge});
         }
         return out;
@@ -102,12 +102,12 @@ def read_muon_data_loop(filename, ntuple_name="events"):
             .GetPtr["std::vector<SHiP::SimHit>"]("sim_hits")
         )
         for hit in hits:
-            if abs(hit.pdgCode) != 13:
+            if abs(hit.pdg_code) != 13:
                 continue
             px, py, pz = hit.momentum[0], hit.momentum[1], hit.momentum[2]
             p = np.sqrt(px**2 + py**2 + pz**2)
             pt = np.sqrt(px**2 + py**2)
-            if hit.pdgCode == 13:
+            if hit.pdg_code == 13:
                 mu_minus_p.append(p)
                 mu_minus_pt.append(pt)
             else:

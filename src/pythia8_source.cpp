@@ -41,7 +41,7 @@ namespace {
 class Pythia8Source : public phlex::source {
  public:
   Pythia8Source(std::string stage, std::string const& xml_dir,
-                ship::Energy beam_energy, std::string const& process,
+                SHiP::Energy beam_energy, std::string const& process,
                 aegir::record_mode record, std::uint32_t seed)
       : stage_{std::move(stage)}, seed_{seed}, record_{record} {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
@@ -61,7 +61,7 @@ class Pythia8Source : public phlex::source {
                    static_cast<std::uint32_t>(id.number()));
     aegir::next_event(*pythia_, "Pythia8Source");
     return aegir::extract_particles<SHiP::MCParticle>(
-        pythia_->event, ship::Length::zero(), record_);
+        pythia_->event, SHiP::Length::zero(), record_);
   }
 
   phlex::provider_bundles create_providers(
@@ -88,7 +88,7 @@ class Pythia8Source : public phlex::source {
 class Pythia8MTSource : public phlex::source {
  public:
   Pythia8MTSource(std::string stage, std::string const& xml_dir,
-                  ship::Energy beam_energy, std::string const& process,
+                  SHiP::Energy beam_energy, std::string const& process,
                   aegir::record_mode record, int num_threads, long num_events,
                   std::size_t max_queue_size, std::uint32_t seed)
       : stage_{std::move(stage)}, max_queue_size_{max_queue_size} {
@@ -127,7 +127,7 @@ class Pythia8MTSource : public phlex::source {
 
         pythia.run(num_events, [record, this](Pythia8::Pythia* p) {
           auto particles = aegir::extract_particles<SHiP::MCParticle>(
-              p->event, ship::Length::zero(), record);
+              p->event, SHiP::Length::zero(), record);
           push(std::move(particles));
         });
       } catch (...) {
@@ -240,7 +240,7 @@ PHLEX_REGISTER_SOURCE(s, config) {
     return std::string{"../share/Pythia8/xmldoc"};
   }());
   auto const beam_energy =
-      aegir::get_quantity(config, "beam_energy", 400.0 * ship::units::GeV);
+      aegir::get_quantity(config, "beam_energy", 400.0 * SHiP::units::GeV);
   auto const process =
       config.get<std::string>("process", std::string{"SoftQCD:inelastic"});
   auto const parallel = config.get<bool>("parallel", false);

@@ -292,7 +292,7 @@ class MCHistogrammer {
       // structs; no unit conversion occurs (docs/units.md).
       double const pmag = aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
-      ctxs.pdg->Fill(static_cast<double>(p.pdgCode));
+      ctxs.pdg->Fill(static_cast<double>(p.pdg_code));
     }
     ctxs.multiplicity->Fill(static_cast<double>(multiplicity));
   }
@@ -403,16 +403,16 @@ class SimHistogrammer {
     ctxs.mc_multiplicity->Fill(static_cast<double>(mc_multiplicity));
     std::size_t plane_hits = 0;
     for (auto const& hit : result.hits) {
-      if (hit.detectorId == SHiP::g4::kScoringPlaneDetectorId) {
+      if (hit.detector_id == SHiP::g4::kScoringPlaneDetectorId) {
         ++plane_hits;
-        ctxs.plane_hit_id->Fill(static_cast<double>(hit.geometryNodeId));
+        ctxs.plane_hit_id->Fill(static_cast<double>(hit.geometry_node_id));
         ctxs.plane_hit_momentum->Fill(aegir::magnitude(hit.momentum));
-        ctxs.plane_hit_pdg->Fill(static_cast<double>(hit.pdgCode));
+        ctxs.plane_hit_pdg->Fill(static_cast<double>(hit.pdg_code));
         continue;
       }
-      ctxs.hit_edep->Fill(hit.energyDeposit);
+      ctxs.hit_edep->Fill(hit.energy_deposit);
       ctxs.hit_z->Fill(hit.position[2]);
-      ctxs.hit_detector->Fill(static_cast<double>(hit.detectorId));
+      ctxs.hit_detector->Fill(static_cast<double>(hit.detector_id));
       ctxs.hit_momentum->Fill(aegir::magnitude(hit.momentum));
     }
     ctxs.hit_multiplicity->Fill(

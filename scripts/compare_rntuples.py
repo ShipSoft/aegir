@@ -57,20 +57,20 @@ struct Hasher {
   template <typename T, std::size_t N>
   void add(std::array<T, N> const& a) { for (auto x : a) add(x); }
   void add(SHiP::MCParticle const& p) {
-    add(p.pdgCode); add(p.vertex); add(p.momentum); add(p.energy);
-    add(p.time); add(p.motherId); add(p.status);
+    add(p.pdg_code); add(p.vertex); add(p.momentum); add(p.energy);
+    add(p.time); add(p.mother_id); add(p.status);
     add(static_cast<std::uint64_t>(p.mothers.size()));
     for (auto m : p.mothers) add(m);
   }
   void add(SHiP::SimHit const& s) {
-    add(s.detectorId); add(s.geometryNodeId); add(s.trackId); add(s.pdgCode);
-    add(s.position); add(s.momentum); add(s.energyDeposit); add(s.time);
-    add(s.pathLength);
+    add(s.detector_id); add(s.geometry_node_id); add(s.track_id); add(s.pdg_code);
+    add(s.position); add(s.momentum); add(s.energy_deposit); add(s.time);
+    add(s.path_length);
   }
   void add(SHiP::SimParticle const& s) {
-    add(s.trackId); add(s.parentId); add(s.pdgCode); add(s.vertex);
+    add(s.track_id); add(s.parent_id); add(s.pdg_code); add(s.vertex);
     add(s.endpoint); add(s.momentum); add(s.energy); add(s.time);
-    add(s.creatorProcess);
+    add(s.creator_process);
   }
   template <typename T>
   void add(std::vector<T> const& v) {

@@ -40,7 +40,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Project a simulation SimParticle onto an MCParticle suitable as sim input.
 // SimParticle::energy is kinetic while MCParticle::energy is total; recover the
@@ -49,20 +49,20 @@ namespace su = ship::units;
 // mc^2 = ((|p|c)^2 - E_kin^2) / (2 E_kin) and E_total = E_kin + mc^2.
 SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   SHiP::MCParticle mc;
-  mc.pdgCode = sp.pdgCode;
+  mc.pdg_code = sp.pdg_code;
   // Same storage units on both sides — direct copies, no unit crossing.
   mc.vertex = sp.vertex;
   mc.momentum = sp.momentum;
-  auto const pc = (aegir::magnitude(ship::view::momentum(sp)) * su::c)
+  auto const pc = (aegir::magnitude(SHiP::view::momentum(sp)) * su::c)
                       .in(su::GeV);           // |p|c; conversion factor is 1
-  auto const e_kin = ship::view::energy(sp);  // SimParticle::energy is kinetic
-  ship::view::setEnergy(mc, e_kin > ship::Energy::zero()
-                                ? (pc * pc + e_kin * e_kin) / (2.0 * e_kin)
-                                : pc);
+  auto const e_kin = SHiP::view::energy(sp);  // SimParticle::energy is kinetic
+  SHiP::view::set_energy(mc, e_kin > SHiP::Energy::zero()
+                                 ? (pc * pc + e_kin * e_kin) / (2.0 * e_kin)
+                                 : pc);
   mc.time = sp.time;
-  // SimParticle::parentId is the parent's track id (0 for primaries); map the
+  // SimParticle::parent_id is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.
-  mc.motherId = sp.parentId == 0 ? -1 : sp.parentId;
+  mc.mother_id = sp.parent_id == 0 ? -1 : sp.parent_id;
   mc.status = aegir::hepmc::final_state;
   return mc;
 }

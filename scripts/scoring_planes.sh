@@ -8,8 +8,9 @@
 # it, at its entry face, with the scoring-plane detector id; that neutrinos
 # are recorded although they deposit nothing; that a plane cutting through the
 # target records like any other (the planes live in a parallel world); and
-# that the killing plane stops what it records. Then check that bad plane
-# configurations fail with a clear error instead of running.
+# that the killing plane stops what it records. Check that keep_particles:
+# 'hit_ancestry' writes exactly the hit tracks and their ancestors. Then check
+# that bad configurations fail with a clear error instead of running.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -132,15 +133,85 @@ EOF
 for pdg in 14 13; do
   (cd "$workdir" && phlex -c <(jsonnet --tla-code pdg="$pdg" "$workflow"))
   python3 "$workdir/check_planes.py" "$workdir/gun_st_scoring_planes.root" "$pdg"
+  mv "$workdir/gun_st_scoring_planes.root" "$workdir/all_$pdg.root"
   rm -f "$workdir"/gun_st_scoring_planes*.root
 done
 
-# Bad configurations: each must stop the job with the given message.
+# keep_particles: 'hit_ancestry' on the same (seeded) muon run: the hits must
+# be unchanged, and the particles exactly those of the full run that left a
+# hit or are an ancestor of one.
+cat >"$workdir/check_ancestry.py" <<'EOF'
+import os
+import sys
+
+import ROOT
+
+full = ROOT.RNTupleReader.Open("events", sys.argv[1])
+pruned = ROOT.RNTupleReader.Open("events", sys.argv[2])
+
+def by_event(r):
+    # The writer stores events in the order they finish, not by number.
+    number = r.GetView["std::uint64_t"]("event_number")
+    hits = r.GetView["std::vector<SHiP::SimHit>"]("sim_hits")
+    parts = r.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
+    return {
+        int(number(i)): (
+            [h.trackId for h in hits(i)],
+            [(p.trackId, p.parentId) for p in parts(i)],
+        )
+        for i in range(r.GetNEntries())
+    }
+
+
+a, b = by_event(full), by_event(pruned)
+errors = []
+n = len(a)
+if sorted(a) != sorted(b):
+    errors.append("the two runs wrote different events")
+written = total = 0
+for i in sorted(a.keys() & b.keys()):
+    (hits, parts_a), (hits_b, parts_b) = a[i], b[i]
+    if hits != hits_b:
+        errors.append(f"event {i}: hits differ")
+    parent = dict(parts_a)
+    want = set()
+    for t in hits:
+        while t in parent and t not in want:
+            want.add(t)
+            t = parent[t]
+    got = [t for t, _ in parts_b]
+    if sorted(got) != sorted(want):
+        errors.append(f"event {i}: kept {len(got)} particles, expected {len(want)}")
+    kept = set(got)
+    for track, mother in parts_b:
+        if mother != 0 and mother not in kept:
+            errors.append(f"event {i}: track {track} has no parent {mother}")
+    written += len(got)
+    total += len(parts_a)
+
+for e in errors[:20]:
+    print(e)
+print(f"{n} events, kept {written} of {total} particles, {len(errors)} problem(s)")
+sys.stdout.flush()
+os._exit(0 if n > 0 and written < total and not errors else 1)
+EOF
+
+cat >"$workdir/hit_ancestry.jsonnet" <<EOF
+local wf = import '$workflow';
+wf(pdg=13) { modules+: { geant4+: { keep_particles: 'hit_ancestry' } } }
+EOF
+(cd "$workdir" && phlex -c <(jsonnet "$workdir/hit_ancestry.jsonnet"))
+python3 "$workdir/check_ancestry.py" "$workdir/all_13.root" \
+  "$workdir/gun_st_scoring_planes.root"
+rm -f "$workdir"/gun_st_scoring_planes*.root
+
+# Bad configurations: each must stop the job with the given message. The
+# last argument is merged into the geant4 module's configuration.
 expect_failure() {
-  local name=$1 message=$2 planes=$3
+  local name=$1 message=$2 geant4=$3
   cat >"$workdir/$name.jsonnet" <<EOF
 local wf = import '$workflow';
-wf(events=2) { modules+: { geant4+: { scoring_planes: $planes } } }
+wf(events=2) { modules+: { geant4+: $geant4 } }
 EOF
   local out rc
   out=$(cd "$workdir" && phlex -c <(jsonnet "$workdir/$name.jsonnet") 2>&1) && rc=0 || rc=$?
@@ -153,26 +224,30 @@ EOF
 }
 
 expect_failure overlapping_planes "scoring planes 'a' and 'b' overlap" \
-  "[{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1500] },
-    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1502] }]"
+  "{ scoring_planes: [{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1500] },
+    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1502] }] }"
 # Overlapping only in a 0.1 mm corner, which surface sampling can miss.
 expect_failure corner_overlap "scoring planes 'a' and 'b' overlap" \
-  "[{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] },
-    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 1, position: [199.9, 199.9, 1501.9] }]"
+  "{ scoring_planes: [{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] },
+    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 1, position: [199.9, 199.9, 1501.9] }] }"
 expect_failure beyond_world "extends beyond the world" \
-  "[{ name: 'p', id: 1, half_x: 6000, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
+  "{ scoring_planes: [{ name: 'p', id: 1, half_x: 6000, half_y: 100, half_z: 1, position: [0, 0, 1500] }] }"
 expect_failure unknown_key "unknown key 'kil'" \
-  "[{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
+  "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }] }"
 expect_failure missing_name "scoring plane #0 (counting from 0) has no 'name'" \
-  "[{ id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
+  "{ scoring_planes: [{ id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }] }"
 expect_failure missing_id "missing 'id'" \
-  "[{ name: 'p', half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
+  "{ scoring_planes: [{ name: 'p', half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] }] }"
 expect_failure duplicate_id "id 1 used by more than one plane" \
-  "[{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] },
-    { name: 'b', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1600] }]"
+  "{ scoring_planes: [{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] },
+    { name: 'b', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1600] }] }"
 expect_failure missing_volume "must be placed exactly once" \
-  "[{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'NoSuchVolume' }]"
+  "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'NoSuchVolume' }] }"
 expect_failure two_placements "must be placed exactly once" \
-  "[{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'ScoringPlane' }]"
+  "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'ScoringPlane' }] }"
+expect_failure unknown_keep "unknown keep_particles 'hits'" \
+  "{ keep_particles: 'hits' }"
+expect_failure ancestry_with_ke_cut "set particle_ke_cut to 0" \
+  "{ keep_particles: 'hit_ancestry', particle_ke_cut: 1.0 }"
 
 echo "scoring planes passed"

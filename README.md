@@ -33,7 +33,7 @@ An [automatic class reference](https://shipsoft.github.io/aegir/) is built using
 
 ## Dependencies
 
-Pixi resolves everything below from [`prefix.dev/ship`][ship-channel] (the
+Pixi resolves everything below from [`prefix.dev/ship-experiment/stable`][ship-channel] (the
 SHiP-specific packages live there, with rattler-build recipes in
 [ship-conda-recipes][recipes]) and `conda-forge`. The list is reference; you
 do not need to install these manually when using pixi.
@@ -46,7 +46,7 @@ do not need to install these manually when using pixi.
 - Random123
 - Optional: SHiPGeometryService (for GeoModel geometry)
 
-[ship-channel]: https://prefix.dev/channels/ship
+[ship-channel]: https://prefix.dev/channels/@ship-experiment/stable
 [recipes]: https://github.com/ShipSoft/ship-conda-recipes
 
 ## Building with pixi (recommended)

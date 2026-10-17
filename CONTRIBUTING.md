@@ -5,7 +5,7 @@ Thank you for your interest in contributing to aegir! As part of the SHiP Collab
 ## Development Workflow
 
 1. **Fork and Clone**: Create a fork of the repository and clone it locally.
-2. **Environment**: Install [pixi](https://pixi.sh) — it provisions all build and runtime dependencies (ROOT, Geant4, Pythia8, Phlex, SHiPDataModel, SHiPGeometryService, …) from `conda-forge` and [`prefix.dev/ship`](https://prefix.dev/channels/ship). Then `pixi install` once to materialise the environment. Direct CMake builds against a hand-rolled dependency tree are also supported (see [README.md → Building manually](README.md#building-manually)).
+2. **Environment**: Install [pixi](https://pixi.sh) — it provisions all build and runtime dependencies (ROOT, Geant4, Pythia8, Phlex, SHiPDataModel, SHiPGeometryService, …) from `conda-forge` and [`prefix.dev/ship-experiment/stable`](https://prefix.dev/channels/@ship-experiment/stable). Then `pixi install` once to materialise the environment. Direct CMake builds against a hand-rolled dependency tree are also supported (see [README.md → Building manually](README.md#building-manually)).
 3. **Pre-commit Hooks**: We use [`prek`](https://github.com/j178/prek) (a drop-in `pre-commit` replacement) to enforce coding standards. The hook tools come from the pixi `lint` environment, so versions are tracked in `pixi.lock` and run identically everywhere. Install the hooks once:
    ```bash
    pixi run install-hooks

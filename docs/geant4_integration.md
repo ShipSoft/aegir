@@ -147,6 +147,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `energy_cut` | bool | `false` | Enable stepping energy cut |
 | `energy_cut_threshold` | double | `ke_threshold` | KE below which tracks are killed (GeV) |
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
+| `keep_particles` | string | `all` | Which `SimParticle`s are written. `all` writes every recorded particle. `hit_ancestry` writes only the particles that left a hit, plus all their ancestors, as FairShip's stack does, so every `parentId` in the output points to a written particle. `hit_ancestry` needs `particle_ke_cut` at 0, because a skipped ancestor would break the chain |
 | `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
@@ -296,3 +297,25 @@ geant4: lib.geant4 {
 builtin geometry, one of them cutting through the tungsten target, and
 `scripts/scoring_planes.sh` (ctest `scoring_planes`) checks the recorded hits
 against the geometry for neutrinos and muons.
+
+### Fixed-target production
+
+`workflows/fixed_target_production.jsonnet` is the counterpart of FairShip's
+`run_fixedTarget.py`. It generates Pythia8 p-W interactions in the GeoModel
+target and tracks them through the target and the hadron absorber. The
+plane 1 cm behind the absorber (`lib.exit_hadron_absorber_plane`, the first
+plane in the example above) records and stops every particle reaching it
+above the energy cut `ecut`. Everything below `ecut` is killed wherever it
+is. Only the particles reaching the plane and their ancestors are written
+(`keep_particles: 'hit_ancestry'`), and events without a plane hit are
+dropped, as in FairShip. Like FairShip's default, the run has no magnetic
+field in the absorber.
+
+```bash
+pixi run phlex -c <(jsonnet --tla-code seed=42 --tla-code ecut=0.5 \
+  --tla-code events=10000 workflows/fixed_target_production.jsonnet)
+```
+
+It needs the GeoModel geometry DB (`pixi run build_geometry`). The
+`scoring_planes` test only checks that the workflow evaluates to the
+intended settings.

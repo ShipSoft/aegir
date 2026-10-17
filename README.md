@@ -135,6 +135,10 @@ phlex -c workflows/pythia8_st.jsonnet
 
 # Fixed-target -> Geant4 MT
 phlex -c workflows/fixed_target_mt.jsonnet
+
+# Fixed-target production: what leaves the hadron absorber, as in FairShip's
+# run_fixedTarget.py (see docs/geant4_integration.md)
+phlex -c <(jsonnet --tla-code seed=42 workflows/fixed_target_production.jsonnet)
 ```
 
 ### One-off via `pixi run`

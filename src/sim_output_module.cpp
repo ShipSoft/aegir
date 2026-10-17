@@ -144,10 +144,11 @@ std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
                                  std::make_pair(low, high));
 }
 
-// The PDG histograms cover |PDG| <= 2500. Nuclei and ions (10LZZZAAAI) are
-// far outside that, so the plane-hit histogram fills them into one extra bin
-// on each side, at +-kIonPdgBin, rather than its overflow.
-constexpr double kIonPdgBin = 2501;
+// The plane-hit PDG histogram covers |PDG| < 6000, which takes in the
+// hyperons and the charm and beauty baryons. Nuclei and ions (10LZZZAAAI) are
+// far outside that, so it fills them into one extra bin on each side, at
+// +-kIonPdgBin, rather than its overflow.
+constexpr double kIonPdgBin = 6000;
 
 double pdg_bin(std::int32_t pdg) {
   if (std::abs(pdg) >= 1000000000) {
@@ -370,7 +371,7 @@ class SimHistogrammer {
         h_plane_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},
         h_plane_hit_id_{make_hist(1000, -0.5, 999.5)},
         h_plane_hit_momentum_{make_hist(200, 0., 500.)},
-        h_plane_hit_pdg_{make_hist(5003, -kIonPdgBin - 0.5, kIonPdgBin + 0.5)},
+        h_plane_hit_pdg_{make_hist(12001, -kIonPdgBin - 0.5, kIonPdgBin + 0.5)},
         h_particle_multiplicity_{make_hist(1000, -0.5, 999.5)},
         f_mc_multiplicity_{h_mc_multiplicity_},
         f_mc_momentum_{h_mc_momentum_},

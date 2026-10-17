@@ -26,7 +26,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Dimension in Geant4 internal units from a quantity literal.
 inline double g4(auto q) { return aegir::clhep::g4(q); }

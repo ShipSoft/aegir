@@ -76,7 +76,7 @@ from GENIE's SI units to aegir's mm/ns. The `mothers` list is built from
 `StdHepFm` and, where the file has it, `StdHepLm`. These are two separate
 parents and not the ends of a range: GENIE itself uses the last-mother slot
 for a second mother. The indices are remapped to the emitted collection, and
-mothers that were not emitted are dropped. `motherId` is the first mother left
+mothers that were not emitted are dropped. `mother_id` is the first mother left
 after that, or `-1` if none is left, which is the usual case under
 `record: 'final_state'`. Files without `StdHepLm` read as single-mother. See
 [generator_record.md](generator_record.md) for the full rules.

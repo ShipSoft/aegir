@@ -18,7 +18,7 @@ namespace aegir {
 
 // Register a provider that returns a single shared instance for every data
 // cell. Templated on the registrar and source type so it serves both the
-// geometry (SHiP::IGeometrySource) and field (ship::IFieldSource) providers.
+// geometry (SHiP::IGeometrySource) and field (SHiP::IFieldSource) providers.
 //
 // The published product type is std::shared_ptr<Source>, so `source` must be
 // typed as the interface consumers request (not the concrete class returned

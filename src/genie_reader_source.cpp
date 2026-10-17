@@ -34,7 +34,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 using ROOT::Experimental::RFile;
 
@@ -76,7 +76,7 @@ static_assert(genie_status_to_hepmc(16) <= aegir::hepmc::intermediate_max);
 
 // Remap mother indices from the full StdHep record to the emitted collection.
 // Mothers that were not themselves written out are dropped rather than
-// recorded as -1, which the data model reserves for motherId alone; motherId
+// recorded as -1, which the data model reserves for mother_id alone; mother_id
 // is then the first survivor, keeping it equal to mothers.front(). Under
 // record_mode::final_state most mothers disappear, since the neutrino, the
 // struck nucleus and the intermediate states are not final state.
@@ -94,7 +94,7 @@ void remap_mothers(std::vector<SHiP::MCParticle>& particles,
       }
     }
     mc.mothers = std::move(mapped);
-    mc.motherId = mc.mothers.empty() ? -1 : mc.mothers.front();
+    mc.mother_id = mc.mothers.empty() ? -1 : mc.mothers.front();
   }
 }
 
@@ -187,9 +187,9 @@ class GenieReaderSource : public phlex::source {
       // per-particle StdHepX4 positions are nuclear-scale offsets and
       // irrelevant for tracking. GENIE's SI values acquire their unit here
       // (exact powers of ten to the canonical units).
-      ship::Vec3<ship::Length> const vertex{vtx_[0] * su::m, vtx_[1] * su::m,
+      SHiP::Vec3<SHiP::Length> const vertex{vtx_[0] * su::m, vtx_[1] * su::m,
                                             vtx_[2] * su::m};
-      ship::Time const time = (vtx_[3] * su::s).in(su::ns);
+      SHiP::Time const time = (vtx_[3] * su::s).in(su::ns);
 
       particles.reserve(static_cast<std::size_t>(n));
       // StdHep-record index -> output index for written particles. In full
@@ -206,15 +206,15 @@ class GenieReaderSource : public phlex::source {
             static_cast<int>(particles.size());
 
         SHiP::MCParticle mc;
-        mc.pdgCode = pdg_[static_cast<std::size_t>(i)];
-        ship::view::setVertex(mc, vertex);
+        mc.pdg_code = pdg_[static_cast<std::size_t>(i)];
+        SHiP::view::set_vertex(mc, vertex);
         // The rootracker "GeV" four-momentum columns are natural units: the
         // spatial components are momenta, GeV/c.
-        ship::view::setMomentum(
+        SHiP::view::set_momentum(
             mc, {p4(i, 0) * su::GeV_per_c, p4(i, 1) * su::GeV_per_c,
                  p4(i, 2) * su::GeV_per_c});
-        ship::view::setEnergy(mc, p4(i, 3) * su::GeV);
-        ship::view::setTime(mc, time);
+        SHiP::view::set_energy(mc, p4(i, 3) * su::GeV);
+        SHiP::view::set_time(mc, time);
         mc.status = genie_status_to_hepmc(status_[i]);
         // StdHep record indices for now; remapped below, once out_index is
         // complete. GENIE gives a first and an optional second mother, which

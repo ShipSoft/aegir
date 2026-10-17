@@ -29,12 +29,12 @@
 namespace {
 
 struct MCParticle {
-  std::int32_t pdgCode{0};
+  std::int32_t pdg_code{0};
   std::array<double, 3> vertex{0, 0, 0};
   std::array<double, 3> momentum{0, 0, 0};
   double energy{0};
   double time{0};
-  std::int32_t motherId{-1};
+  std::int32_t mother_id{-1};
   std::vector<std::int32_t> mothers;
   std::int32_t status{1};
 };
@@ -85,7 +85,7 @@ void print_stats(char const* label, Stats const& s) {
 template <typename T>
 void configure_pythia(T& pythia, double beam_energy, std::string const& process,
                       bool fairship) {
-  aegir::configure_beams(pythia, 2212, 2212, beam_energy * ship::units::GeV);
+  aegir::configure_beams(pythia, 2212, 2212, beam_energy * SHiP::units::GeV);
   pythia.readString("Print:quiet = on");
 
   if (fairship) {
@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
     if (cfg.fairship) {
-      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+      aegir::stabilise_long_lived(pythia, 1.0 * SHiP::units::mm_per_c);
     }
 
     // Warmup
@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
     configure_pythia(pythia, cfg.beam_energy, cfg.process, cfg.fairship);
     pythia.init();
     if (cfg.fairship) {
-      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+      aegir::stabilise_long_lived(pythia, 1.0 * SHiP::units::mm_per_c);
     }
 
     // Warmup
@@ -235,7 +235,7 @@ int main(int argc, char* argv[]) {
                       std::to_string(cfg.threads));
     pythia.init();
     if (cfg.fairship) {
-      aegir::stabilise_long_lived(pythia, 1.0 * ship::units::mm_per_c);
+      aegir::stabilise_long_lived(pythia, 1.0 * SHiP::units::mm_per_c);
     }
 
     // Warmup
@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) {
                        std::to_string(cfg.threads));
     pythia2.init();
     if (cfg.fairship) {
-      aegir::stabilise_long_lived(pythia2, 1.0 * ship::units::mm_per_c);
+      aegir::stabilise_long_lived(pythia2, 1.0 * SHiP::units::mm_per_c);
     }
 
     int event_count = 0;

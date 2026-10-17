@@ -75,7 +75,7 @@ EOF
 # Report, per event, how many stored MCParticles fall in each HepMC status
 # class and how many Geant4 primaries the simulation produced. The first column
 # is the phlex event number the writer stores with each entry, the same number
-# the Geant4 skip warning prints. Primaries are the SimParticles whose parentId
+# the Geant4 skip warning prints. Primaries are the SimParticles whose parent_id
 # is 0 (G4Track::GetParentID() is 0 exactly for primaries), which is
 # order-independent — the parallel writer emits entries in completion order.
 # os._exit avoids a spurious PyROOT teardown crash, and every reader/view is
@@ -108,16 +108,16 @@ for i in range(reader.GetNEntries()):
     # Entries Geant4 would build a primary from with the filter disabled:
     # it silently refuses to track the short-lived ones (partons, strings).
     trackable = sum(1 for p in parts if p.status in (1, 2, 4))
-    mothers = sum(1 for p in parts if p.motherId >= 0)
+    mothers = sum(1 for p in parts if p.mother_id >= 0)
     # The data model's own invariant checks: indices in range, no -1 inside
-    # the list, mothers.front() == motherId, elements distinct and never
+    # the list, mothers.front() == mother_id, elements distinct and never
     # self-referential. "Populated" additionally requires that an entry with a
     # mother carries the whole list, which only current-schema data can do.
-    bad = 0 if ROOT.SHiP.mothersAreConsistent(parts) else 1
-    if not ROOT.SHiP.mothersArePopulated(parts):
+    bad = 0 if ROOT.SHiP.mothers_are_consistent(parts) else 1
+    if not ROOT.SHiP.mothers_are_populated(parts):
         bad += 1
     multi = sum(1 for p in parts if len(p.mothers) > 1)
-    primaries = sum(1 for p in sim(i) if p.parentId == 0) if sim else -1
+    primaries = sum(1 for p in sim(i) if p.parent_id == 0) if sim else -1
     print(f"{event} {total} {final} {trackable} {mothers} {bad} {primaries} {multi}")
 
 sys.stdout.flush()
@@ -136,7 +136,7 @@ phlex -c <(jsonnet -J "$workflows" \
 # 2. It must genuinely be mixed, or the rest of the test proves nothing: every
 # event needs non-final-state entries, and the mother links must satisfy the
 # data model's invariants, with at least one real mother and at least one
-# entry carrying several — the case a single motherId could not represent.
+# entry carrying several — the case a single mother_id could not represent.
 python3 "$workdir/counts.py" "$workdir/full.root" >"$workdir/fixture.txt"
 while read -r _ total final trackable mothers bad _ multi; do
   [ "$bad" = 0 ] || { echo "fixture: mother invariants violated"; exit 1; }
@@ -159,7 +159,7 @@ done <"$workdir/fixture.txt"
 # 2b. The same record in final_state mode. Every mother of a final-state
 # particle is itself dropped, so this is what exercises the "drop, do not
 # record -1" half of the remap: pushing the sentinel into the list instead
-# would fail mothersAreConsistent, which rejects any index outside [0, N).
+# would fail mothers_are_consistent, which rejects any index outside [0, N).
 phlex -c <(jsonnet -J "$workflows" \
   --ext-str events="$n" \
   --ext-str seed="$seed" \

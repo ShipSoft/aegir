@@ -78,7 +78,7 @@ def signatures(path, lo, hi):
     for i in range(lo, hi):
         events.append(
             tuple(
-                (int(p.pdgCode), p.momentum[0], p.momentum[1], p.momentum[2])
+                (int(p.pdg_code), p.momentum[0], p.momentum[1], p.momentum[2])
                 for p in view(i)
             )
         )

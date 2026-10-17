@@ -227,7 +227,7 @@ The hits are told apart from detector hits by their ids:
 
 | `SimHit` field | Scoring-plane value |
 |:---|:---|
-| `detectorId` | `100` (`SHiP::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (which limits a geometry to 100 `sensitive_volumes` patterns) |
+| `detectorId` | `100` (`SHiP::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (so a run with scoring planes allows at most 100 `sensitive_volumes` patterns) |
 | `geometryNodeId` | the plane's `id` |
 | `position`, `momentum`, `time` | at the entry point |
 | `energyDeposit` | `0` |

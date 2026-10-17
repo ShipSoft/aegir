@@ -109,7 +109,8 @@ using ScoringPlaneMap = std::unordered_map<G4LogicalVolume*, ScoringPlaneInfo>;
 
 namespace scoring_plane_detail {
 
-/// What is wrong with a plane's shape and size, or an empty string.
+/// What is wrong with a plane's sizes for its shape, or an empty string. The
+/// other shape's sizes are ignored; the configuration reader rejects them.
 inline std::string shape_error(ScoringPlaneConfig const& p) {
   auto const zero = ship::Length::zero();
   if (!(p.half_z > zero)) {
@@ -119,16 +120,10 @@ inline std::string shape_error(ScoringPlaneConfig const& p) {
     if (!(p.half_x > zero) || !(p.half_y > zero)) {
       return "a box needs positive half_x and half_y";
     }
-    if (p.r_min != zero || p.r_max != zero) {
-      return "r_min/r_max apply to tubes only";
-    }
     return {};
   }
   if (!(p.r_min >= zero) || !(p.r_max > p.r_min)) {
     return "a tube needs 0 <= r_min < r_max";
-  }
-  if (p.half_x != zero || p.half_y != zero) {
-    return "half_x/half_y apply to boxes only";
   }
   return {};
 }
@@ -451,8 +446,10 @@ inline G4VSolid* make_solid(ScoringPlaneConfig const& cfg) {
 
 /// Build the configured planes and place them in `scoring_world`, the
 /// parallel world; `after_volume` references are resolved in the detector
-/// geometry under `mass_world`. Must run on the geometry-creating thread before
-/// the geometry is closed (G4VUserParallelWorld::Construct()). Throws on an
+/// geometry under `mass_world`. `planes` must have passed
+/// validate_scoring_planes(), which the configuration reader runs. Must run
+/// on the geometry-creating thread before the geometry is closed
+/// (G4VUserParallelWorld::Construct()). Throws on an
 /// ambiguous or missing reference volume, a name clash, two planes that
 /// overlap, or a plane that extends beyond the world — all checked before any
 /// plane is built.
@@ -461,8 +458,6 @@ inline ScoringPlaneMap place_scoring_planes(
     std::vector<ScoringPlaneConfig> const& planes) {
   namespace cb = aegir::clhep;
   namespace detail = scoring_plane_detail;
-  validate_scoring_planes(planes);
-
   ScoringPlaneMap placed;
   if (planes.empty()) {
     return placed;

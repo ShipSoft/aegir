@@ -416,15 +416,14 @@ inline bool overlap(Extent const& a, Extent const& b) {
   return closest < tube.r_max && farthest > tube.r_min;
 }
 
-/// Throw if `e` (plane `name`) is not inside the world's bounding box. Exact
-/// for the usual box-shaped world; CheckOverlaps() backs it up for others.
+/// Throw if `e` (plane `name`) is not inside the world's global bounding box,
+/// with `world_to_global` the world's own placement. Exact for the usual
+/// box-shaped world at the origin; CheckOverlaps() backs it up for others.
 inline void check_inside_world(std::string const& name, Extent const& e,
-                               G4VPhysicalVolume* world) {
-  G4ThreeVector lo;
-  G4ThreeVector hi;
-  world->GetLogicalVolume()->GetSolid()->BoundingLimits(lo, hi);
-  lo += world->GetObjectTranslation();
-  hi += world->GetObjectTranslation();
+                               G4VPhysicalVolume* world,
+                               G4Transform3D const& world_to_global) {
+  auto const [lo, hi] =
+      global_bounds({.pv = world, .to_global = world_to_global});
   double const hx = e.shape == ScoringShape::box ? e.half_x : e.r_max;
   double const hy = e.shape == ScoringShape::box ? e.half_y : e.r_max;
   G4ThreeVector const half{hx, hy, e.half_z};
@@ -474,6 +473,8 @@ inline ScoringPlaneMap place_scoring_planes(
   // planes could get through it, while these axis-aligned shapes allow an
   // exact pairwise test.
   detail::PlacementIndex const volumes(mass_world);
+  G4Transform3D const world_to_global(scoring_world->GetObjectRotationValue(),
+                                      scoring_world->GetObjectTranslation());
   std::vector<detail::Extent> extents;
   extents.reserve(planes.size());
   for (auto const& cfg : planes) {
@@ -484,7 +485,8 @@ inline ScoringPlaneMap place_scoring_planes(
                                "this name");
     }
     extents.push_back(detail::extent(cfg, detail::plane_centre(cfg, volumes)));
-    detail::check_inside_world(cfg.name, extents.back(), scoring_world);
+    detail::check_inside_world(cfg.name, extents.back(), scoring_world,
+                               world_to_global);
   }
   for (std::size_t i = 0; i < planes.size(); ++i) {
     for (std::size_t j = 0; j < i; ++j) {
@@ -496,8 +498,6 @@ inline ScoringPlaneMap place_scoring_planes(
   }
 
   auto* vacuum = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
-  G4Transform3D const world_to_global(scoring_world->GetObjectRotationValue(),
-                                      scoring_world->GetObjectTranslation());
   for (std::size_t i = 0; i < planes.size(); ++i) {
     auto const& cfg = planes[i];
     G4ThreeVector const centre = extents[i].centre;
@@ -507,11 +507,13 @@ inline ScoringPlaneMap place_scoring_planes(
     auto* pv = new G4PVPlacement(
         world_to_global.inverse() * G4Translate3D(centre), lv, cfg.name,
         scoring_world->GetLogicalVolume(), false, 0);
-    // Backstop for worlds that are not boxes; the checks above are exact for
-    // everything else.
+    // Backstop for worlds that are not boxes at the origin; the checks above
+    // are exact for everything else. Geant4 reports what it found (the world
+    // boundary, another plane) in its own warning just before.
     if (pv->CheckOverlaps(/*res=*/10000)) {
       throw std::runtime_error("scoring plane '" + cfg.name +
-                               "' extends beyond the world volume");
+                               "' fails Geant4's overlap check, see the "
+                               "G4Exception report above");
     }
 
     placed.emplace(lv,

@@ -447,7 +447,8 @@ inline G4VSolid* make_solid(ScoringPlaneConfig const& cfg) {
 /// Build the configured planes and place them in `scoring_world`, the
 /// parallel world; `after_volume` references are resolved in the detector
 /// geometry under `mass_world`. `planes` must have passed
-/// validate_scoring_planes(), which the configuration reader runs. Must run
+/// validate_scoring_planes(), as ScoringParallelWorld's constructor ensures.
+/// Must run
 /// on the geometry-creating thread before the geometry is closed
 /// (G4VUserParallelWorld::Construct()). Throws on an
 /// ambiguous or missing reference volume, a name clash, two planes that
@@ -590,8 +591,14 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
 /// list, so that particles are transported through this world.
 class ScoringParallelWorld : public G4VUserParallelWorld {
  public:
+  // Validated here, before Geant4 builds anything, so that Construct() never
+  // places an invalid plane (a zero half_z would be a fatal G4Exception),
+  // however the world was configured. The configuration reader validates
+  // too, to report errors at configuration time.
   explicit ScoringParallelWorld(std::vector<ScoringPlaneConfig> planes)
-      : G4VUserParallelWorld(kScoringWorldName), configs_{std::move(planes)} {}
+      : G4VUserParallelWorld(kScoringWorldName), configs_{std::move(planes)} {
+    validate_scoring_planes(configs_);
+  }
 
   void Construct() override {
     auto* mass_world = G4TransportationManager::GetTransportationManager()

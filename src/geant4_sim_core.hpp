@@ -40,12 +40,12 @@ inline SimHit make_base_hit(G4Step const* step, int detector_id) {
   auto const mom = pre->GetMomentum();
 
   SimHit hit;
-  hit.detectorId = detector_id;
-  hit.trackId = step->GetTrack()->GetTrackID();
-  hit.pdgCode = step->GetTrack()->GetDefinition()->GetPDGEncoding();
-  ship::view::setPosition(hit, aegir::clhep::position(pos));
-  ship::view::setMomentum(hit, aegir::clhep::momentum(mom));
-  ship::view::setTime(hit, aegir::clhep::time(pre->GetGlobalTime()));
+  hit.detector_id = detector_id;
+  hit.track_id = step->GetTrack()->GetTrackID();
+  hit.pdg_code = step->GetTrack()->GetDefinition()->GetPDGEncoding();
+  SHiP::view::set_position(hit, aegir::clhep::position(pos));
+  SHiP::view::set_momentum(hit, aegir::clhep::momentum(mom));
+  SHiP::view::set_time(hit, aegir::clhep::time(pre->GetGlobalTime()));
   return hit;
 }
 
@@ -71,8 +71,9 @@ class ScoringSD : public G4VSensitiveDetector {
     }
 
     auto hit = make_base_hit(step, detector_ids_);
-    ship::view::setEnergyDeposit(hit, aegir::clhep::energy(edep));
-    ship::view::setPathLength(hit, aegir::clhep::length(step->GetStepLength()));
+    SHiP::view::set_energy_deposit(hit, aegir::clhep::energy(edep));
+    SHiP::view::set_path_length(hit,
+                                aegir::clhep::length(step->GetStepLength()));
     tl_hits.push_back(hit);
     return true;
   }
@@ -87,7 +88,7 @@ class ScoringSD : public G4VSensitiveDetector {
 class CrossingSD : public G4VSensitiveDetector {
  public:
   CrossingSD(G4String const& name, DetectorIdMap detector_ids,
-             ship::Energy ke_threshold = ship::Energy::zero())
+             SHiP::Energy ke_threshold = SHiP::Energy::zero())
       : G4VSensitiveDetector(name),
         detector_ids_{std::move(detector_ids)},
         ke_threshold_{aegir::clhep::g4(ke_threshold)} {}
@@ -103,9 +104,9 @@ class CrossingSD : public G4VSensitiveDetector {
     }
 
     auto hit = make_base_hit(step, detector_ids_);
-    hit.energyDeposit = 0;
-    ship::view::setPathLength(hit,
-                              aegir::clhep::length(track->GetTrackLength()));
+    hit.energy_deposit = 0;
+    SHiP::view::set_path_length(hit,
+                                aegir::clhep::length(track->GetTrackLength()));
     tl_hits.push_back(hit);
     return true;
   }
@@ -119,7 +120,7 @@ class CrossingSD : public G4VSensitiveDetector {
 // Matches FairShip's PreTrack() stopping behaviour.
 class EnergyCutAction : public G4UserSteppingAction {
  public:
-  explicit EnergyCutAction(ship::Energy ke_threshold)
+  explicit EnergyCutAction(SHiP::Energy ke_threshold)
       : ke_threshold_{aegir::clhep::g4(ke_threshold)} {}
 
   void UserSteppingAction(const G4Step* step) override {
@@ -135,7 +136,7 @@ class EnergyCutAction : public G4UserSteppingAction {
 
 class TrackingAction : public G4UserTrackingAction {
  public:
-  explicit TrackingAction(ship::Energy particle_ke_cut = ship::Energy::zero())
+  explicit TrackingAction(SHiP::Energy particle_ke_cut = SHiP::Energy::zero())
       : particle_ke_cut_{aegir::clhep::g4(particle_ke_cut)} {}
 
   void PreUserTrackingAction(const G4Track* track) override {
@@ -145,27 +146,27 @@ class TrackingAction : public G4UserTrackingAction {
     }
 
     SimParticle p;
-    p.trackId = track->GetTrackID();
-    p.parentId = track->GetParentID();
-    p.pdgCode = track->GetDefinition()->GetPDGEncoding();
+    p.track_id = track->GetTrackID();
+    p.parent_id = track->GetParentID();
+    p.pdg_code = track->GetDefinition()->GetPDGEncoding();
 
-    ship::view::setVertex(p, aegir::clhep::position(track->GetPosition()));
-    ship::view::setMomentum(p, aegir::clhep::momentum(track->GetMomentum()));
-    ship::view::setEnergy(p, aegir::clhep::energy(track->GetKineticEnergy()));
-    ship::view::setTime(p, aegir::clhep::time(track->GetGlobalTime()));
+    SHiP::view::set_vertex(p, aegir::clhep::position(track->GetPosition()));
+    SHiP::view::set_momentum(p, aegir::clhep::momentum(track->GetMomentum()));
+    SHiP::view::set_energy(p, aegir::clhep::energy(track->GetKineticEnergy()));
+    SHiP::view::set_time(p, aegir::clhep::time(track->GetGlobalTime()));
 
     const auto* creator = track->GetCreatorProcess();
-    p.creatorProcess = creator ? creator->GetProcessSubType() : 0;
+    p.creator_process = creator ? creator->GetProcessSubType() : 0;
 
-    tl_track_map[p.trackId] = tl_particles.size();
+    tl_track_map[p.track_id] = tl_particles.size();
     tl_particles.push_back(p);
   }
 
   void PostUserTrackingAction(const G4Track* track) override {
     auto const it = tl_track_map.find(track->GetTrackID());
     if (it != tl_track_map.end()) {
-      ship::view::setEndpoint(tl_particles[it->second],
-                              aegir::clhep::position(track->GetPosition()));
+      SHiP::view::set_endpoint(tl_particles[it->second],
+                               aegir::clhep::position(track->GetPosition()));
     }
   }
 
@@ -182,14 +183,14 @@ inline void prune_to_hit_ancestry(std::vector<SimParticle>& particles,
   std::unordered_map<int, std::size_t> index;
   index.reserve(particles.size());
   for (std::size_t i = 0; i < particles.size(); ++i) {
-    index.emplace(particles[i].trackId, i);
+    index.emplace(particles[i].track_id, i);
   }
   std::vector<bool> keep(particles.size(), false);
   for (auto const& hit : hits) {
     // Walk up until the primaries (parent 0) or a chain already marked.
-    for (auto it = index.find(hit.trackId);
+    for (auto it = index.find(hit.track_id);
          it != index.end() && !keep[it->second];
-         it = index.find(particles[it->second].parentId)) {
+         it = index.find(particles[it->second].parent_id)) {
       keep[it->second] = true;
     }
   }

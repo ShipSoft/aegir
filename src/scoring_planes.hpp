@@ -75,24 +75,24 @@ enum class ScoringShape : std::uint8_t { box, tube };
 /// Both shapes are aligned with the global axes; a tube's axis is along z.
 struct ScoringPlaneConfig {
   std::string name;     ///< Volume name; must not exist in the geometry yet
-  std::int32_t id = 0;  ///< Written to SimHit::geometryNodeId; unique
+  std::int32_t id = 0;  ///< Written to SimHit::geometry_node_id; unique
   ScoringShape shape = ScoringShape::box;
-  ship::Length half_x = ship::Length::zero();  ///< box only
-  ship::Length half_y = ship::Length::zero();  ///< box only
-  ship::Length r_min = ship::Length::zero();   ///< tube only
-  ship::Length r_max = ship::Length::zero();   ///< tube only
-  ship::Length half_z = ship::Length::zero();  ///< both shapes
+  SHiP::Length half_x = SHiP::Length::zero();  ///< box only
+  SHiP::Length half_y = SHiP::Length::zero();  ///< box only
+  SHiP::Length r_min = SHiP::Length::zero();   ///< tube only
+  SHiP::Length r_max = SHiP::Length::zero();   ///< tube only
+  SHiP::Length half_z = SHiP::Length::zero();  ///< both shapes
   // Placement — exactly one of:
   //  * `position`: centre in the global frame;
   //  * `after_volume`: downstream of the detector-geometry logical volume
   //    with that exact name. The plane is centred transversely on the
   //    volume's global bounding box and its upstream face sits `gap` behind
   //    the box's downstream end — FairShip's "1 cm after the absorber".
-  std::optional<ship::Vec3<ship::Length>> position;
+  std::optional<SHiP::Vec3<SHiP::Length>> position;
   std::string after_volume;
-  ship::Length gap = ship::Length::zero();
+  SHiP::Length gap = SHiP::Length::zero();
   /// Record only tracks entering with at least this kinetic energy.
-  ship::Energy ke_threshold = ship::Energy::zero();
+  SHiP::Energy ke_threshold = SHiP::Energy::zero();
   /// Stop and kill every track that steps into the plane, recorded or not
   /// (FairShip's StopTrack()).
   bool kill = false;
@@ -112,7 +112,7 @@ namespace scoring_plane_detail {
 /// What is wrong with a plane's sizes for its shape, or an empty string. The
 /// other shape's sizes are ignored; the configuration reader rejects them.
 inline std::string shape_error(ScoringPlaneConfig const& p) {
-  auto const zero = ship::Length::zero();
+  auto const zero = SHiP::Length::zero();
   if (!(p.half_z > zero)) {
     return "half_z must be positive";
   }
@@ -130,7 +130,7 @@ inline std::string shape_error(ScoringPlaneConfig const& p) {
 
 /// What is wrong with a plane's placement settings, or an empty string.
 inline std::string placement_error(ScoringPlaneConfig const& p) {
-  auto const zero = ship::Length::zero();
+  auto const zero = SHiP::Length::zero();
   if (p.position.has_value() == !p.after_volume.empty()) {
     return "set exactly one of 'position' and 'after_volume'";
   }
@@ -160,7 +160,7 @@ inline void validate_scoring_planes(
       error = "name used by more than one plane";
     } else if (!ids.insert(p.id).second) {
       error = "id " + std::to_string(p.id) + " used by more than one plane";
-    } else if (p.ke_threshold < ship::Energy::zero()) {
+    } else if (p.ke_threshold < SHiP::Energy::zero()) {
       error = "ke_threshold must not be negative";
     } else if (error = scoring_plane_detail::shape_error(p); error.empty()) {
       error = scoring_plane_detail::placement_error(p);
@@ -517,7 +517,7 @@ inline ScoringPlaneMap place_scoring_planes(
                                     .ke_threshold = cb::g4(cfg.ke_threshold),
                                     .kill = cfg.kill});
     auto const mm = [](double v) {
-      return cb::length(v).numerical_value_in(ship::units::mm);
+      return cb::length(v).numerical_value_in(SHiP::units::mm);
     };
     spdlog::info(
         "geant4: scoring plane '{}' (id {}) placed, centre ({:.1f}, {:.1f}, "
@@ -529,8 +529,8 @@ inline ScoringPlaneMap place_scoring_planes(
 }
 
 /// Records one SimHit per track entering a scoring plane through its surface,
-/// regardless of particle type or energy deposit. detectorId is
-/// kScoringPlaneDetectorId, geometryNodeId the plane's id; position, momentum
+/// regardless of particle type or energy deposit. detector_id is
+/// kScoringPlaneDetectorId, geometry_node_id the plane's id; position, momentum
 /// and time are taken at the entry point. Called by G4ParallelWorldProcess
 /// with the parallel-world step: its pre-step point carries the plane's
 /// touchable and, on entry, fGeomBoundary; position, momentum and time are the
@@ -568,14 +568,14 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
     }
 
     auto hit = make_base_hit(step, kScoringPlaneDetectorId);
-    hit.geometryNodeId = plane.id;
-    hit.energyDeposit = 0;
+    hit.geometry_node_id = plane.id;
+    hit.energy_deposit = 0;
     // This SD runs inside G4ParallelWorldProcess::PostStepDoIt, before the
     // stepping manager adds the current step to the track length, so this is
     // the length from the track's origin to the entry point. (A mass-world SD
     // such as CrossingSD runs after that and sees the end of the step.)
-    ship::view::setPathLength(hit,
-                              aegir::clhep::length(track->GetTrackLength()));
+    SHiP::view::set_path_length(hit,
+                                aegir::clhep::length(track->GetTrackLength()));
     tl_hits.push_back(hit);
     return true;
   }

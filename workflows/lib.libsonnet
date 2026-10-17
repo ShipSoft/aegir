@@ -134,7 +134,7 @@
 
   // FairShip's exitHadronAbsorber scoring plane for the GeoModel geometry, as
   // an entry for the geant4 module's `scoring_planes`: 1 cm behind the
-  // magnetised hadron absorber, in the air gap before the first muon-shield
+  // hadron absorber, in the air gap before the first muon-shield
   // magnet (absorber end at z = 4350 mm, magn_1 from 4550 mm), with
   // FairShip's size (3.56 m - 1 mm by 1.7 m - 1 mm half-widths, 1 mm
   // half-thickness). That is wider than the muon-shield container

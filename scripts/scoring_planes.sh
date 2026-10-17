@@ -10,7 +10,8 @@
 # target records like any other (the planes live in a parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
 # 'hit_ancestry' writes exactly the hit tracks and their ancestors. Then check
-# that bad configurations fail with a clear error instead of running.
+# that bad configurations fail with a clear error instead of running, and that
+# the fixed-target production workflow evaluates to the intended settings.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -249,5 +250,21 @@ expect_failure unknown_keep "unknown keep_particles 'hits'" \
   "{ keep_particles: 'hits' }"
 expect_failure ancestry_with_ke_cut "set particle_ke_cut to 0" \
   "{ keep_particles: 'hit_ancestry', particle_ke_cut: 1.0 }"
+
+# The production workflow needs the GeoModel geometry DB to run, so only
+# check that it evaluates to the plane and particle settings it promises.
+jsonnet --tla-code ecut=1.5 "$here/../workflows/fixed_target_production.jsonnet" |
+  python3 -c '
+import json, sys
+g4 = json.load(sys.stdin)["modules"]["geant4"]
+plane = g4["scoring_planes"][0]
+sys.exit(not (g4["keep_particles"] == "hit_ancestry" and g4["particle_ke_cut"] == 0
+              and g4["ke_threshold"] == 1.5 and plane["ke_threshold"] == 1.5
+              and plane["after_volume"] == "/SHiP/muon_shield/magn_absorb"))
+' || {
+  echo "FAIL: fixed_target_production.jsonnet evaluates to unexpected geant4 settings"
+  exit 1
+}
+echo "fixed_target_production: evaluates as expected"
 
 echo "scoring planes passed"

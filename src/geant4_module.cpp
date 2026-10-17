@@ -11,7 +11,7 @@
 //
 // Architecture:
 //   - Master init (G4MTRunManager, geometry/physics) runs on the process-wide
-//     ship::geometry_thread(), shared with every other Geant4 geometry user
+//     SHiP::geometry_thread(), shared with every other Geant4 geometry user
 //     (e.g. aegir-genie's GENIE geometry analyzer): Geant4 permits only one
 //     geometry-creating thread per process (aegir-genie issue #11)
 //   - Per phlex-thread: G4WorkerRunManagerKernel + G4EventManager for tracking
@@ -65,8 +65,8 @@
 #include <utility>
 #include <vector>
 
-#include "FieldService/IFieldSource.h"
-#include "GeometryService/GeometryThread.h"
+#include "SHiP/FieldService/IFieldSource.h"
+#include "SHiP/GeometryService/GeometryThread.h"
 #include "chrome_trace.hpp"
 #include "detector_construction.hpp"
 #include "geant4_sim_core.hpp"
@@ -119,10 +119,10 @@ struct Geant4SimConfig {
   int concurrency = 1;
   std::uint32_t seed = 0;
   SDMode sd_mode = SDMode::scoring;
-  ship::Energy ke_threshold = ship::Energy::zero();
+  SHiP::Energy ke_threshold = SHiP::Energy::zero();
   bool energy_cut = false;
-  ship::Energy energy_cut_threshold = ship::Energy::zero();
-  ship::Energy particle_ke_cut = ship::Energy::zero();
+  SHiP::Energy energy_cut_threshold = SHiP::Energy::zero();
+  SHiP::Energy particle_ke_cut = SHiP::Energy::zero();
   // Hand every primary to Geant4 regardless of its generator status.
   // Escape hatch for inputs whose `status` does not follow the HepMC
   // convention (see hepmc_status.hpp); by default only final-state
@@ -131,7 +131,7 @@ struct Geant4SimConfig {
   // keep_particles: 'hit_ancestry' — write only the particles that left a
   // hit and their ancestors, instead of every recorded particle.
   bool keep_hit_ancestry = false;
-  std::vector<std::pair<std::string, ship::Length>> regions;
+  std::vector<std::pair<std::string, SHiP::Length>> regions;
   std::vector<ScoringPlaneConfig> scoring_planes;
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
@@ -164,7 +164,7 @@ class Geant4Sim {
     // its objects before deleting them, which suppresses all cross-store
     // references (e.g. ~G4LogicalVolume skips its
     // fRegion->RemoveRootLogicalVolume backreference when locked).
-    ship::geometry_thread().run([] {
+    SHiP::geometry_thread().run([] {
       G4GeometryManager::GetInstance()->OpenGeometry();
       G4RegionStore::Clean();
       G4PhysicalVolumeStore::Clean();
@@ -177,7 +177,7 @@ class Geant4Sim {
 
   SHiP::SimResult simulate(
       std::shared_ptr<SHiP::IGeometrySource> const& geo,
-      std::shared_ptr<ship::IFieldSource> const& field,
+      std::shared_ptr<SHiP::IFieldSource> const& field,
       phlex::handle<std::vector<SHiP::MCParticle>> particles) {
     AEGIR_TRACE_EVENT("g4", "simulate");
 
@@ -243,10 +243,10 @@ class Geant4Sim {
           ++not_final_state;
           continue;
         }
-        auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdgCode, nullptr);
+        auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdg_code, nullptr);
         if (inserted) {
           it->second =
-              G4ParticleTable::GetParticleTable()->FindParticle(mc.pdgCode);
+              G4ParticleTable::GetParticleTable()->FindParticle(mc.pdg_code);
           // Warn once per unseen code (per thread): FindParticle also returns
           // null for nuclear (10-digit) PDG codes, which would need
           // G4IonTable::GetIon() to resolve.
@@ -254,7 +254,7 @@ class Geant4Sim {
             spdlog::warn(
                 "geant4_module: no G4 particle definition for PDG code {} — "
                 "such particles are skipped",
-                mc.pdgCode);
+                mc.pdg_code);
           }
         }
         auto const* def = it->second;
@@ -262,17 +262,17 @@ class Geant4Sim {
           ++unknown_pdg;
           continue;
         }
-        auto const mom = ship::view::momentum(mc);
-        if (aegir::magnitude(mom) <= ship::Momentum::zero()) {
+        auto const mom = SHiP::view::momentum(mc);
+        if (aegir::magnitude(mom) <= SHiP::Momentum::zero()) {
           ++no_momentum;
           continue;
         }
 
-        auto const vtx = ship::view::vertex(mc);
+        auto const vtx = SHiP::view::vertex(mc);
         namespace cb = aegir::clhep;
         auto* vertex =
             new G4PrimaryVertex(cb::g4(vtx[0]), cb::g4(vtx[1]), cb::g4(vtx[2]),
-                                cb::g4(ship::view::time(mc)));
+                                cb::g4(SHiP::view::time(mc)));
         auto* particle = new G4PrimaryParticle(def, cb::g4(mom[0]),
                                                cb::g4(mom[1]), cb::g4(mom[2]));
         vertex->SetPrimary(particle);
@@ -349,7 +349,7 @@ class Geant4Sim {
   }
 
   void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
-                   std::shared_ptr<ship::IFieldSource> const& field) {
+                   std::shared_ptr<SHiP::IFieldSource> const& field) {
     // Validate the export target up front, before anything is constructed:
     // G4GDMLParser::Write aborts via G4Exception on some write failures, so
     // pre-check the cases we can to fail with a catchable, clear error
@@ -395,7 +395,7 @@ class Geant4Sim {
     // on this thread too (aegir-genie issue #11, Geant4 bug #2747). The call
     // blocks until initialisation is done; exceptions propagate to the
     // caller in simulate(), which records them as a sticky init failure.
-    ship::geometry_thread().run([this] {
+    SHiP::geometry_thread().run([this] {
       AEGIR_TRACE_THREAD_NAME("g4_master");
       AEGIR_TRACE_EVENT("g4", "init_master");
       auto* rm = new G4MTRunManager();
@@ -512,7 +512,7 @@ class Geant4Sim {
   G4VPhysicalVolume* world_pv_ = nullptr;
   G4VUserPhysicsList* physics_list_ = nullptr;
   ConfigurableDetectorConstruction* detector_ = nullptr;  // owned by G4
-  std::shared_ptr<ship::IFieldSource> field_;             // outlives G4 run
+  std::shared_ptr<SHiP::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
   // Kernels that finished init_worker successfully (unlike next_thread_id_,
   // which counts allocated ids). Reported in the shutdown summary.
@@ -544,7 +544,7 @@ class Geant4Sim {
 // error rather than silently ignored.
 void read_plane_shape(phlex::configuration const& entry,
                       ScoringPlaneConfig& plane) {
-  namespace su = ship::units;
+  namespace su = SHiP::units;
   auto const shape = entry.get<std::string>("shape", std::string{"box"});
   auto const keys = entry.keys();
   auto length = [&](char const* key) {
@@ -586,7 +586,7 @@ void read_plane_shape(phlex::configuration const& entry,
 // leave a plane with its default behaviour.
 std::vector<ScoringPlaneConfig> read_scoring_planes(
     phlex::configuration const& config) {
-  namespace su = ship::units;
+  namespace su = SHiP::units;
   static std::unordered_set<std::string> const known_keys{
       "name",  "id",           "shape",  "half_x",   "half_y",
       "r_min", "r_max",        "half_z", "position", "after_volume",
@@ -628,7 +628,7 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
         plane_error(plane.name, "position needs 3 values [x, y, z] (mm)");
       }
       plane.position =
-          ship::vecOf<ship::Length>({(*pos)[0], (*pos)[1], (*pos)[2]});
+          SHiP::vec_of<SHiP::Length>({(*pos)[0], (*pos)[1], (*pos)[2]});
     }
     plane.after_volume = entry.get<std::string>("after_volume", std::string{});
     plane.gap = aegir::get_quantity(entry, "gap", 0.0 * su::mm);
@@ -648,7 +648,7 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
 PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
-  namespace su = ship::units;
+  namespace su = SHiP::units;
 
   auto const sd_mode_str =
       config.get<std::string>("sd_mode", std::string{"scoring"});
@@ -656,7 +656,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
   auto const regions_map = config.get<std::map<std::string, double>>(
       "regions", std::map<std::string, double>{});
-  std::vector<std::pair<std::string, ship::Length>> regions;
+  std::vector<std::pair<std::string, SHiP::Length>> regions;
   regions.reserve(regions_map.size());
   for (auto const& [pattern, cut_mm] : regions_map) {
     regions.emplace_back(pattern, cut_mm * su::mm);
@@ -689,7 +689,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),
       .energy_cut_threshold = aegir::get_quantity(
-          config, "energy_cut_threshold", ship::Energy{ke_threshold}),
+          config, "energy_cut_threshold", SHiP::Energy{ke_threshold}),
       .particle_ke_cut =
           aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
       .track_all_primaries = config.get<bool>("track_all_primaries", false),
@@ -702,7 +702,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   // The pruning needs every ancestor recorded: with a particle_ke_cut, a
   // skipped ancestor would leave its descendants' parent ids dangling.
-  if (cfg.keep_hit_ancestry && cfg.particle_ke_cut > ship::Energy::zero()) {
+  if (cfg.keep_hit_ancestry && cfg.particle_ke_cut > SHiP::Energy::zero()) {
     throw std::invalid_argument(
         "geant4_module: keep_particles 'hit_ancestry' needs every ancestor "
         "recorded; set particle_ke_cut to 0");

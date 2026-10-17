@@ -47,21 +47,21 @@ counts = {1: 0, 2: 0, 3: 0, 4: 0}
 
 n = reader.GetNEntries()
 for i in range(n):
-    primary = next(p for p in parts_view(i) if p.trackId == 1)
+    primary = next(p for p in parts_view(i) if p.track_id == 1)
     px, py, pz = primary.momentum
     theta = math.atan2(math.hypot(px, py), pz)
     planes = {1: [], 2: [], 3: [], 4: []}
     detector = []
     for h in hits_view(i):
-        if h.detectorId != SCORING_PLANE:
+        if h.detector_id != SCORING_PLANE:
             detector.append(h)
             continue
-        if h.geometryNodeId not in planes or h.energyDeposit != 0:
-            errors.append(f"event {i}: bad plane hit id={h.geometryNodeId}")
+        if h.geometry_node_id not in planes or h.energy_deposit != 0:
+            errors.append(f"event {i}: bad plane hit id={h.geometry_node_id}")
             continue
-        counts[h.geometryNodeId] += 1
-        if h.trackId == 1:
-            planes[h.geometryNodeId].append(h)
+        counts[h.geometry_node_id] += 1
+        if h.track_id == 1:
+            planes[h.geometry_node_id].append(h)
 
     def expect(cond, what):
         if not cond:
@@ -119,7 +119,7 @@ for i in range(n):
     else:
         # Charged: the silicon at z = 2 m still records it, the killing
         # plane at 3 m stops it before any later silicon plane.
-        z_si = [h.position[2] for h in detector if h.trackId == 1]
+        z_si = [h.position[2] for h in detector if h.track_id == 1]
         expect(any(abs(z - 2000.0) < 1.0 for z in z_si), "no silicon hit at 2 m")
         expect(all(z < Z3 for z in z_si), f"silicon hit behind the kill plane {z_si}")
 
@@ -157,8 +157,8 @@ def by_event(r):
     parts = r.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
     return {
         int(number(i)): (
-            [h.trackId for h in hits(i)],
-            [(p.trackId, p.parentId) for p in parts(i)],
+            [h.track_id for h in hits(i)],
+            [(p.track_id, p.parent_id) for p in parts(i)],
         )
         for i in range(r.GetNEntries())
     }

@@ -22,13 +22,13 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 class ParticleGun : public phlex::source {
  public:
-  ParticleGun(std::string stage, int pdg, ship::Momentum p_min,
-              ship::Momentum p_max, ship::Angle max_theta,
-              ship::Vec3<ship::Length> vertex, std::uint32_t seed)
+  ParticleGun(std::string stage, int pdg, SHiP::Momentum p_min,
+              SHiP::Momentum p_max, SHiP::Angle max_theta,
+              SHiP::Vec3<SHiP::Length> vertex, std::uint32_t seed)
       : stage_{std::move(stage)},
         pdg_{pdg},
         p_min_{p_min},
@@ -53,16 +53,16 @@ class ParticleGun : public phlex::source {
     double const phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
 
     SHiP::MCParticle mc;
-    mc.pdgCode = pdg_;
-    ship::view::setVertex(mc, vertex_);
-    ship::view::setMomentum(
-        mc, ship::vecOf<ship::Momentum>({p * std::sin(theta) * std::cos(phi),
-                                         p * std::sin(theta) * std::sin(phi),
-                                         p * std::cos(theta)}));
+    mc.pdg_code = pdg_;
+    SHiP::view::set_vertex(mc, vertex_);
+    SHiP::view::set_momentum(
+        mc, SHiP::vec_of<SHiP::Momentum>({p * std::sin(theta) * std::cos(phi),
+                                          p * std::sin(theta) * std::sin(phi),
+                                          p * std::cos(theta)}));
     // Assume massless, E = |p|c (good enough for muons at high p).
-    ship::view::setEnergy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
-    ship::view::setTime(mc, ship::Time::zero());
-    mc.motherId = -1;
+    SHiP::view::set_energy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
+    SHiP::view::set_time(mc, SHiP::Time::zero());
+    mc.mother_id = -1;
     mc.status = aegir::hepmc::final_state;
 
     return {mc};
@@ -79,9 +79,9 @@ class ParticleGun : public phlex::source {
  private:
   std::string stage_;
   int pdg_;
-  ship::Momentum p_min_, p_max_;
-  ship::Angle max_theta_;
-  ship::Vec3<ship::Length> vertex_;
+  SHiP::Momentum p_min_, p_max_;
+  SHiP::Angle max_theta_;
+  SHiP::Vec3<SHiP::Length> vertex_;
   std::uint32_t seed_;
 };
 
@@ -104,6 +104,6 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto stage = aegir::source_stage(config, "particle_gun");
 
   s.add_source<ParticleGun>("particle_gun", std::move(stage), pdg, p_min, p_max,
-                            max_theta, ship::Vec3<ship::Length>{vx, vy, vz},
+                            max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz},
                             seed);
 }

@@ -2,8 +2,8 @@
 // absorber (FairShip's run_fixedTarget.py): Pythia8 p-W interactions in the
 // GeoModel target, tracked through the target and hadron absorber. Every
 // particle reaching the plane with at least `ecut` kinetic energy — muons,
-// neutrinos and all others — is recorded there as a SimHit with detectorId
-// 100 and geometryNodeId 1, and stopped. Tracks below `ecut` are killed
+// neutrinos and all others — is recorded there as a SimHit with detector_id
+// 100 and geometry_node_id 1, and stopped. Tracks below `ecut` are killed
 // wherever they are, as in FairShip; events without a plane hit are not
 // written. Of the tracked particles, only those reaching the plane and their
 // ancestors are written, as FairShip's stack keeps them, so every parent id

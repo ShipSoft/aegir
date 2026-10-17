@@ -21,8 +21,8 @@ inline double magnitude(std::array<double, 3> const& v) {
 // Euclidean norm of a quantity 3-vector. Delegates to the double overload on
 // the bitwise-unwrapped components, so wrapping never changes the result.
 template <typename Q>
-[[nodiscard]] inline Q magnitude(ship::Vec3<Q> const& v) {
-  return ship::quantityOf<Q>(magnitude(ship::raw(v)));
+[[nodiscard]] inline Q magnitude(SHiP::Vec3<Q> const& v) {
+  return SHiP::quantity_of<Q>(magnitude(SHiP::raw(v)));
 }
 
 }  // namespace aegir

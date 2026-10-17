@@ -147,7 +147,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `energy_cut` | bool | `false` | Enable stepping energy cut |
 | `energy_cut_threshold` | double | `ke_threshold` | KE below which tracks are killed (GeV) |
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
-| `keep_particles` | string | `all` | Which `SimParticle`s are written. `all` writes every recorded particle. `hit_ancestry` writes only the particles that left a hit, plus all their ancestors, as FairShip's stack does, so every `parentId` in the output points to a written particle. `hit_ancestry` needs `particle_ke_cut` at 0, because a skipped ancestor would break the chain |
+| `keep_particles` | string | `all` | Which `SimParticle`s are written. `all` writes every recorded particle. `hit_ancestry` writes only the particles that left a hit, plus all their ancestors, as FairShip's stack does, so every `parent_id` in the output points to a written particle. `hit_ancestry` needs `particle_ke_cut` at 0, because a skipped ancestor would break the chain |
 | `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
@@ -228,11 +228,11 @@ The hits are told apart from detector hits by their ids:
 
 | `SimHit` field | Scoring-plane value |
 |:---|:---|
-| `detectorId` | `100` (`SHiP::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (which limits a geometry to 100 `sensitive_volumes` patterns) |
-| `geometryNodeId` | the plane's `id` |
+| `detector_id` | `100` (`SHiP::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (which limits a geometry to 100 `sensitive_volumes` patterns) |
+| `geometry_node_id` | the plane's `id` |
 | `position`, `momentum`, `time` | at the entry point |
-| `energyDeposit` | `0` |
-| `pathLength` | track length from the track's origin to the entry point. A `sd_mode: 'crossing'` hit gives it at the end of its first step in the volume instead, so the two don't mean quite the same thing |
+| `energy_deposit` | `0` |
+| `path_length` | track length from the track's origin to the entry point. A `sd_mode: 'crossing'` hit gives it at the end of its first step in the volume instead, so the two don't mean quite the same thing |
 
 In the output module's validation histograms, plane hits fill their own
 `h_plane_hit_*` histograms (hits per event, plane id, momentum, PDG code) and
@@ -249,7 +249,7 @@ Each entry of `scoring_planes` takes:
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
 | `name` | string | — | Volume name; must not already exist in the geometry |
-| `id` | int | — | Written to `SimHit::geometryNodeId`, telling the planes' hits apart; required and unique |
+| `id` | int | — | Written to `SimHit::geometry_node_id`, telling the planes' hits apart; required and unique |
 | `shape` | string | `box` | `box` or `tube` (cylindrical shell, axis along z) |
 | `half_x`, `half_y` | double | — | Box half-widths (mm); required for a box, rejected for a tube |
 | `r_min`, `r_max` | double | — | Tube inner and outer radius (mm); required for a tube, rejected for a box |

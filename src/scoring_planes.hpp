@@ -46,6 +46,7 @@
 #include <SHiP/SimHit.hpp>
 #include <SHiP/Units.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -92,7 +93,8 @@ struct ScoringPlaneConfig {
   ship::Length gap = ship::Length::zero();
   /// Record only tracks entering with at least this kinetic energy.
   ship::Energy ke_threshold = ship::Energy::zero();
-  /// Stop and kill every track the plane records (FairShip's StopTrack()).
+  /// Stop and kill every track that steps into the plane, recorded or not
+  /// (FairShip's StopTrack()).
   bool kill = false;
 };
 
@@ -251,24 +253,149 @@ inline std::pair<G4ThreeVector, G4ThreeVector> global_bounds(
 
 }  // namespace scoring_plane_detail
 
+namespace scoring_plane_detail {
+
+/// A plane's centre in the global frame: its `position`, or behind its
+/// `after_volume` in the detector geometry under `mass_world`.
+inline G4ThreeVector plane_centre(ScoringPlaneConfig const& cfg,
+                                  G4VPhysicalVolume* mass_world) {
+  namespace cb = aegir::clhep;
+  if (cfg.position) {
+    auto const& pos = *cfg.position;
+    return {cb::g4(pos[0]), cb::g4(pos[1]), cb::g4(pos[2])};
+  }
+  auto const ref =
+      find_unique(mass_world, cfg.after_volume, cfg.name, "after_volume");
+  if (ref.parent == nullptr) {
+    throw std::runtime_error("scoring plane '" + cfg.name +
+                             "': after_volume is the world volume");
+  }
+  auto const [lo, hi] = global_bounds(ref);
+  return {0.5 * (lo.x() + hi.x()), 0.5 * (lo.y() + hi.y()),
+          hi.z() + cb::g4(cfg.gap) + cb::g4(cfg.half_z)};
+}
+
+/// A placed plane's extent in the global frame (Geant4 internal units).
+struct Extent {
+  ScoringShape shape = ScoringShape::box;
+  G4ThreeVector centre;
+  double half_x = 0, half_y = 0, r_min = 0, r_max = 0, half_z = 0;
+};
+
+inline Extent extent(ScoringPlaneConfig const& cfg, G4ThreeVector centre) {
+  namespace cb = aegir::clhep;
+  return {.shape = cfg.shape,
+          .centre = centre,
+          .half_x = cb::g4(cfg.half_x),
+          .half_y = cb::g4(cfg.half_y),
+          .r_min = cb::g4(cfg.r_min),
+          .r_max = cb::g4(cfg.r_max),
+          .half_z = cb::g4(cfg.half_z)};
+}
+
+/// Closest and farthest distance from the point (x, y) to the points of a
+/// box's cross-section, an axis-aligned rectangle.
+inline std::pair<double, double> distance_range_to_box(double x, double y,
+                                                       Extent const& box) {
+  double const dx = std::abs(x - box.centre.x());
+  double const dy = std::abs(y - box.centre.y());
+  return {
+      std::hypot(std::max(dx - box.half_x, 0.), std::max(dy - box.half_y, 0.)),
+      std::hypot(dx + box.half_x, dy + box.half_y)};
+}
+
+/// Closest and farthest distance from the point (x, y) to the points of a
+/// tube's cross-section, an annulus.
+inline std::pair<double, double> distance_range_to_tube(double x, double y,
+                                                        Extent const& tube) {
+  double const d = std::hypot(x - tube.centre.x(), y - tube.centre.y());
+  double const closest = d < tube.r_min    ? tube.r_min - d
+                         : d <= tube.r_max ? 0.
+                                           : d - tube.r_max;
+  return {closest, d + tube.r_max};
+}
+
+/// Whether two axis-aligned planes share any volume; planes that only touch
+/// do not overlap. Exact for every pair of shapes: each cross-section is
+/// connected, so the distances from a tube's axis to the other cross-section
+/// cover the whole interval between their closest and farthest values, and
+/// the two overlap exactly when that interval meets the tube's radial range.
+inline bool overlap(Extent const& a, Extent const& b) {
+  if (std::abs(a.centre.z() - b.centre.z()) >= a.half_z + b.half_z) {
+    return false;
+  }
+  if (a.shape == ScoringShape::box && b.shape == ScoringShape::box) {
+    return std::abs(a.centre.x() - b.centre.x()) < a.half_x + b.half_x &&
+           std::abs(a.centre.y() - b.centre.y()) < a.half_y + b.half_y;
+  }
+  auto const& tube = b.shape == ScoringShape::tube ? b : a;
+  auto const& other = b.shape == ScoringShape::tube ? a : b;
+  auto const [closest, farthest] =
+      other.shape == ScoringShape::box
+          ? distance_range_to_box(tube.centre.x(), tube.centre.y(), other)
+          : distance_range_to_tube(tube.centre.x(), tube.centre.y(), other);
+  return closest < tube.r_max && farthest > tube.r_min;
+}
+
+/// Throw if `e` (plane `name`) is not inside the world's bounding box. Exact
+/// for the usual box-shaped world; CheckOverlaps() backs it up for others.
+inline void check_inside_world(std::string const& name, Extent const& e,
+                               G4VPhysicalVolume* world) {
+  G4ThreeVector lo;
+  G4ThreeVector hi;
+  world->GetLogicalVolume()->GetSolid()->BoundingLimits(lo, hi);
+  lo += world->GetObjectTranslation();
+  hi += world->GetObjectTranslation();
+  double const hx = e.shape == ScoringShape::box ? e.half_x : e.r_max;
+  double const hy = e.shape == ScoringShape::box ? e.half_y : e.r_max;
+  G4ThreeVector const half{hx, hy, e.half_z};
+  for (int axis = 0; axis < 3; ++axis) {
+    if (e.centre[axis] - half[axis] < lo[axis] ||
+        e.centre[axis] + half[axis] > hi[axis]) {
+      throw std::runtime_error("scoring plane '" + name +
+                               "' extends beyond the world volume");
+    }
+  }
+}
+
+inline G4VSolid* make_solid(ScoringPlaneConfig const& cfg) {
+  namespace cb = aegir::clhep;
+  if (cfg.shape == ScoringShape::box) {
+    return new G4Box(cfg.name, cb::g4(cfg.half_x), cb::g4(cfg.half_y),
+                     cb::g4(cfg.half_z));
+  }
+  return new G4Tubs(cfg.name, cb::g4(cfg.r_min), cb::g4(cfg.r_max),
+                    cb::g4(cfg.half_z), 0.,
+                    2 * std::numbers::pi);  // Geant4 angles are in rad
+}
+
+}  // namespace scoring_plane_detail
+
 /// Build the configured planes and place them in `scoring_world`, the
 /// parallel world; `after_volume` references are resolved in the detector
 /// geometry under `mass_world`. Must run on the geometry-creating thread before
 /// the geometry is closed (G4VUserParallelWorld::Construct()). Throws on an
-/// ambiguous or missing reference volume, a name clash, or a plane that
-/// overlaps another plane or extends beyond the world.
+/// ambiguous or missing reference volume, a name clash, two planes that
+/// overlap, or a plane that extends beyond the world — all checked before any
+/// plane is built.
 inline ScoringPlaneMap place_scoring_planes(
     G4VPhysicalVolume* mass_world, G4VPhysicalVolume* scoring_world,
     std::vector<ScoringPlaneConfig> const& planes) {
   namespace cb = aegir::clhep;
+  namespace detail = scoring_plane_detail;
   validate_scoring_planes(planes);
 
   ScoringPlaneMap placed;
   if (planes.empty()) {
     return placed;
   }
-  auto* vacuum = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
 
+  // Resolve every plane's extent and check them all first: CheckOverlaps()
+  // only samples surface points, so a small corner overlap between thin
+  // planes could get through it, while these axis-aligned shapes allow an
+  // exact pairwise test.
+  std::vector<detail::Extent> extents;
+  extents.reserve(planes.size());
   for (auto const& cfg : planes) {
     if (G4LogicalVolumeStore::GetInstance()->GetVolume(cfg.name, false) !=
         nullptr) {
@@ -276,50 +403,36 @@ inline ScoringPlaneMap place_scoring_planes(
                                "': the geometry already has a volume with "
                                "this name");
     }
-
-    // The plane's centre in the global frame.
-    G4ThreeVector centre;
-    if (cfg.position) {
-      auto const& pos = *cfg.position;
-      centre = {cb::g4(pos[0]), cb::g4(pos[1]), cb::g4(pos[2])};
-    } else {
-      auto const ref = scoring_plane_detail::find_unique(
-          mass_world, cfg.after_volume, cfg.name, "after_volume");
-      if (ref.parent == nullptr) {
-        throw std::runtime_error("scoring plane '" + cfg.name +
-                                 "': after_volume is the world volume");
+    extents.push_back(
+        detail::extent(cfg, detail::plane_centre(cfg, mass_world)));
+    detail::check_inside_world(cfg.name, extents.back(), scoring_world);
+  }
+  for (std::size_t i = 0; i < planes.size(); ++i) {
+    for (std::size_t j = 0; j < i; ++j) {
+      if (detail::overlap(extents[i], extents[j])) {
+        throw std::runtime_error("scoring planes '" + planes[j].name +
+                                 "' and '" + planes[i].name + "' overlap");
       }
-      auto const [lo, hi] = scoring_plane_detail::global_bounds(ref);
-      centre = {0.5 * (lo.x() + hi.x()), 0.5 * (lo.y() + hi.y()),
-                hi.z() + cb::g4(cfg.gap) + cb::g4(cfg.half_z)};
     }
+  }
 
-    G4VSolid* solid = nullptr;
-    if (cfg.shape == ScoringShape::box) {
-      solid = new G4Box(cfg.name, cb::g4(cfg.half_x), cb::g4(cfg.half_y),
-                        cb::g4(cfg.half_z));
-    } else {
-      solid = new G4Tubs(cfg.name, cb::g4(cfg.r_min), cb::g4(cfg.r_max),
-                         cb::g4(cfg.half_z), 0.,
-                         2 * std::numbers::pi);  // Geant4 angles are in rad
-    }
-    auto* lv = new G4LogicalVolume(solid, vacuum, cfg.name);
-
+  auto* vacuum = G4NistManager::Instance()->FindOrBuildMaterial("G4_Galactic");
+  G4Transform3D const world_to_global(scoring_world->GetObjectRotationValue(),
+                                      scoring_world->GetObjectTranslation());
+  for (std::size_t i = 0; i < planes.size(); ++i) {
+    auto const& cfg = planes[i];
+    G4ThreeVector const centre = extents[i].centre;
+    auto* lv = new G4LogicalVolume(detail::make_solid(cfg), vacuum, cfg.name);
     // Axis-aligned in the global frame. The parallel world sits where the
     // detector world does (normally at the origin).
-    G4Transform3D const in_world =
-        G4Transform3D(scoring_world->GetObjectRotationValue(),
-                      scoring_world->GetObjectTranslation())
-            .inverse() *
-        G4Translate3D(centre);
-    auto* pv = new G4PVPlacement(in_world, lv, cfg.name,
-                                 scoring_world->GetLogicalVolume(), false, 0);
-    // Only other planes and the world boundary can be overlapped here: the
-    // detector geometry is in a different world.
-    if (pv->CheckOverlaps()) {
-      throw std::runtime_error(
-          "scoring plane '" + cfg.name +
-          "' overlaps another scoring plane or extends beyond the world");
+    auto* pv = new G4PVPlacement(
+        world_to_global.inverse() * G4Translate3D(centre), lv, cfg.name,
+        scoring_world->GetLogicalVolume(), false, 0);
+    // Backstop for worlds that are not boxes; the checks above are exact for
+    // everything else.
+    if (pv->CheckOverlaps(/*res=*/10000)) {
+      throw std::runtime_error("scoring plane '" + cfg.name +
+                               "' extends beyond the world volume");
     }
 
     placed.emplace(lv,
@@ -333,7 +446,7 @@ inline ScoringPlaneMap place_scoring_planes(
         "geant4: scoring plane '{}' (id {}) placed, centre ({:.1f}, {:.1f}, "
         "{:.1f}) mm{}",
         cfg.name, cfg.id, mm(centre.x()), mm(centre.y()), mm(centre.z()),
-        cfg.kill ? ", kills recorded tracks" : "");
+        cfg.kill ? ", kills every track stepping into it" : "");
   }
   return placed;
 }
@@ -352,33 +465,41 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
     auto const* pre = step->GetPreStepPoint();
-    // Only tracks entering through the surface (FairShip's
-    // IsTrackEntering()): not later steps inside the plane, and not tracks
-    // created inside it.
-    if (pre->GetStepStatus() != fGeomBoundary) {
-      return false;
-    }
     auto const it =
         planes_.find(pre->GetTouchable()->GetVolume()->GetLogicalVolume());
     if (it == planes_.end()) {
       return false;
     }
     auto const& plane = it->second;
-    if (pre->GetKineticEnergy() < plane.ke_threshold) {
-      return false;
-    }
-
     auto* track = step->GetTrack();
-    auto hit = make_base_hit(step, kScoringPlaneDetectorId);
-    hit.geometryNodeId = plane.id;
-    hit.energyDeposit = 0;
-    ship::view::setPathLength(hit,
-                              aegir::clhep::length(track->GetTrackLength()));
-    tl_hits.push_back(hit);
 
+    // A killing plane stops every track that steps into it, as FairShip's
+    // exitHadronAbsorber does: whether or not the track is recorded (it may
+    // be below ke_threshold), and including secondaries born inside the
+    // plane, which never cross its surface. Geant4 applies the kill at the
+    // end of this step.
     if (plane.kill) {
       track->SetTrackStatus(fStopAndKill);
     }
+
+    // Record only tracks entering through the surface (FairShip's
+    // IsTrackEntering()): not later steps inside the plane, and not tracks
+    // created inside it.
+    if (pre->GetStepStatus() != fGeomBoundary ||
+        pre->GetKineticEnergy() < plane.ke_threshold) {
+      return false;
+    }
+
+    auto hit = make_base_hit(step, kScoringPlaneDetectorId);
+    hit.geometryNodeId = plane.id;
+    hit.energyDeposit = 0;
+    // This SD runs inside G4ParallelWorldProcess::PostStepDoIt, before the
+    // stepping manager adds the current step to the track length, so this is
+    // the length from the track's origin to the entry point. (A mass-world SD
+    // such as CrossingSD runs after that and sees the end of the step.)
+    ship::view::setPathLength(hit,
+                              aegir::clhep::length(track->GetTrackLength()));
+    tl_hits.push_back(hit);
     return true;
   }
 

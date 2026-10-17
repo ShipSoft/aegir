@@ -31,7 +31,9 @@ TOL = 1e-3  # mm
 # Plane 1: upstream face 10 mm behind the target's end at z = 500 mm.
 # Plane 2: tube r = 80-81 mm, |z| <= 500 mm. Plane 3: upstream face at 2999 mm.
 # Plane 4: |x|, |y| <= 40 mm, upstream face at z = 249 mm, inside the tungsten.
+# Plane 3 kills every track reaching it but records only those above KE3.
 Z1, R2, Z3 = 510.0, 80.0, 2999.0
+KE3 = 50.0  # GeV
 Z4, HALF4 = 249.0, 40.0
 theta_tube = math.atan2(R2, 500.0)  # below: leaves through the tube's end
 
@@ -63,13 +65,25 @@ for i in range(n):
         if not cond:
             errors.append(f"event {i} (theta={theta:.4f}): {what}")
 
-    # Every primary crosses plane 1 and is killed on plane 3.
+    # Every primary crosses plane 1 and is killed on plane 3, whether or not
+    # plane 3 records it.
     expect(len(planes[1]) == 1, f"{len(planes[1])} hits on plane 1")
-    expect(len(planes[3]) == 1, f"{len(planes[3])} hits on plane 3")
+    ke = primary.energy  # initial kinetic energy [GeV]
+    if pdg in (12, 14, 16):
+        want3 = 1 if ke >= KE3 else 0  # no energy loss on the way
+    else:
+        # A muon loses a few GeV in the tungsten: only check clear cases.
+        want3 = 1 if ke > KE3 + 20.0 else (0 if ke < KE3 else None)
+    if want3 is not None:
+        expect(len(planes[3]) == want3, f"{len(planes[3])} hits on plane 3")
     for h in planes[1]:
         expect(abs(h.position[2] - Z1) < TOL, f"plane 1 hit at z={h.position[2]}")
     for h in planes[3]:
         expect(abs(h.position[2] - Z3) < TOL, f"plane 3 hit at z={h.position[2]}")
+        p3 = math.sqrt(sum(c * c for c in h.momentum))
+        m = 0.0 if pdg in (12, 14, 16) else 0.1056584  # GeV
+        ke3 = math.sqrt(p3 * p3 + m * m) - m
+        expect(ke3 >= KE3 - 1e-6, f"plane 3 recorded a track at {ke3:.2f} GeV")
     end_z = primary.endpoint[2]
     expect(Z3 - TOL < end_z < Z3 + 2.0 + TOL, f"primary ends at z={end_z}")
 
@@ -102,7 +116,7 @@ for i in range(n):
 for e in errors[:20]:
     print(e)
 print(f"{n} events, plane hits {counts}, {len(errors)} problem(s)")
-ok = n > 0 and not errors and counts[2] > 0 and counts[4] > 0
+ok = n > 0 and not errors and all(counts[k] > 0 for k in (1, 2, 3, 4))
 sys.stdout.flush()
 os._exit(0 if ok else 1)  # dodge a PyROOT RNTuple teardown crash
 EOF
@@ -130,13 +144,19 @@ EOF
   echo "$name: fails as expected"
 }
 
-expect_failure overlapping_planes "overlaps another scoring plane" \
+expect_failure overlapping_planes "scoring planes 'a' and 'b' overlap" \
   "[{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1500] },
     { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 5, position: [0, 0, 1502] }]"
+# Overlapping only in a 0.1 mm corner, which surface sampling can miss.
+expect_failure corner_overlap "scoring planes 'a' and 'b' overlap" \
+  "[{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] },
+    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 1, position: [199.9, 199.9, 1501.9] }]"
 expect_failure beyond_world "extends beyond the world" \
   "[{ name: 'p', id: 1, half_x: 6000, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
 expect_failure unknown_key "unknown key 'kil'" \
   "[{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
+expect_failure missing_name "scoring plane #0 (counting from 0) has no 'name'" \
+  "[{ id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
 expect_failure missing_id "missing 'id'" \
   "[{ name: 'p', half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
 expect_failure duplicate_id "id 1 used by more than one plane" \

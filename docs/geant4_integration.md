@@ -238,8 +238,9 @@ In the output module's validation histograms, plane hits fill their own
 are left out of the `h_hit_*` ones, which keep describing the detector's
 hits: with detector id 100 and no energy deposit, plane hits would otherwise
 land in the overflow of `h_hit_detector` and pile up at zero in `h_hit_edep`.
-`h_plane_hit_id` covers plane ids 0–99; other ids land in its underflow or
-overflow bin.
+`h_plane_hit_id` covers plane ids 0–999; other ids land in its underflow or
+overflow bin. `h_plane_hit_pdg` covers PDG codes from −2500 to 2500, like
+`h_mc_pdg`, plus one bin at ±2501 that collects all nuclei and ions.
 
 Each entry of `scoring_planes` takes:
 

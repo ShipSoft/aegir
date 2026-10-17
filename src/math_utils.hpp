@@ -10,7 +10,7 @@
 #include <array>
 #include <cmath>
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Euclidean norm of a raw 3-vector already in storage units (momentum,
 // position, ...) — e.g. straight off a persisted struct.
@@ -25,4 +25,4 @@ template <typename Q>
   return SHiP::quantity_of<Q>(magnitude(SHiP::raw(v)));
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

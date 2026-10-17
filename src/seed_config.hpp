@@ -23,7 +23,7 @@
 
 #include "phlex/configuration.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 [[nodiscard]] inline std::uint32_t resolve_seed(
     phlex::configuration const& config, std::string const& component) {
@@ -48,4 +48,4 @@ namespace aegir {
   return seed;
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

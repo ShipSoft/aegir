@@ -43,7 +43,7 @@ a quantity via an explicit conversion.**
 - Pythia8 (GeV, mm, mm/c), GENIE (SI): values are wrapped at the read
   site (`p.tProd() * su::mm_per_c`, `vtx[0] * su::m`).
 - Configuration: workflow files stay plain numbers; C++ reads them with
-  `aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV)`, making
+  `SHiP::aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV)`, making
   the parameter definition the single source of truth for the unit.
 - Filling a persisted struct is a boundary too: write through the
   `SHiP::view` setters when the concrete `SHiP::` type is known. In code

@@ -36,5 +36,6 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   std::shared_ptr<SHiP::IFieldSource> const source =
       std::make_shared<NullFieldSource>();
 
-  aegir::provide_constant(s, "create_field", source, "field", "map", "job");
+  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
+                                "job");
 }

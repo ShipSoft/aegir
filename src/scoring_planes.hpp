@@ -63,7 +63,7 @@
 #include "scoring_plane_id.hpp"
 #include "units/clhep_bridge.hpp"
 
-namespace SHiP::g4 {
+namespace SHiP::aegir::g4 {
 
 /// Name of the parallel world holding the scoring planes, and of the
 /// G4ParallelWorldPhysics constructor that makes Geant4 track through it.
@@ -259,7 +259,7 @@ namespace scoring_plane_detail {
 /// `after_volume` in the detector geometry under `mass_world`.
 inline G4ThreeVector plane_centre(ScoringPlaneConfig const& cfg,
                                   G4VPhysicalVolume* mass_world) {
-  namespace cb = aegir::clhep;
+  namespace cb = SHiP::aegir::clhep;
   if (cfg.position) {
     auto const& pos = *cfg.position;
     return {cb::g4(pos[0]), cb::g4(pos[1]), cb::g4(pos[2])};
@@ -283,7 +283,7 @@ struct Extent {
 };
 
 inline Extent extent(ScoringPlaneConfig const& cfg, G4ThreeVector centre) {
-  namespace cb = aegir::clhep;
+  namespace cb = SHiP::aegir::clhep;
   return {.shape = cfg.shape,
           .centre = centre,
           .half_x = cb::g4(cfg.half_x),
@@ -359,7 +359,7 @@ inline void check_inside_world(std::string const& name, Extent const& e,
 }
 
 inline G4VSolid* make_solid(ScoringPlaneConfig const& cfg) {
-  namespace cb = aegir::clhep;
+  namespace cb = SHiP::aegir::clhep;
   if (cfg.shape == ScoringShape::box) {
     return new G4Box(cfg.name, cb::g4(cfg.half_x), cb::g4(cfg.half_y),
                      cb::g4(cfg.half_z));
@@ -381,7 +381,7 @@ inline G4VSolid* make_solid(ScoringPlaneConfig const& cfg) {
 inline ScoringPlaneMap place_scoring_planes(
     G4VPhysicalVolume* mass_world, G4VPhysicalVolume* scoring_world,
     std::vector<ScoringPlaneConfig> const& planes) {
-  namespace cb = aegir::clhep;
+  namespace cb = SHiP::aegir::clhep;
   namespace detail = scoring_plane_detail;
   validate_scoring_planes(planes);
 
@@ -497,8 +497,8 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
     // stepping manager adds the current step to the track length, so this is
     // the length from the track's origin to the entry point. (A mass-world SD
     // such as CrossingSD runs after that and sees the end of the step.)
-    SHiP::view::set_path_length(hit,
-                                aegir::clhep::length(track->GetTrackLength()));
+    SHiP::view::set_path_length(
+        hit, SHiP::aegir::clhep::length(track->GetTrackLength()));
     tl_hits.push_back(hit);
     return true;
   }
@@ -552,4 +552,4 @@ class ScoringParallelWorld : public G4VUserParallelWorld {
   G4LogicalVolume* world_lv_ = nullptr;
 };
 
-}  // namespace SHiP::g4
+}  // namespace SHiP::aegir::g4

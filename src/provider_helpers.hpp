@@ -14,11 +14,12 @@
 #include "phlex/concurrency.hpp"
 #include "phlex/model/data_cell_index.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Register a provider that returns a single shared instance for every data
 // cell. Templated on the registrar and source type so it serves both the
-// geometry (SHiP::IGeometrySource) and field (SHiP::IFieldSource) providers.
+// geometry (SHiP::aegir::IGeometrySource) and field (SHiP::IFieldSource)
+// providers.
 //
 // The published product type is std::shared_ptr<Source>, so `source` must be
 // typed as the interface consumers request (not the concrete class returned
@@ -35,4 +36,4 @@ void provide_constant(Registrar& s, char const* algorithm,
       .output_product(creator, suffix, layer);
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

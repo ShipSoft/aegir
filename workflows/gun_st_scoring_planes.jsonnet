@@ -4,7 +4,8 @@
 // over it in their parallel world:
 //   1  box 1 cm behind the target (placed with after_volume),
 //   2  cylindrical shell r = 80-81 mm around the target (placed by position),
-//   3  box at z = 3 m that kills what it records,
+//   3  box at z = 3 m that kills every track reaching it, but records only
+//      those above 50 GeV,
 //   4  small box cutting through the tungsten at z = 250 mm, which only a
 //      parallel world allows.
 // The sizes only need to produce these cases; they stand for no real setup.
@@ -57,6 +58,7 @@ function(pdg=14, events=200) {
           half_y: 2000.0,
           half_z: 1.0,
           position: [0.0, 0.0, 3000.0],
+          ke_threshold: 50.0,
           kill: true,
         },
         {

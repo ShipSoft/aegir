@@ -592,10 +592,17 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
   if (!entries) {
     return planes;
   }
-  for (auto const& entry : *entries) {
+  for (std::size_t i = 0; i < entries->size(); ++i) {
+    auto const& entry = (*entries)[i];
     ScoringPlaneConfig plane{
         .name = entry.get<std::string>("name", std::string{}),
     };
+    // Checked first, so that every later error can name the plane.
+    if (plane.name.empty()) {
+      throw std::invalid_argument("geant4_module: scoring plane #" +
+                                  std::to_string(i) +
+                                  " (counting from 0) has no 'name'");
+    }
     for (auto const& key : entry.keys()) {
       if (!known_keys.contains(key)) {
         plane_error(plane.name, "unknown key '" + key + "'");

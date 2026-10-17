@@ -72,6 +72,16 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
         sd_mode_{sd_mode},
         ke_threshold_{ke_threshold},
         regions_{std::move(regions)} {
+    // Detector hits carry their sensitive-volume pattern's index as detector
+    // id; keep those below the scoring planes' id so the two cannot collide.
+    if (std::cmp_greater(source.sensitiveVolumes().size(),
+                         kScoringPlaneDetectorId)) {
+      throw std::invalid_argument(
+          "geant4_module: at most " + std::to_string(kScoringPlaneDetectorId) +
+          " sensitive_volumes patterns are supported (detector id " +
+          std::to_string(kScoringPlaneDetectorId) +
+          " is reserved for scoring planes)");
+    }
     if (!scoring_planes.empty()) {
       scoring_world_ = new ScoringParallelWorld(std::move(scoring_planes));
       RegisterParallelWorld(scoring_world_);

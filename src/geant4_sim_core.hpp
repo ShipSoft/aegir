@@ -17,6 +17,7 @@
 #include <SHiP/QuantityView.hpp>
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
+#include <cstddef>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -171,5 +172,37 @@ class TrackingAction : public G4UserTrackingAction {
  private:
   double particle_ke_cut_;  // Geant4 internal units
 };
+
+// Keep only the particles that left a hit and every ancestor of those, as
+// FairShip's stack does (SetMinPoints(1), mothers stored). Order is kept.
+// The parent ids of what is kept resolve only if every ancestor was
+// recorded, i.e. without a particle_ke_cut.
+inline void prune_to_hit_ancestry(std::vector<SimParticle>& particles,
+                                  std::vector<SimHit> const& hits) {
+  std::unordered_map<int, std::size_t> index;
+  index.reserve(particles.size());
+  for (std::size_t i = 0; i < particles.size(); ++i) {
+    index.emplace(particles[i].trackId, i);
+  }
+  std::vector<bool> keep(particles.size(), false);
+  for (auto const& hit : hits) {
+    // Walk up until the primaries (parent 0) or a chain already marked.
+    for (auto it = index.find(hit.trackId);
+         it != index.end() && !keep[it->second];
+         it = index.find(particles[it->second].parentId)) {
+      keep[it->second] = true;
+    }
+  }
+  std::size_t kept = 0;
+  for (std::size_t i = 0; i < particles.size(); ++i) {
+    if (keep[i]) {
+      if (kept != i) {
+        particles[kept] = std::move(particles[i]);
+      }
+      ++kept;
+    }
+  }
+  particles.resize(kept);
+}
 
 }  // namespace SHiP::g4

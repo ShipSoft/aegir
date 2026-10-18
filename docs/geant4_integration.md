@@ -149,6 +149,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
 | `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
+| `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
 | `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in |
 | `progress_interval` | int | `100` | Log a progress line (event count and average rate) every this many simulated events; `0` disables |
 
@@ -180,3 +181,116 @@ Example workflow configuration:
   },
 }
 ```
+
+## Scoring planes
+
+A scoring plane is a thin box or cylindrical shell that records the
+particles crossing it. It is aegir's counterpart of FairShip's
+`exitHadronAbsorber` and is meant for flux studies: the muons leaving the
+hadron absorber, the neutrinos coming out of the target, and so on.
+
+The planes live in a Geant4 *parallel world* (`aegir_scoring_planes`),
+overlaid on whatever geometry the provider built — builtin, GDML or GeoModel
+alike. Geant4 tracks every particle through both worlds at once
+(`G4ParallelWorldPhysics`, added to the physics list whenever planes are
+configured). A plane can therefore be any size, anywhere: it can cut through
+or extend beyond the detector's volumes — a muon-shield container, a magnet,
+the target — and the parallel world carries no material of its own, so the
+detector's materials apply everywhere. Planes must not overlap one another
+(touching is fine) or extend beyond the world volume.
+
+A plane records one `SimHit` for every track that enters it through its
+surface, whatever the particle — neutrinos and other neutrals included — and
+whether or not it deposits energy. It does this through its own sensitive
+detector, so it works the same with `sd_mode: 'scoring'` and
+`sd_mode: 'crossing'`, alongside the geometry's own sensitive volumes, and
+the `sensitive_volumes` and field `volume_pattern` patterns never match the
+planes. A track entering a plane twice (a cylinder crossed in and out, a
+particle scattered back) is recorded each time; set `kill` to stop a track at
+the first plane it reaches.
+
+Planes do change how the detector geometry is stepped through. With a
+parallel world registered, Geant4 uses coupled transportation, and steps in
+the detector geometry also end at every plane face. Hence:
+
+- `sd_mode: 'scoring'` writes one hit per step, so a plane cutting through a
+  sensitive volume splits some of its hits in two; the total energy
+  deposit is unchanged.
+- `sd_mode: 'crossing'` is unaffected, since its first-step-in-volume flag
+  only follows the detector's own boundaries.
+- Runs with and without planes are not identical event by event, even with
+  the same seed.
+- Each step costs some extra CPU time, so only configure the planes a run
+  needs.
+
+The hits are told apart from detector hits by their ids:
+
+| `SimHit` field | Scoring-plane value |
+|:---|:---|
+| `detector_id` | `100` (`SHiP::aegir::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (which limits a geometry to 100 `sensitive_volumes` patterns) |
+| `geometry_node_id` | the plane's `id` |
+| `position`, `momentum`, `time` | at the entry point |
+| `energy_deposit` | `0` |
+| `path_length` | track length from the track's origin to the entry point. A `sd_mode: 'crossing'` hit gives it at the end of its first step in the volume instead, so the two don't mean quite the same thing |
+
+In the output module's validation histograms, plane hits fill their own
+`h_plane_hit_*` histograms (hits per event, plane id, momentum, PDG code) and
+are left out of the `h_hit_*` ones, which keep describing the detector's
+hits: with detector id 100 and no energy deposit, plane hits would otherwise
+land in the overflow of `h_hit_detector` and pile up at zero in `h_hit_edep`.
+`h_plane_hit_id` covers plane ids 0–99; other ids land in its underflow or
+overflow bin.
+
+Each entry of `scoring_planes` takes:
+
+| Key | Type | Default | Description |
+|:---|:---|:---|:---|
+| `name` | string | — | Volume name; must not already exist in the geometry |
+| `id` | int | — | Written to `SimHit::geometry_node_id`, telling the planes' hits apart; required and unique |
+| `shape` | string | `box` | `box` or `tube` (cylindrical shell, axis along z) |
+| `half_x`, `half_y` | double | — | Box half-widths (mm); required for a box, rejected for a tube |
+| `r_min`, `r_max` | double | — | Tube inner and outer radius (mm); required for a tube, rejected for a box |
+| `half_z` | double | — | Half-length along z (mm); required for both shapes |
+| `position` | [x, y, z] | — | Centre in the global frame (mm) |
+| `after_volume` | string | — | Place the plane downstream of this detector volume, centred transversely on its global bounding box |
+| `gap` | double | `0` | With `after_volume`: distance from the volume's downstream end to the plane's upstream face (mm) |
+| `ke_threshold` | double | `0` | Record only tracks entering with at least this kinetic energy (GeV). With `kill`, tracks below it are stopped too, unrecorded |
+| `kill` | bool | `false` | Stop and kill every track that steps into the plane, as FairShip's `exitHadronAbsorber` does: recorded or not, including secondaries born inside the plane |
+
+Exactly one of `position` and `after_volume` must be given. `after_volume`
+is an exact logical-volume name, and the volume must be placed exactly once
+in the geometry — otherwise the plane's position would be ambiguous. Planes
+are always aligned with the global axes. Unknown keys and inconsistent
+settings fail the job at configuration time. A plane that overlaps another
+plane or extends beyond the world fails it at initialisation, before any
+plane is built. That test is exact for these axis-aligned shapes, so even a
+small corner overlap between thin planes is caught.
+
+```jsonnet
+geant4: lib.geant4 {
+  scoring_planes: [
+    {
+      // FairShip's plane 1 cm behind the hadron absorber
+      name: 'exit_hadron_absorber',
+      id: 1,
+      half_x: 3559.0, half_y: 1699.0, half_z: 1.0,
+      after_volume: '/SHiP/muon_shield/magn_absorb',
+      gap: 10.0,
+      kill: true,
+    },
+    {
+      // cylindrical shell around a target centred at the origin
+      name: 'around_target',
+      id: 2,
+      shape: 'tube',
+      r_min: 80.0, r_max: 81.0, half_z: 500.0,
+      position: [0.0, 0.0, 0.0],
+    },
+  ],
+}
+```
+
+`workflows/gun_st_scoring_planes.jsonnet` places planes of each kind in the
+builtin geometry, one of them cutting through the tungsten target, and
+`scripts/scoring_planes.sh` (ctest `scoring_planes`) checks the recorded hits
+against the geometry for neutrinos and muons.

@@ -26,12 +26,12 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Dimension in Geant4 internal units from a quantity literal.
-inline double g4(auto q) { return aegir::clhep::g4(q); }
+inline double g4(auto q) { return SHiP::aegir::clhep::g4(q); }
 
-class BuiltinGeometrySource : public SHiP::IGeometrySource {
+class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
   std::vector<std::string> sensitive_vols_{"Scoring"};
   mutable std::once_flag init_flag_;
   mutable G4VPhysicalVolume* world_ = nullptr;
@@ -85,10 +85,10 @@ PHLEX_REGISTER_PROVIDERS(s) {
   // Shared instance: geometry is constant across all events.
   // The provider returns a shared_ptr copy for each data cell.
   // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> const source =
+  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
+  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
       std::make_shared<BuiltinGeometrySource>();
 
-  aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",
-                          "job");
+  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
+                                "detector", "job");
 }

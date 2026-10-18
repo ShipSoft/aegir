@@ -4,7 +4,7 @@
 
 // geometry_geomodel_provider.cpp — Phlex provider plugin for GeoModel geometry
 //
-// Loads a GeoModel .db file via SHiPGeometryService and converts to Geant4.
+// Loads a GeoModel .db file via SHiP::GeometryService and converts to Geant4.
 
 #include <G4LogicalVolume.hh>
 #include <G4PVPlacement.hh>
@@ -16,18 +16,18 @@
 #include <string>
 #include <vector>
 
-#include "GeometryService/SHiPGeometryService.h"
+#include "SHiP/GeometryService/GeometryService.h"
 #include "geometry_source.hpp"
 #include "phlex/source.hpp"
 #include "provider_helpers.hpp"
 
 namespace {
 
-class GeoModelGeometrySource : public SHiP::IGeometrySource {
+class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
   std::string db_path_;
   std::vector<std::string> sensitive_vols_;
   mutable std::once_flag init_flag_;
-  mutable std::shared_ptr<ship::SHiPGeometryService> service_;
+  mutable std::shared_ptr<SHiP::GeometryService> service_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
@@ -40,7 +40,7 @@ class GeoModelGeometrySource : public SHiP::IGeometrySource {
       // conversion — with every other user of the same file in this
       // process; in the full GENIE chain, aegir-genie's geometry analyzer
       // has already loaded and converted it (aegir-genie issue #11).
-      service_ = ship::SHiPGeometryService::sharedFromFile(db_path_);
+      service_ = SHiP::GeometryService::sharedFromFile(db_path_);
       auto* worldLV = service_->geant4WorldLogical();
       if (!worldLV) {
         throw std::runtime_error(
@@ -100,10 +100,10 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
 
   // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> const source =
+  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
+  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
       std::make_shared<GeoModelGeometrySource>(db_file, std::move(sv));
 
-  aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",
-                          "job");
+  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
+                                "detector", "job");
 }

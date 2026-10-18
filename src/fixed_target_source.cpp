@@ -31,7 +31,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 void configure_processes(Pythia8::Pythia& pythia) {
   pythia.readString("SoftQCD:inelastic = on");
@@ -44,11 +44,11 @@ void configure_processes(Pythia8::Pythia& pythia) {
 class FixedTargetSource : public phlex::source {
  public:
   FixedTargetSource(std::string stage, std::string const& xml_dir,
-                    ship::Energy beam_energy, int target_z, int target_a,
-                    ship::Length target_z_start, ship::Length target_z_end,
-                    ship::Length interaction_length,
-                    aegir::PythiaTime tau0_threshold, aegir::record_mode record,
-                    std::uint32_t seed)
+                    SHiP::Energy beam_energy, int target_z, int target_a,
+                    SHiP::Length target_z_start, SHiP::Length target_z_end,
+                    SHiP::Length interaction_length,
+                    SHiP::aegir::PythiaTime tau0_threshold,
+                    SHiP::aegir::record_mode record, std::uint32_t seed)
       : stage_{std::move(stage)},
         target_z_{target_z},
         target_a_{target_a},
@@ -63,28 +63,28 @@ class FixedTargetSource : public phlex::source {
     // instances apart there.
     auto const attach_engine =
         [seed](Pythia8::Pythia& pythia,
-               std::shared_ptr<aegir::PhiloxRndmEngine> const& engine,
+               std::shared_ptr<SHiP::aegir::PhiloxRndmEngine> const& engine,
                std::uint32_t init_substream) {
-          engine->reset(seed, aegir::kPythiaInitStream, init_substream);
+          engine->reset(seed, SHiP::aegir::kPythiaInitStream, init_substream);
           pythia.setRndmEnginePtr(engine);
         };
 
     // Proton target (p-p)
     pythia_pp_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
     attach_engine(*pythia_pp_, engine_pp_, 0);
-    aegir::configure_beams(*pythia_pp_, 2212, 2212, beam_energy);
+    SHiP::aegir::configure_beams(*pythia_pp_, 2212, 2212, beam_energy);
     configure_processes(*pythia_pp_);
     pythia_pp_->readString("Print:quiet = on");
-    aegir::stabilise_long_lived(*pythia_pp_, tau0_threshold);
+    SHiP::aegir::stabilise_long_lived(*pythia_pp_, tau0_threshold);
     pythia_pp_->init();
 
     // Neutron target (p-n)
     pythia_pn_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
     attach_engine(*pythia_pn_, engine_pn_, 1);
-    aegir::configure_beams(*pythia_pn_, 2212, 2112, beam_energy);
+    SHiP::aegir::configure_beams(*pythia_pn_, 2212, 2112, beam_energy);
     configure_processes(*pythia_pn_);
     pythia_pn_->readString("Print:quiet = on");
-    aegir::stabilise_long_lived(*pythia_pn_, tau0_threshold);
+    SHiP::aegir::stabilise_long_lived(*pythia_pn_, tau0_threshold);
     pythia_pn_->init();
   }
 
@@ -100,28 +100,28 @@ class FixedTargetSource : public phlex::source {
     bool const proton_target = rng.uniform() < z_over_a;
 
     // Sample interaction point z from truncated exponential
-    ship::Length const target_length = target_z_end_ - target_z_start_;
+    SHiP::Length const target_length = target_z_end_ - target_z_start_;
     double const u = rng.uniform();
     double const exp_ratio = std::exp(-(target_length / interaction_length_)
                                            .numerical_value_in(mp_units::one));
-    ship::Length const z_interaction =
+    SHiP::Length const z_interaction =
         target_z_start_ -
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
     auto& pythia = proton_target ? *pythia_pp_ : *pythia_pn_;
     // Key Pythia's draws to this event, whatever order events arrive in.
     (proton_target ? engine_pp_ : engine_pn_)
-        ->reset(seed_, aegir::kPythiaEventStream, event_number);
-    aegir::next_event(pythia, proton_target ? "FixedTargetSource (pp)"
-                                            : "FixedTargetSource (pn)");
+        ->reset(seed_, SHiP::aegir::kPythiaEventStream, event_number);
+    SHiP::aegir::next_event(pythia, proton_target ? "FixedTargetSource (pp)"
+                                                  : "FixedTargetSource (pn)");
 
-    return aegir::extract_particles<SHiP::MCParticle>(pythia.event,
-                                                      z_interaction, record_);
+    return SHiP::aegir::extract_particles<SHiP::MCParticle>(
+        pythia.event, z_interaction, record_);
   }
 
   phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial);
@@ -131,16 +131,16 @@ class FixedTargetSource : public phlex::source {
   std::string stage_;
   int target_z_;
   int target_a_;
-  ship::Length target_z_start_;
-  ship::Length target_z_end_;
-  ship::Length interaction_length_;
-  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pp_ =
-      std::make_shared<aegir::PhiloxRndmEngine>();
-  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pn_ =
-      std::make_shared<aegir::PhiloxRndmEngine>();
+  SHiP::Length target_z_start_;
+  SHiP::Length target_z_end_;
+  SHiP::Length interaction_length_;
+  std::shared_ptr<SHiP::aegir::PhiloxRndmEngine> engine_pp_ =
+      std::make_shared<SHiP::aegir::PhiloxRndmEngine>();
+  std::shared_ptr<SHiP::aegir::PhiloxRndmEngine> engine_pn_ =
+      std::make_shared<SHiP::aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
-  aegir::record_mode record_;
+  SHiP::aegir::record_mode record_;
   std::uint32_t seed_;
 };
 
@@ -156,22 +156,22 @@ PHLEX_REGISTER_SOURCE(s, config) {
     return std::string{"../share/Pythia8/xmldoc"};
   }());
   auto const beam_energy =
-      aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV);
+      SHiP::aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV);
   auto const target_z = config.get<int>("target_z", 74);
   auto const target_a = config.get<int>("target_a", 184);
   auto const target_z_start =
-      aegir::get_quantity(config, "target_z_start", 0.0 * su::mm);
+      SHiP::aegir::get_quantity(config, "target_z_start", 0.0 * su::mm);
   auto const target_z_end =
-      aegir::get_quantity(config, "target_z_end", 1164.0 * su::mm);
+      SHiP::aegir::get_quantity(config, "target_z_end", 1164.0 * su::mm);
   auto const interaction_length =
-      aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
+      SHiP::aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
-      aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
-  auto const record = aegir::parse_record_mode(
+      SHiP::aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
+  auto const record = SHiP::aegir::parse_record_mode(
       config.get<std::string>("record", std::string{"final_state"}),
       "fixed_target");
-  auto seed = aegir::resolve_seed(config, "fixed_target");
-  auto stage = aegir::source_stage(config, "fixed_target");
+  auto seed = SHiP::aegir::resolve_seed(config, "fixed_target");
+  auto stage = SHiP::aegir::source_stage(config, "fixed_target");
 
   s.add_source<FixedTargetSource>(
       "fixed_target", std::move(stage), xml_dir, beam_energy, target_z,

@@ -28,7 +28,7 @@
 #include <mutex>
 #include <string>
 
-namespace aegir::trace {
+namespace SHiP::aegir::trace {
 
 inline std::FILE* file_handle() {
   static std::FILE* f = []() -> std::FILE* {
@@ -126,7 +126,7 @@ class ScopedEvent {
   long long start_;
 };
 
-}  // namespace aegir::trace
+}  // namespace SHiP::aegir::trace
 
 #define AEGIR_TRACE_CONCAT_(a, b) a##b
 #define AEGIR_TRACE_CONCAT(a, b) AEGIR_TRACE_CONCAT_(a, b)

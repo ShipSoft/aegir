@@ -19,7 +19,7 @@
 
 namespace {
 
-class GDMLGeometrySource : public SHiP::IGeometrySource {
+class GDMLGeometrySource : public SHiP::aegir::IGeometrySource {
   std::string gdml_path_;
   std::vector<std::string> sensitive_vols_;
   mutable std::once_flag init_flag_;
@@ -57,10 +57,10 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
 
   // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> const source =
+  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
+  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
       std::make_shared<GDMLGeometrySource>(gdml_file, std::move(sv));
 
-  aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",
-                          "job");
+  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
+                                "detector", "job");
 }

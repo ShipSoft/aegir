@@ -4,7 +4,7 @@
 
 // field_map_provider.cpp — Phlex provider plugin for magnetic field maps in
 // the SHiP field-map format (field_service docs/field_map_format.md). Builds a
-// ship::FieldMapSource from a jsonnet `magnets` list and publishes it as a
+// SHiP::FieldMapSource from a jsonnet `magnets` list and publishes it as a
 // Job-layer product.
 
 #include <algorithm>
@@ -15,16 +15,16 @@
 #include <utility>
 #include <vector>
 
-#include "FieldService/FieldMapIO.h"
-#include "FieldService/IFieldSource.h"
+#include "SHiP/FieldService/FieldMapIO.h"
+#include "SHiP/FieldService/IFieldSource.h"
 #include "phlex/source.hpp"
 #include "provider_helpers.hpp"
 
 PHLEX_REGISTER_PROVIDERS(s, config) {
-  std::vector<ship::FieldMapSource::MagnetConfig> magnets;
+  std::vector<SHiP::FieldMapSource::MagnetConfig> magnets;
   for (auto const& m :
        config.get<std::vector<phlex::configuration>>("magnets")) {
-    ship::FieldMapSource::MagnetConfig magnet{
+    SHiP::FieldMapSource::MagnetConfig magnet{
         .name = m.get<std::string>("name"),
         .volume_pattern = m.get<std::string>("volume_pattern"),
         .file = m.get<std::string>("file"),
@@ -49,9 +49,10 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   }
 
   // Publish as the interface type: consumers request
-  // std::shared_ptr<ship::IFieldSource>.
-  std::shared_ptr<ship::IFieldSource> const source =
-      std::make_shared<ship::FieldMapSource>(std::move(magnets));
+  // std::shared_ptr<SHiP::IFieldSource>.
+  std::shared_ptr<SHiP::IFieldSource> const source =
+      std::make_shared<SHiP::FieldMapSource>(std::move(magnets));
 
-  aegir::provide_constant(s, "create_field", source, "field", "map", "job");
+  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
+                                "job");
 }

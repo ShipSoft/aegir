@@ -24,7 +24,7 @@ sources: {
 ## Why you might want the full record
 
 `final_state` discards the provenance. Mothers of final-state particles are
-generally not themselves final state, so their `motherId` links dangle and are
+generally not themselves final state, so their `mother_id` links dangle and are
 set to `-1` — in practice almost every particle looks like a primary. With
 `full`, the chain survives, and questions like "did this kaon come from charm
 or from the beam remnant" become answerable from the output alone.
@@ -65,14 +65,14 @@ which `genie_reader_source` translates:
 
 ## Mother links
 
-`motherId` is always an index into the emitted collection, never into the
+`mother_id` is always an index into the emitted collection, never into the
 generator's own record, and `-1` means "no mother". Under `final_state` the
 remap usually yields `-1`; under `full` it is the record index minus one
 (Pythia's entry 0, the "system" pseudo-particle, is never emitted), with `-1`
 for the beam particles.
 
 An entry can have more than one mother, so `mothers` carries the complete
-list and `motherId` is its first element (`-1` when the list is empty).
+list and `mother_id` is its first element (`-1` when the list is empty).
 
 For Pythia the list comes straight from `Particle::motherList()`. That
 accessor derives from `mother1`, `mother2` **and** the native status, so it
@@ -89,14 +89,14 @@ distinct parents rather than the endpoints of a range. `StdHepLm` is optional:
 files written without it read as single-mother throughout.
 
 Mothers that did not survive the filter are **dropped** from the list, not
-recorded as `-1` — the data model reserves that sentinel for `motherId`. Under
+recorded as `-1` — the data model reserves that sentinel for `mother_id`. Under
 `record: 'final_state'` that usually empties the list entirely, since the
 mothers of final-state particles are generally not final state themselves.
 Under `full` the whole chain survives; a typical 400 GeV record has multi-mother
 entries with up to six parents apiece.
 
-`SHiP::mothersAreConsistent()` checks the resulting invariants (every index in
-range, no `-1` in the list, `mothers.front() == motherId`, elements distinct
-and never self-referential); `SHiP::mothersArePopulated()` additionally
+`SHiP::mothers_are_consistent()` checks the resulting invariants (every index in
+range, no `-1` in the list, `mothers.front() == mother_id`, elements distinct
+and never self-referential); `SHiP::mothers_are_populated()` additionally
 requires that an entry with a mother carries the full list. The
 `generator_status` test asserts both on generated records.

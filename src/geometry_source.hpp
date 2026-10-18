@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace SHiP {
+namespace SHiP::aegir {
 
 class IGeometrySource {
  public:
@@ -33,4 +33,4 @@ class IGeometrySource {
       const = 0;
 };
 
-}  // namespace SHiP
+}  // namespace SHiP::aegir

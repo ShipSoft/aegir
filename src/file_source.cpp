@@ -16,8 +16,10 @@
 // "sim_particles". SimParticles are simulation *output*, so when reading them
 // back as simulation *input* they are projected onto MCParticles.
 
+#include <TFile.h>
 #include <spdlog/spdlog.h>
 
+#include <ROOT/RNTuple.hxx>
 #include <ROOT/RNTupleDescriptor.hxx>
 #include <ROOT/RNTupleReader.hxx>
 #include <ROOT/RNTupleView.hxx>
@@ -40,7 +42,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Project a simulation SimParticle onto an MCParticle suitable as sim input.
 // SimParticle::energy is kinetic while MCParticle::energy is total; recover the
@@ -49,21 +51,21 @@ namespace su = ship::units;
 // mc^2 = ((|p|c)^2 - E_kin^2) / (2 E_kin) and E_total = E_kin + mc^2.
 SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   SHiP::MCParticle mc;
-  mc.pdgCode = sp.pdgCode;
+  mc.pdg_code = sp.pdg_code;
   // Same storage units on both sides — direct copies, no unit crossing.
   mc.vertex = sp.vertex;
   mc.momentum = sp.momentum;
-  auto const pc = (aegir::magnitude(ship::view::momentum(sp)) * su::c)
+  auto const pc = (SHiP::aegir::magnitude(SHiP::view::momentum(sp)) * su::c)
                       .in(su::GeV);           // |p|c; conversion factor is 1
-  auto const e_kin = ship::view::energy(sp);  // SimParticle::energy is kinetic
-  ship::view::setEnergy(mc, e_kin > ship::Energy::zero()
-                                ? (pc * pc + e_kin * e_kin) / (2.0 * e_kin)
-                                : pc);
+  auto const e_kin = SHiP::view::energy(sp);  // SimParticle::energy is kinetic
+  SHiP::view::set_energy(mc, e_kin > SHiP::Energy::zero()
+                                 ? (pc * pc + e_kin * e_kin) / (2.0 * e_kin)
+                                 : pc);
   mc.time = sp.time;
-  // SimParticle::parentId is the parent's track id (0 for primaries); map the
+  // SimParticle::parent_id is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.
-  mc.motherId = sp.parentId == 0 ? -1 : sp.parentId;
-  mc.status = aegir::hepmc::final_state;
+  mc.mother_id = sp.parent_id == 0 ? -1 : sp.parent_id;
+  mc.status = SHiP::aegir::hepmc::final_state;
   return mc;
 }
 
@@ -88,7 +90,21 @@ class FileSource : public phlex::source {
           "' (expected 'mc_particles' or 'sim_particles')");
     }
 
-    reader_ = ROOT::RNTupleReader::Open(ntuple, input_file);
+    // Open the file through TFile first so its streamer infos are known to
+    // ROOT. data-model's I/O rules need them to read files written by an
+    // older data-model (e.g. v0.5.0 output read with 0.6); without them the
+    // read aborts in RFieldMeta (root-project/root#23146).
+    file_.reset(TFile::Open(input_file.c_str()));
+    if (!file_ || file_->IsZombie()) {
+      throw std::runtime_error("file_source: cannot open '" + input_file + "'");
+    }
+    std::unique_ptr<ROOT::RNTuple> anchor{
+        file_->Get<ROOT::RNTuple>(ntuple.c_str())};
+    if (!anchor) {
+      throw std::runtime_error("file_source: no RNTuple '" + ntuple + "' in '" +
+                               input_file + "'");
+    }
+    reader_ = ROOT::RNTupleReader::Open(*anchor);
     n_entries_ = reader_->GetNEntries();
     if (read_sim_) {
       sim_view_ = reader_->GetView<std::vector<SHiP::SimParticle>>(product);
@@ -157,13 +173,13 @@ class FileSource : public phlex::source {
       phlex::product_selector const& selector) override {
     // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
     // additionally guards the reader against the concurrent header provider.
-    aegir::event_header_generator header_gen{};
+    SHiP::aegir::event_header_generator header_gen{};
     if (header_view_) {
       header_gen = [this](phlex::data_cell_index const& id) {
         return generate_header(id);
       };
     }
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial, std::move(header_gen));
@@ -174,6 +190,8 @@ class FileSource : public phlex::source {
   long skip_;
   bool read_sim_;
   ROOT::NTupleSize_t n_entries_{0};
+  // Declared before reader_, so it outlives the reader.
+  std::unique_ptr<TFile> file_;
   std::unique_ptr<ROOT::RNTupleReader> reader_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::MCParticle>>> mc_view_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::SimParticle>>> sim_view_;
@@ -196,7 +214,7 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("product", std::string{"mc_particles"});
   auto const skip =
       config.get<long>("skip", 0L);  // start reading at this entry
-  auto stage = aegir::source_stage(config, "file_source");
+  auto stage = SHiP::aegir::source_stage(config, "file_source");
 
   s.add_source<FileSource>("file_source", std::move(stage), input_file, ntuple,
                            product, skip);

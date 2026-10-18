@@ -11,7 +11,7 @@
 //
 // Architecture:
 //   - Master init (G4MTRunManager, geometry/physics) runs on the process-wide
-//     ship::geometry_thread(), shared with every other Geant4 geometry user
+//     SHiP::geometry_thread(), shared with every other Geant4 geometry user
 //     (e.g. aegir-genie's GENIE geometry analyzer): Geant4 permits only one
 //     geometry-creating thread per process (aegir-genie issue #11)
 //   - Per phlex-thread: G4WorkerRunManagerKernel + G4EventManager for tracking
@@ -26,6 +26,7 @@
 #include <G4GeometryManager.hh>
 #include <G4LogicalVolumeStore.hh>
 #include <G4MTRunManager.hh>
+#include <G4ParallelWorldPhysics.hh>
 #include <G4ParticleDefinition.hh>
 #include <G4ParticleTable.hh>
 #include <G4PhysListFactory.hh>
@@ -33,6 +34,7 @@
 #include <G4PrimaryParticle.hh>
 #include <G4PrimaryVertex.hh>
 #include <G4RegionStore.hh>
+#include <G4RunManagerKernel.hh>
 #include <G4SolidStore.hh>
 #include <G4StateManager.hh>
 #include <G4Threading.hh>
@@ -53,32 +55,47 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include "FieldService/IFieldSource.h"
-#include "GeometryService/GeometryThread.h"
+#include "SHiP/FieldService/IFieldSource.h"
+#include "SHiP/GeometryService/GeometryThread.h"
 #include "chrome_trace.hpp"
 #include "detector_construction.hpp"
 #include "geant4_sim_core.hpp"
 #include "geometry_source.hpp"
 #include "hepmc_status.hpp"
 #include "math_utils.hpp"
+#include "phlex/configuration.hpp"
 #include "phlex/core/product_selector.hpp"
 #include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
+#include "scoring_planes.hpp"
 #include "seed_config.hpp"
 #include "units/clhep_bridge.hpp"
 #include "units/config_units.hpp"
 
 namespace {
 
-using namespace SHiP::g4;
+using SHiP::aegir::g4::ConfigurableDetectorConstruction;
+using SHiP::aegir::g4::EnergyCutAction;
+using SHiP::aegir::g4::kScoringWorldName;
+using SHiP::aegir::g4::ScoringPlaneConfig;
+using SHiP::aegir::g4::ScoringShape;
+using SHiP::aegir::g4::SDMode;
+using SHiP::aegir::g4::tl_hits;
+using SHiP::aegir::g4::tl_particles;
+using SHiP::aegir::g4::tl_track_map;
+using SHiP::aegir::g4::TrackingAction;
+using SHiP::aegir::g4::validate_scoring_planes;
 
 // Required by G4MTRunManager::Initialize but never invoked — events are
 // built directly and passed to G4EventManager::ProcessOneEvent.
@@ -112,16 +129,17 @@ struct Geant4SimConfig {
   int concurrency = 1;
   std::uint32_t seed = 0;
   SDMode sd_mode = SDMode::scoring;
-  ship::Energy ke_threshold = ship::Energy::zero();
+  SHiP::Energy ke_threshold = SHiP::Energy::zero();
   bool energy_cut = false;
-  ship::Energy energy_cut_threshold = ship::Energy::zero();
-  ship::Energy particle_ke_cut = ship::Energy::zero();
+  SHiP::Energy energy_cut_threshold = SHiP::Energy::zero();
+  SHiP::Energy particle_ke_cut = SHiP::Energy::zero();
   // Hand every primary to Geant4 regardless of its generator status.
   // Escape hatch for inputs whose `status` does not follow the HepMC
   // convention (see hepmc_status.hpp); by default only final-state
   // (status 1) entries are tracked.
   bool track_all_primaries = false;
-  std::vector<std::pair<std::string, ship::Length>> regions;
+  std::vector<std::pair<std::string, SHiP::Length>> regions;
+  std::vector<ScoringPlaneConfig> scoring_planes;
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
   std::string export_gdml;
@@ -153,7 +171,7 @@ class Geant4Sim {
     // its objects before deleting them, which suppresses all cross-store
     // references (e.g. ~G4LogicalVolume skips its
     // fRegion->RemoveRootLogicalVolume backreference when locked).
-    ship::geometry_thread().run([] {
+    SHiP::geometry_thread().run([] {
       G4GeometryManager::GetInstance()->OpenGeometry();
       G4RegionStore::Clean();
       G4PhysicalVolumeStore::Clean();
@@ -165,8 +183,8 @@ class Geant4Sim {
   }
 
   SHiP::SimResult simulate(
-      std::shared_ptr<SHiP::IGeometrySource> const& geo,
-      std::shared_ptr<ship::IFieldSource> const& field,
+      std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
+      std::shared_ptr<SHiP::IFieldSource> const& field,
       phlex::handle<std::vector<SHiP::MCParticle>> particles) {
     AEGIR_TRACE_EVENT("g4", "simulate");
 
@@ -228,14 +246,14 @@ class Geant4Sim {
         // before the PDG lookup so that record-keeping entries (strings,
         // diquarks, nuclei) do not also trip the warning below.
         if (!cfg_.track_all_primaries &&
-            !aegir::hepmc::is_final_state(mc.status)) {
+            !SHiP::aegir::hepmc::is_final_state(mc.status)) {
           ++not_final_state;
           continue;
         }
-        auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdgCode, nullptr);
+        auto [it, inserted] = tl_pdg_cache.try_emplace(mc.pdg_code, nullptr);
         if (inserted) {
           it->second =
-              G4ParticleTable::GetParticleTable()->FindParticle(mc.pdgCode);
+              G4ParticleTable::GetParticleTable()->FindParticle(mc.pdg_code);
           // Warn once per unseen code (per thread): FindParticle also returns
           // null for nuclear (10-digit) PDG codes, which would need
           // G4IonTable::GetIon() to resolve.
@@ -243,7 +261,7 @@ class Geant4Sim {
             spdlog::warn(
                 "geant4_module: no G4 particle definition for PDG code {} — "
                 "such particles are skipped",
-                mc.pdgCode);
+                mc.pdg_code);
           }
         }
         auto const* def = it->second;
@@ -251,17 +269,17 @@ class Geant4Sim {
           ++unknown_pdg;
           continue;
         }
-        auto const mom = ship::view::momentum(mc);
-        if (aegir::magnitude(mom) <= ship::Momentum::zero()) {
+        auto const mom = SHiP::view::momentum(mc);
+        if (SHiP::aegir::magnitude(mom) <= SHiP::Momentum::zero()) {
           ++no_momentum;
           continue;
         }
 
-        auto const vtx = ship::view::vertex(mc);
-        namespace cb = aegir::clhep;
+        auto const vtx = SHiP::view::vertex(mc);
+        namespace cb = SHiP::aegir::clhep;
         auto* vertex =
             new G4PrimaryVertex(cb::g4(vtx[0]), cb::g4(vtx[1]), cb::g4(vtx[2]),
-                                cb::g4(ship::view::time(mc)));
+                                cb::g4(SHiP::view::time(mc)));
         auto* particle = new G4PrimaryParticle(def, cb::g4(mom[0]),
                                                cb::g4(mom[1]), cb::g4(mom[2]));
         vertex->SetPrimary(particle);
@@ -334,8 +352,8 @@ class Geant4Sim {
     G4Random::getTheEngine()->setSeed(static_cast<long>(seed64), 0);
   }
 
-  void init_master(std::shared_ptr<SHiP::IGeometrySource> const& geo,
-                   std::shared_ptr<ship::IFieldSource> const& field) {
+  void init_master(std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
+                   std::shared_ptr<SHiP::IFieldSource> const& field) {
     // Validate the export target up front, before anything is constructed:
     // G4GDMLParser::Write aborts via G4Exception on some write failures, so
     // pre-check the cases we can to fail with a catchable, clear error
@@ -371,7 +389,8 @@ class Geant4Sim {
 
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
-        *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions);
+        *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions,
+        cfg_.scoring_planes);
 
     // Master initialisation runs on the process-wide geometry thread: only
     // one thread per process may create Geant4 geometry (G4GeomSplitter's
@@ -380,7 +399,7 @@ class Geant4Sim {
     // on this thread too (aegir-genie issue #11, Geant4 bug #2747). The call
     // blocks until initialisation is done; exceptions propagate to the
     // caller in simulate(), which records them as a sticky init failure.
-    ship::geometry_thread().run([this] {
+    SHiP::geometry_thread().run([this] {
       AEGIR_TRACE_THREAD_NAME("g4_master");
       AEGIR_TRACE_EVENT("g4", "init_master");
       auto* rm = new G4MTRunManager();
@@ -393,6 +412,14 @@ class Geant4Sim {
       // abort.
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
+      // Transport particles through the scoring planes' parallel world too.
+      // Not a layered-mass world: the planes take on no material, the
+      // detector geometry's material applies everywhere.
+      if (detector_->has_scoring_planes()) {
+        physics->RegisterPhysics(
+            new G4ParallelWorldPhysics(kScoringWorldName,
+                                       /*layeredMass=*/false));
+      }
       rm->SetUserInitialization(physics);
 
       rm->SetUserInitialization(new DirectActionInit());
@@ -447,13 +474,23 @@ class Geant4Sim {
     G4WorkerThread::BuildGeometryAndPhysicsVector();
 
     tl_kernel = new G4WorkerRunManagerKernel();
+    // Also registers the master's parallel worlds (the scoring planes) with
+    // this thread's transportation manager, before the physics list's
+    // G4ParallelWorldProcess looks them up.
     tl_kernel->WorkerDefineWorldVolume(world_pv_);
+    // As G4WorkerRunManager::InitializeGeometry does: with parallel worlds,
+    // InitializePhysics must build the same coupled transportation as the
+    // master's.
+    tl_kernel->SetNumberOfParallelWorld(
+        G4MTRunManager::GetMasterRunManagerKernel()
+            ->GetNumberOfParallelWorld());
 
     physics_list_->InitializeWorker();
     tl_kernel->SetPhysics(physics_list_);
     tl_kernel->InitializePhysics();
 
     detector_->ConstructSDandField();
+    detector_->ConstructParallelSD();
 
     auto* evt_mgr = tl_kernel->GetEventManager();
     evt_mgr->SetUserAction(new TrackingAction(cfg_.particle_ke_cut));
@@ -479,7 +516,7 @@ class Geant4Sim {
   G4VPhysicalVolume* world_pv_ = nullptr;
   G4VUserPhysicsList* physics_list_ = nullptr;
   ConfigurableDetectorConstruction* detector_ = nullptr;  // owned by G4
-  std::shared_ptr<ship::IFieldSource> field_;             // outlives G4 run
+  std::shared_ptr<SHiP::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
   // Kernels that finished init_worker successfully (unlike next_thread_id_,
   // which counts allocated ids). Reported in the shutdown summary.
@@ -500,20 +537,130 @@ class Geant4Sim {
   bool master_constructed_ = false;
 };
 
+[[noreturn]] void plane_error(std::string const& plane,
+                              std::string const& what) {
+  throw std::invalid_argument("geant4_module: scoring plane '" + plane +
+                              "': " + what);
+}
+
+// Read a plane's `shape` and its sizes (mm). Each shape's sizes are required
+// and read only for that shape; a size belonging to the other shape is an
+// error rather than silently ignored.
+void read_plane_shape(phlex::configuration const& entry,
+                      ScoringPlaneConfig& plane) {
+  namespace su = SHiP::units;
+  auto const shape = entry.get<std::string>("shape", std::string{"box"});
+  auto const keys = entry.keys();
+  auto length = [&](char const* key) {
+    auto const value = entry.get_if_present<double>(key);
+    if (!value) {
+      plane_error(plane.name, std::string{"missing '"} + key + "' (mm)");
+    }
+    return *value * su::mm;
+  };
+  auto reject = [&](std::initializer_list<char const*> other_shape_keys) {
+    for (auto const* key : other_shape_keys) {
+      if (std::ranges::find(keys, key) != keys.end()) {
+        plane_error(plane.name, std::string{"'"} + key +
+                                    "' does not apply to shape '" + shape +
+                                    "'");
+      }
+    }
+  };
+  if (shape == "box") {
+    plane.shape = ScoringShape::box;
+    reject({"r_min", "r_max"});
+    plane.half_x = length("half_x");
+    plane.half_y = length("half_y");
+  } else if (shape == "tube") {
+    plane.shape = ScoringShape::tube;
+    reject({"half_x", "half_y"});
+    plane.r_min = length("r_min");
+    plane.r_max = length("r_max");
+  } else {
+    plane_error(plane.name,
+                "shape must be 'box' or 'tube', not '" + shape + "'");
+  }
+  plane.half_z = length("half_z");
+}
+
+// Read the `scoring_planes` list (see scoring_planes.hpp and
+// docs/geant4_integration.md). Lengths are in mm, energies in GeV. Unknown
+// keys are rejected so that a misspelt option (say, `kil`) cannot silently
+// leave a plane with its default behaviour.
+std::vector<ScoringPlaneConfig> read_scoring_planes(
+    phlex::configuration const& config) {
+  namespace su = SHiP::units;
+  static std::unordered_set<std::string> const known_keys{
+      "name",  "id",           "shape",  "half_x",   "half_y",
+      "r_min", "r_max",        "half_z", "position", "after_volume",
+      "gap",   "ke_threshold", "kill"};
+
+  std::vector<ScoringPlaneConfig> planes;
+  auto const entries = config.get_if_present<std::vector<phlex::configuration>>(
+      "scoring_planes");
+  if (!entries) {
+    return planes;
+  }
+  for (std::size_t i = 0; i < entries->size(); ++i) {
+    auto const& entry = (*entries)[i];
+    ScoringPlaneConfig plane{
+        .name = entry.get<std::string>("name", std::string{}),
+    };
+    // Checked first, so that every later error can name the plane.
+    if (plane.name.empty()) {
+      throw std::invalid_argument("geant4_module: scoring plane #" +
+                                  std::to_string(i) +
+                                  " (counting from 0) has no 'name'");
+    }
+    for (auto const& key : entry.keys()) {
+      if (!known_keys.contains(key)) {
+        plane_error(plane.name, "unknown key '" + key + "'");
+      }
+    }
+    // Required, so that a plane's id is chosen explicitly and stays the same
+    // when planes are added, removed or reordered.
+    auto const id = entry.get_if_present<int>("id");
+    if (!id) {
+      plane_error(plane.name, "missing 'id'");
+    }
+    plane.id = *id;
+    read_plane_shape(entry, plane);
+    if (auto const pos =
+            entry.get_if_present<std::vector<double>>("position")) {
+      if (pos->size() != 3) {
+        plane_error(plane.name, "position needs 3 values [x, y, z] (mm)");
+      }
+      plane.position =
+          SHiP::vec_of<SHiP::Length>({(*pos)[0], (*pos)[1], (*pos)[2]});
+    }
+    plane.after_volume = entry.get<std::string>("after_volume", std::string{});
+    plane.gap = SHiP::aegir::get_quantity(entry, "gap", 0.0 * su::mm);
+    plane.ke_threshold =
+        SHiP::aegir::get_quantity(entry, "ke_threshold", 0.0 * su::GeV);
+    plane.kill = entry.get<bool>("kill", false);
+    planes.push_back(std::move(plane));
+  }
+  // Fail at configuration time, before any Geant4 object exists; placement
+  // problems that need the geometry are reported by Construct().
+  validate_scoring_planes(planes);
+  return planes;
+}
+
 }  // namespace
 
 PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
-  namespace su = ship::units;
+  namespace su = SHiP::units;
 
   auto const sd_mode_str =
       config.get<std::string>("sd_mode", std::string{"scoring"});
   auto const ke_threshold =
-      aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
+      SHiP::aegir::get_quantity(config, "ke_threshold", 0.0 * su::GeV);
   auto const regions_map = config.get<std::map<std::string, double>>(
       "regions", std::map<std::string, double>{});
-  std::vector<std::pair<std::string, ship::Length>> regions;
+  std::vector<std::pair<std::string, SHiP::Length>> regions;
   regions.reserve(regions_map.size());
   for (auto const& [pattern, cut_mm] : regions_map) {
     regions.emplace_back(pattern, cut_mm * su::mm);
@@ -526,7 +673,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   auto const active_parallelism =
       static_cast<int>(detail::max_allowed_parallelism::active_value());
 
-  auto const seed = aegir::resolve_seed(config, "geant4");
+  auto const seed = SHiP::aegir::resolve_seed(config, "geant4");
 
   Geant4SimConfig cfg{
       .physics_list =
@@ -537,12 +684,13 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .sd_mode = sd_mode_str == "crossing" ? SDMode::crossing : SDMode::scoring,
       .ke_threshold = ke_threshold,
       .energy_cut = config.get<bool>("energy_cut", false),
-      .energy_cut_threshold = aegir::get_quantity(
-          config, "energy_cut_threshold", ship::Energy{ke_threshold}),
+      .energy_cut_threshold = SHiP::aegir::get_quantity(
+          config, "energy_cut_threshold", SHiP::Energy{ke_threshold}),
       .particle_ke_cut =
-          aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
+          SHiP::aegir::get_quantity(config, "particle_ke_cut", 0.0 * su::GeV),
       .track_all_primaries = config.get<bool>("track_all_primaries", false),
       .regions = std::move(regions),
+      .scoring_planes = read_scoring_planes(config),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
       .progress_interval = config.get<int>("progress_interval", 100),
   };

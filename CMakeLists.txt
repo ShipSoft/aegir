@@ -23,8 +23,8 @@ option(
 )
 
 # Dependencies
-find_package(SHiPDataModel 0.5...<0.6 REQUIRED)
-find_package(SHiPFieldService 0.2 REQUIRED COMPONENTS G4Adapter MapIO)
+find_package(SHiPDataModel 0.6 REQUIRED)
+find_package(SHiPFieldService 0.4 REQUIRED COMPONENTS G4Adapter MapIO)
 
 find_package(spdlog REQUIRED)
 find_package(phlex 0.4.1 REQUIRED)
@@ -62,10 +62,10 @@ set_target_properties(
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
 find_package(SHiPRandom 0.2 REQUIRED)
 
-# >=0.3: ship::geometry_thread() and SHiPGeometryService::sharedFromFile,
+# >=0.5: SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile,
 # shared between geant4_module and any other Geant4 geometry user (e.g.
 # aegir-genie's GENIE source) — see aegir-genie issue #11.
-find_package(SHiPGeometryService 0.3 CONFIG REQUIRED)
+find_package(SHiPGeometryService 0.5 CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace
@@ -87,13 +87,13 @@ endfunction()
 
 aegir_add_plugin(
     particle_gun_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits spdlog::spdlog SHiP::Random
+    LIBS SHiP::DataModel SHiP::Units spdlog::spdlog SHiP::Random
 )
 
 aegir_add_plugin(
     sim_output_module
     LIBS
-        SHiP::SHiPDataModel
+        SHiP::DataModel
         ROOT::Hist
         ROOT::RIO
         ROOT::ROOTHistUtil
@@ -103,35 +103,35 @@ aegir_add_plugin(
 
 aegir_add_plugin(
     geometry_builtin_provider
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits ${Geant4_LIBRARIES}
+    LIBS SHiP::DataModel SHiP::Units ${Geant4_LIBRARIES}
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     geometry_gdml_provider
-    LIBS SHiP::SHiPDataModel ${Geant4_LIBRARIES}
+    LIBS SHiP::DataModel ${Geant4_LIBRARIES}
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     geometry_geomodel_provider
     LIBS
-        SHiP::SHiPDataModel
+        SHiP::DataModel
         ${Geant4_LIBRARIES}
-        SHiPGeometryService::SHiPGeometryService
+        SHiP::GeometryService
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     geant4_module
     LIBS
-        SHiP::SHiPDataModel
-        SHiP::SHiPUnits
+        SHiP::DataModel
+        SHiP::Units
         ${Geant4_LIBRARIES}
         spdlog::spdlog
-        SHiPFieldService::SHiPFieldService
-        SHiPFieldService::G4Adapter
-        SHiPGeometryService::SHiPGeometryService
+        SHiP::FieldService
+        SHiP::FieldServiceG4Adapter
+        SHiP::GeometryService
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src ${Random123_INCLUDE_DIR}
     TRACE
 )
@@ -145,38 +145,35 @@ if(AEGIR_TLS_INITIAL_EXEC)
     target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
 endif()
 
-aegir_add_plugin(field_map_provider LIBS SHiPFieldService::MapIO)
-aegir_add_plugin(field_null_provider LIBS SHiPFieldService::SHiPFieldService)
+aegir_add_plugin(field_map_provider LIBS SHiP::FieldServiceMapIO)
+aegir_add_plugin(field_null_provider LIBS SHiP::FieldService)
 
 aegir_add_plugin(
     pythia8_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
+    LIBS SHiP::DataModel SHiP::Units Pythia8::Pythia8 spdlog::spdlog
         SHiP::Random
 )
 
 aegir_add_plugin(
     fixed_target_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits Pythia8::Pythia8 spdlog::spdlog
+    LIBS SHiP::DataModel SHiP::Units Pythia8::Pythia8 spdlog::spdlog
         SHiP::Random
 )
 
 aegir_add_plugin(
     file_source
-    LIBS SHiP::SHiPDataModel ROOT::ROOTNTuple ROOT::RIO spdlog::spdlog
+    LIBS SHiP::DataModel ROOT::ROOTNTuple ROOT::RIO spdlog::spdlog
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     genie_reader_source
-    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits ROOT::RIO ROOT::Tree
+    LIBS SHiP::DataModel SHiP::Units ROOT::RIO ROOT::Tree
 )
 
 # Standalone Pythia8 benchmark (no Phlex dependency)
 add_executable(pythia8_benchmark benchmarks/pythia8_benchmark.cpp)
-target_link_libraries(
-    pythia8_benchmark
-    PRIVATE Pythia8::Pythia8 SHiP::SHiPUnits
-)
+target_link_libraries(pythia8_benchmark PRIVATE Pythia8::Pythia8 SHiP::Units)
 target_include_directories(
     pythia8_benchmark
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -203,7 +200,7 @@ target_include_directories(
 )
 target_link_libraries(
     aegir_source_helper
-    INTERFACE phlex::module SHiP::SHiPDataModel
+    INTERFACE phlex::module SHiP::DataModel
 )
 install(
     FILES src/mc_particle_source.hpp
@@ -306,4 +303,11 @@ add_test(
 add_test(
     NAME generator_status
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_status.sh
+)
+# Scoring planes: neutrinos and muons fired through planes placed in the
+# builtin geometry are recorded where the geometry says they cross, the
+# killing plane stops them, and bad plane configurations fail cleanly.
+add_test(
+    NAME scoring_planes
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/scoring_planes.sh
 )

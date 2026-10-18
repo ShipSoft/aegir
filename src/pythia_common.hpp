@@ -24,11 +24,11 @@
 
 #include "record_mode.hpp"
 
-namespace aegir {
+namespace SHiP::aegir {
 
 // Pythia8's native units: energies/momenta in GeV, positions in mm,
 // production times in mm/c.
-using PythiaTime = mp_units::quantity<ship::units::mm_per_c, double>;
+using PythiaTime = mp_units::quantity<SHiP::units::mm_per_c, double>;
 
 // Map a 32-bit base seed into Pythia's valid Random:seed range
 // [1, 900000000]. extra_streams reserves headroom for consecutive
@@ -47,13 +47,13 @@ inline int pythia_seed(std::uint32_t base, int extra_streams = 0) {
 // eB = 0). Templated so it works for both Pythia8::Pythia and PythiaParallel.
 template <typename Pythia>
 void configure_beams(Pythia& pythia, int idA, int idB,
-                     ship::Energy beam_energy) {
+                     SHiP::Energy beam_energy) {
   pythia.readString("Beams:idA = " + std::to_string(idA));
   pythia.readString("Beams:idB = " + std::to_string(idB));
   pythia.readString("Beams:frameType = 2");
   pythia.readString(
       "Beams:eA = " +
-      std::to_string(beam_energy.numerical_value_in(ship::units::GeV)));
+      std::to_string(beam_energy.numerical_value_in(SHiP::units::GeV)));
   pythia.readString("Beams:eB = 0.");
 }
 
@@ -63,7 +63,7 @@ void configure_beams(Pythia& pythia, int idA, int idB,
 template <typename Pythia>
 void stabilise_long_lived(Pythia& pythia, PythiaTime tau0_threshold) {
   double const threshold =
-      tau0_threshold.numerical_value_in(ship::units::mm_per_c);
+      tau0_threshold.numerical_value_in(SHiP::units::mm_per_c);
   for (auto it = pythia.particleData.begin(); it != pythia.particleData.end();
        ++it) {
     auto const& entry = it->second;  // ParticleDataEntryPtr (shared_ptr-like)
@@ -92,7 +92,7 @@ void next_event(Pythia& pythia, std::string_view source_name,
 }
 
 // Extract particles from a Pythia event record into a vector of MCParticle
-// (any type exposing pdgCode/vertex/momentum/energy/time/motherId/status).
+// (any type exposing pdg_code/vertex/momentum/energy/time/mother_id/status).
 // vertex z is shifted by z_offset.
 //
 // In final_state mode only undecayed particles are emitted; in full mode the
@@ -111,19 +111,19 @@ void next_event(Pythia& pythia, std::string_view source_name,
 //
 // Indices are remapped from the Pythia record to the returned vector.
 // Mothers that were not themselves written out are dropped rather than
-// recorded as -1, because the data model reserves -1 for motherId alone and
+// recorded as -1, because the data model reserves -1 for mother_id alone and
 // requires every element of `mothers` to be a valid index. In final_state
 // mode most mothers are dropped, since mothers of final-state particles
 // generally are not final state themselves; in full mode the map degenerates
 // to "record index minus one" and the whole chain survives.
 //
-// motherId is then the first surviving mother, or -1 when none survived,
+// mother_id is then the first surviving mother, or -1 when none survived,
 // which keeps it equal to mothers.front() as the data model requires.
 template <typename MCParticle>
 std::vector<MCParticle> extract_particles(
-    Pythia8::Event const& event, ship::Length z_offset = ship::Length::zero(),
+    Pythia8::Event const& event, SHiP::Length z_offset = SHiP::Length::zero(),
     record_mode mode = record_mode::final_state) {
-  namespace su = ship::units;
+  namespace su = SHiP::units;
   std::vector<MCParticle> particles;
   particles.reserve(event.size());
 
@@ -141,17 +141,17 @@ std::vector<MCParticle> extract_particles(
     out_index[static_cast<std::size_t>(i)] = static_cast<int>(particles.size());
 
     MCParticle mc;
-    mc.pdgCode = p.id();
-    // Each Pythia accessor acquires its unit on the read line; ship::raw is
-    // the single bitwise unwrap into the storage units. The ship::view
+    mc.pdg_code = p.id();
+    // Each Pythia accessor acquires its unit on the read line; SHiP::raw is
+    // the single bitwise unwrap into the storage units. The SHiP::view
     // setters are unavailable here because MCParticle is a template parameter
     // (the benchmark instantiates a local struct without the data model).
-    mc.vertex = ship::raw(ship::Vec3<ship::Length>{
+    mc.vertex = SHiP::raw(SHiP::Vec3<SHiP::Length>{
         p.xProd() * su::mm, p.yProd() * su::mm, p.zProd() * su::mm + z_offset});
-    mc.momentum = ship::raw(ship::Vec3<ship::Momentum>{p.px() * su::GeV_per_c,
+    mc.momentum = SHiP::raw(SHiP::Vec3<SHiP::Momentum>{p.px() * su::GeV_per_c,
                                                        p.py() * su::GeV_per_c,
                                                        p.pz() * su::GeV_per_c});
-    mc.energy = ship::raw(p.e() * su::GeV);
+    mc.energy = SHiP::raw(p.e() * su::GeV);
     // mm/c -> ns via the exact definition of c (no hand-typed constant).
     mc.time = (p.tProd() * su::mm_per_c).numerical_value_in(su::ns);
     mc.status = p.statusHepMC();
@@ -174,9 +174,9 @@ std::vector<MCParticle> extract_particles(
       }
     }
     mc.mothers = std::move(mapped);
-    mc.motherId = mc.mothers.empty() ? -1 : mc.mothers.front();
+    mc.mother_id = mc.mothers.empty() ? -1 : mc.mothers.front();
   }
   return particles;
 }
 
-}  // namespace aegir
+}  // namespace SHiP::aegir

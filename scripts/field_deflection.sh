@@ -44,7 +44,7 @@ xs = {}
 for i in range(reader.GetNEntries()):
     seen = set()
     for h in view(i):
-        if h.trackId != 1 or h.pdgCode != 13:
+        if h.track_id != 1 or h.pdg_code != 13:
             continue
         plane = round(h.position[2] / 1000.0)  # planes sit at whole metres
         if plane in seen:

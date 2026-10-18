@@ -22,13 +22,13 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 class ParticleGun : public phlex::source {
  public:
-  ParticleGun(std::string stage, int pdg, ship::Momentum p_min,
-              ship::Momentum p_max, ship::Angle max_theta,
-              ship::Vec3<ship::Length> vertex, std::uint32_t seed)
+  ParticleGun(std::string stage, int pdg, SHiP::Momentum p_min,
+              SHiP::Momentum p_max, SHiP::Angle max_theta,
+              SHiP::Vec3<SHiP::Length> vertex, std::uint32_t seed)
       : stage_{std::move(stage)},
         pdg_{pdg},
         p_min_{p_min},
@@ -53,24 +53,24 @@ class ParticleGun : public phlex::source {
     double const phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
 
     SHiP::MCParticle mc;
-    mc.pdgCode = pdg_;
-    ship::view::setVertex(mc, vertex_);
-    ship::view::setMomentum(
-        mc, ship::vecOf<ship::Momentum>({p * std::sin(theta) * std::cos(phi),
-                                         p * std::sin(theta) * std::sin(phi),
-                                         p * std::cos(theta)}));
+    mc.pdg_code = pdg_;
+    SHiP::view::set_vertex(mc, vertex_);
+    SHiP::view::set_momentum(
+        mc, SHiP::vec_of<SHiP::Momentum>({p * std::sin(theta) * std::cos(phi),
+                                          p * std::sin(theta) * std::sin(phi),
+                                          p * std::cos(theta)}));
     // Assume massless, E = |p|c (good enough for muons at high p).
-    ship::view::setEnergy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
-    ship::view::setTime(mc, ship::Time::zero());
-    mc.motherId = -1;
-    mc.status = aegir::hepmc::final_state;
+    SHiP::view::set_energy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
+    SHiP::view::set_time(mc, SHiP::Time::zero());
+    mc.mother_id = -1;
+    mc.status = SHiP::aegir::hepmc::final_state;
 
     return {mc};
   }
 
   phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
+    return SHiP::aegir::mc_particle_provider_bundles(
         selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::unlimited);
@@ -79,9 +79,9 @@ class ParticleGun : public phlex::source {
  private:
   std::string stage_;
   int pdg_;
-  ship::Momentum p_min_, p_max_;
-  ship::Angle max_theta_;
-  ship::Vec3<ship::Length> vertex_;
+  SHiP::Momentum p_min_, p_max_;
+  SHiP::Angle max_theta_;
+  SHiP::Vec3<SHiP::Length> vertex_;
   std::uint32_t seed_;
 };
 
@@ -91,19 +91,21 @@ PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
   auto const pdg = config.get<int>("pdg", 13);  // muon
-  auto const p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
+  auto const p_min =
+      SHiP::aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
   auto const p_max =
-      aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
+      SHiP::aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
   auto const max_theta =
-      aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
-  auto const vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
-  auto const vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
+      SHiP::aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
+  auto const vx = SHiP::aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
+  auto const vy = SHiP::aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
   // Default: upstream of the target.
-  auto const vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
-  auto seed = aegir::resolve_seed(config, "particle_gun");
-  auto stage = aegir::source_stage(config, "particle_gun");
+  auto const vz =
+      SHiP::aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
+  auto seed = SHiP::aegir::resolve_seed(config, "particle_gun");
+  auto stage = SHiP::aegir::source_stage(config, "particle_gun");
 
   s.add_source<ParticleGun>("particle_gun", std::move(stage), pdg, p_min, p_max,
-                            max_theta, ship::Vec3<ship::Length>{vx, vy, vz},
+                            max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz},
                             seed);
 }

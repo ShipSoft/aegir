@@ -29,6 +29,8 @@
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
+#include <atomic>
+#include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -39,13 +41,9 @@
 #include <utility>
 #include <vector>
 
-#include <atomic>
-#include <boost/json.hpp>
-#include <cstdint>
 #include "TFile.h"
-#include "TObjString.h"
-
 #include "TH1D.h"
+#include "TObjString.h"
 #include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
@@ -224,8 +222,7 @@ class SimRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
-
-  ~SimRNTupleWrite() {
+  ~SimRNTupleWriter() {
     pool_.reset();
     writer_.reset();
     write_summary();
@@ -237,41 +234,41 @@ class SimRNTupleWriter {
           {"schema_version", 1},
           {"producer", "aegir"},
           {"filter_empty", filter_empty_},
-          {"n_events_generated", total_gen.load()},
-          {"n_events_written", total_written.load()},
-          {"max_aegir_event_id_saved", max_event_id.load()},
+          {"n_events_generated", m_total_gen.load()},
+          {"n_events_written", m_total_written.load()},
+          {"max_aegir_event_id_saved", m_max_event_id.load()},
       };
 
-      std::unique_ptr<TFile> file{TFile::Open(m_filename_.c_str(), "UPDATE")};
+      std::unique_ptr<TFile> file{TFile::Open(m_filename.c_str(), "UPDATE")};
       if (!file || file->IsZombie()) {
         throw std::runtime_error("cannot open file for update");
       }
       TObjString const json{boost::json::serialize(summary).c_str()};
-      if (file->WriteObject(&json, "run_summary") <= 0) {
+      if (file->WriteObject(&json, "file_summary") <= 0) {
         throw std::runtime_error("WriteObject failed");
       }
-      spdlog::info("sim_output_module: wrote run_summary to '{}'", filename_);
+      spdlog::info("sim_output_module: wrote run_summary to '{}'", m_filename);
     } catch (std::exception const& e) {
       try {
-        spdlog::error("sim_output_module: failed to write run_summary to '{}': {}",
-                      filename_, e.what());
+        spdlog::error(
+            "sim_output_module: failed to write run_summary to '{}': {}",
+            m_filename, e.what());
       } catch (...) {
       }
     }
   }
 
-
   void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::SimResult const& result, SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
-    total_gen.fetch_add(1, std::memory_order_relaxed);
+    m_total_gen.fetch_add(1, std::memory_order_relaxed);
 
     if (filter_empty_ && result.hits.empty()) {
       return;
     }
     update_max_event_id(header.aegir_event_id);
-    total_written.fetch_add(1, std::memory_order_relaxed);
+    m_total_written.fetch_add(1, std::memory_order_relaxed);
 
     std::uint64_t event_number = particles.data_cell_index().number();
     auto const lease = pool_->acquire();
@@ -293,12 +290,10 @@ class SimRNTupleWriter {
   }
 
  private:
-
   void update_max_event_id(std::int64_t id) {
-    auto seen = max_event_id_.load(std::memory_order_relaxed);
-    while (id > seen &&
-           !max_event_id_.compare_exchange_weak(seen, id,
-                                                std::memory_order_relaxed)) {
+    auto seen = m_max_event_id.load(std::memory_order_relaxed);
+    while (id > seen && !m_max_event_id.compare_exchange_weak(
+                            seen, id, std::memory_order_relaxed)) {
     }
   }
 
@@ -308,10 +303,10 @@ class SimRNTupleWriter {
   // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
   std::optional<FillStatePool> pool_;
-  std::string filename;
-  std::atomic<std::uint64_t> total_gen{0};
-  std::atomic<std::uint64_t> total_written{0};
-  std::atomic<std::uint64_t> max_event_id{0};
+  std::string m_filename;
+  std::atomic<std::uint64_t> m_total_gen{0};
+  std::atomic<std::uint64_t> m_total_written{0};
+  std::atomic<std::uint64_t> m_max_event_id{0};
 };
 
 // Validation histograms for MC particles (thread-safe via per-thread

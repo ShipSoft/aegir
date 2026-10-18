@@ -20,13 +20,15 @@ field-service-g4 = ">=0.2.0"
 field-service-mapio = ">=0.2.0"
 # generate_constant_fieldmap, used by the field_deflection test.
 field-service-tools = ">=0.2.0"
-phlex = ">=0.3.0"
+phlex = ">=0.4.1"
 root = ">=6.40"
 # aegir/phlex are C++23 — pull the matching ROOT build variant.
 root_cxx_standard = "==23"
 geant4 = ">=11.3"
-pythia8 = ">=8.3"
+pythia8 = ">=8.312"
 random123 = "*"
+# SHiP::random::PhiloxRng, the generators' per-event RNG.
+ship-random = ">=0.2"
 libjsonnet = "*"
 ship-ci-metrics = "*"
 
@@ -64,9 +66,13 @@ clang-tools = ">=19"
 [feature.released.dependencies]
 # >=0.2: provides the SHiP::SHiPUnits target and SHiP/Units.hpp (mp-units
 # vocabulary) that the Geant4 CLHEP unit bridge links against.
-# >=0.4: provides SHiP/EventHeader.hpp, the per-event weight and provenance
-# record every generator source publishes alongside mc_particles.
-shipdatamodel = ">=0.4"
+# >=0.5: provides MCParticle::mothers, the resolved mother list the generator
+# sources fill, along with the mothersAreConsistent/mothersArePopulated
+# invariant checks. 0.4 added SHiP/EventHeader.hpp, the per-event weight and
+# provenance record every generator source publishes alongside mc_particles.
+# <0.6: 0.6 renamed the field names and helpers to snake_case; aegir still
+# uses the camelCase names.
+shipdatamodel = ">=0.5,<0.6"
 shipgeometry = "*"
 # >=0.3: process-wide geometry thread + shared service registry, both shared
 # between geant4_module and any other Geant4 geometry user (e.g. aegir-genie's
@@ -183,6 +189,11 @@ sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg
 # validates every environment even when only the default one is used.
 # To test a colleague's PR without a local checkout, use a git spec instead:
 #   shipdatamodel = { git = "https://github.com/ShipSoft/data-model", branch = "<pr-branch>" }
+# When geometry and geometry_service are both path entries, also set
+# `shipgeometry = { path = "../geometry" }` under [package.host-dependencies]
+# in geometry_service's pixi.toml (do not commit that either). Otherwise it
+# builds against the released shipgeometry, which can pin an older
+# geomodel-core than ../geometry picks up, and the dev environment won't solve.
 # See the Developer Guide (SHiP Documentation site) for the full workflow.
 #
 # [feature.dev]

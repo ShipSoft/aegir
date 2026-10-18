@@ -1,6 +1,7 @@
 local lib = import 'lib.libsonnet';
 {
-  driver: lib.driver(10000),
+  stage: lib.stage,
+  driver: lib.driver(100),
   sources: {
     field: lib.null_field,
     #geometry: lib.builtin_geometry,

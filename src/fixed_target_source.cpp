@@ -9,19 +9,23 @@
 // - Interaction point sampled from truncated exponential in target material
 // - Long-lived particles made stable for G4 decay
 // - Multiple physics processes matching FairShip defaults
+// - Every random number an event uses is keyed to its event number, so
+//   the output does not depend on the order events are processed in
 
 #include <Pythia8/Pythia.h>
 
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/random/philox_rng.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "mc_particle_source.hpp"
-#include "philox_rng.hpp"
 #include "pythia_common.hpp"
+#include "pythia_philox_engine.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
@@ -39,29 +43,35 @@ void configure_processes(Pythia8::Pythia& pythia) {
 
 class FixedTargetSource : public phlex::source {
  public:
-  FixedTargetSource(std::string const& xml_dir, ship::Energy beam_energy,
-                    int target_z, int target_a, ship::Length target_z_start,
-                    ship::Length target_z_end, ship::Length interaction_length,
-                    aegir::PythiaTime tau0_threshold, std::uint32_t seed)
-      : target_z_{target_z},
+  FixedTargetSource(std::string stage, std::string const& xml_dir,
+                    ship::Energy beam_energy, int target_z, int target_a,
+                    ship::Length target_z_start, ship::Length target_z_end,
+                    ship::Length interaction_length,
+                    aegir::PythiaTime tau0_threshold, aegir::record_mode record,
+                    std::uint32_t seed)
+      : stage_{std::move(stage)},
+        target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
         interaction_length_{interaction_length},
+        record_{record},
         seed_{seed} {
-    // Consecutive seeds give the two instances distinct Pythia streams —
-    // sharing one seed would replay the same random sequence in both.
-    // pythia_seed's headroom of 1 keeps the +1 inside Pythia's valid range.
-    auto const configure_pythia_seed = [seed](Pythia8::Pythia& pythia,
-                                              int offset) {
-      pythia.readString("Random:setSeed = on");
-      pythia.readString("Random:seed = " +
-                        std::to_string(aegir::pythia_seed(seed, 1) + offset));
-    };
+    // Both instances draw from Philox engines that generate() re-keys to the
+    // event number before every event (see pythia_philox_engine.hpp). Pythia
+    // also draws while initialising; distinct init sub-streams keep the two
+    // instances apart there.
+    auto const attach_engine =
+        [seed](Pythia8::Pythia& pythia,
+               std::shared_ptr<aegir::PhiloxRndmEngine> const& engine,
+               std::uint32_t init_substream) {
+          engine->reset(seed, aegir::kPythiaInitStream, init_substream);
+          pythia.setRndmEnginePtr(engine);
+        };
 
     // Proton target (p-p)
     pythia_pp_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
-    configure_pythia_seed(*pythia_pp_, 0);
+    attach_engine(*pythia_pp_, engine_pp_, 0);
     aegir::configure_beams(*pythia_pp_, 2212, 2212, beam_energy);
     configure_processes(*pythia_pp_);
     pythia_pp_->readString("Print:quiet = on");
@@ -70,7 +80,7 @@ class FixedTargetSource : public phlex::source {
 
     // Neutron target (p-n)
     pythia_pn_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
-    configure_pythia_seed(*pythia_pn_, 1);
+    attach_engine(*pythia_pn_, engine_pn_, 1);
     aegir::configure_beams(*pythia_pn_, 2212, 2112, beam_energy);
     configure_processes(*pythia_pn_);
     pythia_pn_->readString("Print:quiet = on");
@@ -82,7 +92,7 @@ class FixedTargetSource : public phlex::source {
     auto event_number = static_cast<std::uint32_t>(id.number());
     // 0xF14ED0A7: independent stream from the particle gun (0xBEEFCAFE
     // default).
-    aegir::PhiloxRng rng{seed_, 0xF14ED0A7, event_number};
+    SHiP::random::PhiloxRng rng{seed_, 0xF14ED0A7, event_number};
 
     // Select target: proton with probability Z/A, else neutron
     double const z_over_a =
@@ -99,31 +109,38 @@ class FixedTargetSource : public phlex::source {
         interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
 
     auto& pythia = proton_target ? *pythia_pp_ : *pythia_pn_;
+    // Key Pythia's draws to this event, whatever order events arrive in.
+    (proton_target ? engine_pp_ : engine_pn_)
+        ->reset(seed_, aegir::kPythiaEventStream, event_number);
     aegir::next_event(pythia, proton_target ? "FixedTargetSource (pp)"
                                             : "FixedTargetSource (pn)");
 
     return aegir::extract_particles<SHiP::MCParticle>(pythia.event,
-                                                      z_interaction);
+                                                      z_interaction, record_);
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial);
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
   int target_z_;
   int target_a_;
   ship::Length target_z_start_;
   ship::Length target_z_end_;
   ship::Length interaction_length_;
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pp_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
+  std::shared_ptr<aegir::PhiloxRndmEngine> engine_pn_ =
+      std::make_shared<aegir::PhiloxRndmEngine>();
   std::unique_ptr<Pythia8::Pythia> pythia_pp_;
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
+  aegir::record_mode record_;
   std::uint32_t seed_;
 };
 
@@ -150,9 +167,14 @@ PHLEX_REGISTER_SOURCE(s, config) {
       aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
       aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
+  auto const record = aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "fixed_target");
   auto seed = aegir::resolve_seed(config, "fixed_target");
+  auto stage = aegir::source_stage(config, "fixed_target");
 
   s.add_source<FixedTargetSource>(
-      "fixed_target", xml_dir, beam_energy, target_z, target_a, target_z_start,
-      target_z_end, interaction_length, tau0_threshold, seed);
+      "fixed_target", std::move(stage), xml_dir, beam_energy, target_z,
+      target_a, target_z_start, target_z_end, interaction_length,
+      tau0_threshold, record, seed);
 }

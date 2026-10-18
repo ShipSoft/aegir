@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "mc_particle_source.hpp"
 
@@ -62,15 +63,17 @@ SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
   // SimParticle::parentId is the parent's track id (0 for primaries); map the
   // primary case to MCParticle's -1 convention.
   mc.motherId = sp.parentId == 0 ? -1 : sp.parentId;
-  mc.status = 1;
+  mc.status = aegir::hepmc::final_state;
   return mc;
 }
 
 class FileSource : public phlex::source {
  public:
-  FileSource(std::string const& input_file, std::string const& ntuple,
-             std::string const& product, long skip)
-      : skip_{skip}, read_sim_{product == "sim_particles"} {
+  FileSource(std::string stage, std::string const& input_file,
+             std::string const& ntuple, std::string const& product, long skip)
+      : stage_{std::move(stage)},
+        skip_{skip},
+        read_sim_{product == "sim_particles"} {
     // skip_ is cast to the unsigned ROOT::NTupleSize_t in generate(); reject a
     // negative skip here rather than let it wrap around to a huge offset.
     if (skip < 0) {
@@ -150,7 +153,7 @@ class FileSource : public phlex::source {
     return (*header_view_)(entry);
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
     // additionally guards the reader against the concurrent header provider.
@@ -161,14 +164,13 @@ class FileSource : public phlex::source {
       };
     }
     return aegir::mc_particle_provider_bundles(
-        selector,
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::serial, std::move(header_gen));
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
   long skip_;
   bool read_sim_;
   ROOT::NTupleSize_t n_entries_{0};
@@ -194,6 +196,8 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("product", std::string{"mc_particles"});
   auto const skip =
       config.get<long>("skip", 0L);  // start reading at this entry
+  auto stage = aegir::source_stage(config, "file_source");
 
-  s.add_source<FileSource>("file_source", input_file, ntuple, product, skip);
+  s.add_source<FileSource>("file_source", std::move(stage), input_file, ntuple,
+                           product, skip);
 }

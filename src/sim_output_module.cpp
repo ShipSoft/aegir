@@ -29,6 +29,7 @@
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -44,8 +45,10 @@
 #include "TObjString.h"
 
 #include "TH1D.h"
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
+#include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 
 namespace {
@@ -64,6 +67,7 @@ struct FillState {
   // Field tokens cached once per context to avoid a per-event name lookup.
   // Entries and tokens belong to their context's clone of the model, so they
   // must stay together with the context.
+  ROOT::RFieldToken event_number;
   ROOT::RFieldToken event_header;
   ROOT::RFieldToken mc_particles;
   ROOT::RFieldToken sim_hits;
@@ -149,11 +153,15 @@ class MCRNTupleWriter {
   MCRNTupleWriter(std::string filename, std::size_t cluster_mib,
                   std::size_t n_contexts) {
     auto model = RNTupleModel::CreateBare();
+    // The phlex event number: the multi-threaded writer stores events in the
+    // order they finish, so entry order says nothing about which event it is.
+    model->MakeField<std::uint64_t>("event_number");
     model->MakeField<SHiP::EventHeader>("event_header");
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     writer_ = RNTupleParallelWriter::Recreate(
         std::move(model), "events", filename, make_write_options(cluster_mib));
     pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.event_number = state.entry->GetToken("event_number");
       state.event_header = state.entry->GetToken("event_header");
       state.mc_particles = state.entry->GetToken("mc_particles");
     });
@@ -163,17 +171,19 @@ class MCRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
-  void write(std::vector<SHiP::MCParticle> const& particles,
+  void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::EventHeader const& header) {
+    std::uint64_t event_number = particles.data_cell_index().number();
     auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind the inputs directly for the duration of Fill (which only reads
     // them), avoiding a full copy of the particle vector every event.
+    state.entry->BindRawPtr(state.event_number, &event_number);
     state.entry->BindRawPtr(state.event_header,
                             const_cast<SHiP::EventHeader*>(&header));
     state.entry->BindRawPtr(
         state.mc_particles,
-        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
+        const_cast<std::vector<SHiP::MCParticle>*>(&*particles));
     state.ctx->Fill(*state.entry);
   }
 
@@ -192,6 +202,7 @@ class SimRNTupleWriter {
                    std::size_t cluster_mib, std::size_t n_contexts)
       : filter_empty_{filter_empty}, m_filename{filename} {
     auto model = RNTupleModel::CreateBare();
+    model->MakeField<std::uint64_t>("event_number");
     model->MakeField<SHiP::EventHeader>("event_header");
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     model->MakeField<std::vector<SHiP::SimHit>>("sim_hits");
@@ -199,6 +210,7 @@ class SimRNTupleWriter {
     writer_ = RNTupleParallelWriter::Recreate(
         std::move(model), "events", filename, make_write_options(cluster_mib));
     pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.event_number = state.entry->GetToken("event_number");
       state.event_header = state.entry->GetToken("event_header");
       state.mc_particles = state.entry->GetToken("mc_particles");
       state.sim_hits = state.entry->GetToken("sim_hits");
@@ -209,6 +221,7 @@ class SimRNTupleWriter {
         "{} MiB cluster target",
         filename, n_contexts, cluster_mib);
   }
+
 
   ~SimRNTupleWrite() {
     pool_.reset();
@@ -245,7 +258,8 @@ class SimRNTupleWriter {
     }
   }
 
-  void write(std::vector<SHiP::MCParticle> const& particles,
+
+  void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::SimResult const& result, SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
@@ -256,15 +270,18 @@ class SimRNTupleWriter {
     }
     update_max_event_id(header.aegir_event_id);
     total_written.fetch_add(1, std::memory_order_relaxed);
+
+    std::uint64_t event_number = particles.data_cell_index().number();
     auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind inputs directly for the duration of Fill (read-only), avoiding a
     // full copy of each vector every event.
+    state.entry->BindRawPtr(state.event_number, &event_number);
     state.entry->BindRawPtr(state.event_header,
                             const_cast<SHiP::EventHeader*>(&header));
     state.entry->BindRawPtr(
         state.mc_particles,
-        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
+        const_cast<std::vector<SHiP::MCParticle>*>(&*particles));
     state.entry->BindRawPtr(
         state.sim_hits, const_cast<std::vector<SHiP::SimHit>*>(&result.hits));
     state.entry->BindRawPtr(
@@ -317,14 +334,25 @@ class MCHistogrammer {
       ctxs.momentum = f_momentum_.CreateFillContext();
       ctxs.pdg = f_pdg_.CreateFillContext();
     }
-    ctxs.multiplicity->Fill(static_cast<double>(particles.size()));
+    // Only final-state particles are histogrammed, so the plots mean "what
+    // was handed to the detector simulation" whichever record mode the
+    // generator ran in. Under `record: 'full'` the collection also holds
+    // beams, strings and decayed mothers, which would swamp the PDG axis and
+    // overflow the multiplicity one. The written product is unaffected — the
+    // full record still reaches disk.
+    std::size_t multiplicity = 0;
     for (auto const& p : particles) {
+      if (!aegir::hepmc::is_final_state(p.status)) {
+        continue;
+      }
+      ++multiplicity;
       // Histograms are filled in the storage units straight off the persisted
       // structs; no unit conversion occurs (docs/units.md).
       double const pmag = aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
       ctxs.pdg->Fill(static_cast<double>(p.pdgCode));
     }
+    ctxs.multiplicity->Fill(static_cast<double>(multiplicity));
   }
 
   ~MCHistogrammer() {
@@ -405,11 +433,17 @@ class SimHistogrammer {
       ctxs.hit_momentum = f_hit_momentum_.CreateFillContext();
       ctxs.particle_multiplicity = f_particle_multiplicity_.CreateFillContext();
     }
-    ctxs.mc_multiplicity->Fill(static_cast<double>(particles.size()));
+    // Final-state entries only, for the reason given in MCHistogrammer.
+    std::size_t mc_multiplicity = 0;
     for (auto const& p : particles) {
+      if (!aegir::hepmc::is_final_state(p.status)) {
+        continue;
+      }
+      ++mc_multiplicity;
       double const pmag = aegir::magnitude(p.momentum);
       ctxs.mc_momentum->Fill(pmag);
     }
+    ctxs.mc_multiplicity->Fill(static_cast<double>(mc_multiplicity));
     ctxs.hit_multiplicity->Fill(static_cast<double>(result.hits.size()));
     for (auto const& hit : result.hits) {
       ctxs.hit_edep->Fill(hit.energyDeposit);

@@ -18,6 +18,7 @@ cat >"$workdir/gun.jsonnet" <<'EOF'
 local n_events = std.parseInt(std.extVar('events'));
 local seed = std.parseInt(std.extVar('seed'));
 {
+  stage: 'simulation',
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
@@ -25,6 +26,7 @@ local seed = std.parseInt(std.extVar('seed'));
   sources: {
     gun: {
       cpp: 'particle_gun_source',
+      stage: 'simulation',
       pdg: 13,
       p_min: 10.0,
       p_max: 100.0,

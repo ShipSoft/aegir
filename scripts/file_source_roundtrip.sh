@@ -8,7 +8,8 @@
 #   - count_entries.py reports the written event count (the read-all helper),
 #   - reading the whole file processes every event,
 #   - the `skip` offset starts at the requested entry and processes exactly the
-#     requested number of events, serving the correct entries.
+#     requested number of events, serving the correct entries,
+#   - a `product` naming a field the file does not have fails clearly.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -183,5 +184,25 @@ got=$(python3 "$here/count_entries.py" "$workdir/g4_sim.root")
 [ "$got" = "$sn" ] || { echo "geant4 sim read: expected $sn events, got $got"; exit 1; }
 python3 "$workdir/check_nonempty.py" "$workdir/g4_sim.root" sim_particles SimParticle
 
-echo "file_source round-trip passed: count helper, read-all, skip offset, and"
-echo "Geant4 re-simulation (MCParticle and SimParticle inputs) all correct"
+# 8. A product the input does not have stops the job with a clear message
+#    instead of ROOT's own error.
+sed "s/product: 'mc_particles'/product: 'no_such_field'/" "$workdir/read.jsonnet" \
+  >"$workdir/read_missing.jsonnet"
+if out=$(phlex -c <(jsonnet \
+  --ext-str events=1 --ext-str skip=0 \
+  --ext-str infile="$workdir/input.root" \
+  --ext-str simout="$workdir/missing.root" \
+  --ext-str histo="$workdir/missing_valid.root" \
+  "$workdir/read_missing.jsonnet") 2>&1); then
+  echo "missing product: the job should have failed"
+  exit 1
+fi
+grep -q "has no field 'no_such_field'" <<<"$out" || {
+  echo "missing product: unexpected error"
+  echo "$out"
+  exit 1
+}
+
+echo "file_source round-trip passed: count helper, read-all, skip offset,"
+echo "Geant4 re-simulation (MCParticle and SimParticle inputs) and the missing"
+echo "product error all correct"

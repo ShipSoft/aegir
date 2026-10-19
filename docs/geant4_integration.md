@@ -359,9 +359,9 @@ descended from a marked track can reach it, and only one plane may record.
 
 `file_source` reads the field back with `product: 'plane_particles'`. Its
 `product` key names any `std::vector<SHiP::MCParticle>` field of the input
-(`mc_particles` by default), or `sim_particles`, which it converts to
-MCParticles. It passes on the input's event header and, when that has no
-`original_event_id` yet, sets it to the first run's `event_number`, so each
+(`mc_particles` by default). It passes on the input's event header and, when
+that has no `original_event_id` yet, sets it to the first run's
+`event_number`, so each
 replayed event can be matched to the event it came from even when the first
 run dropped empty events.
 

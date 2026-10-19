@@ -249,8 +249,8 @@ add_test(
 )
 
 # file_source round-trip: write an RNTuple, read it back through file_source +
-# Geant4, and check the count helper, read-all, the skip offset, and the
-# re-simulation of both MCParticle and SimParticle inputs.
+# Geant4, and check the count helper, read-all, the skip offset, the
+# re-simulation, and the errors for a missing or non-MCParticle product.
 add_test(
     NAME file_source_roundtrip
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/file_source_roundtrip.sh

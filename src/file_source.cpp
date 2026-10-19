@@ -16,7 +16,9 @@
 // "plane_particles". The `product` key names the field to read, which must
 // hold MCParticles. "plane_particles" restarts a simulation from the
 // particles a scoring plane recorded in an earlier stage (only their status-1
-// entries are tracked; the rest is their ancestry).
+// entries are tracked; the rest is their ancestry). Those particles carry
+// their kinematics at their origin, so they are tracked again from there,
+// not from the plane.
 //
 // The event header is passed through, and its original_event_id, if unset,
 // is filled from the input's event_number, so that each replayed event can

@@ -164,7 +164,7 @@ expect_failure beyond_world "extends beyond the world" \
 expect_failure unknown_key "unknown key 'kil'" \
   "[{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
 expect_failure missing_name "scoring plane #0 (counting from 0) has no 'name'" \
-  "[{ id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kil: true }]"
+  "[{ id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
 expect_failure missing_id "missing 'id'" \
   "[{ name: 'p', half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500] }]"
 expect_failure duplicate_id "id 1 used by more than one plane" \

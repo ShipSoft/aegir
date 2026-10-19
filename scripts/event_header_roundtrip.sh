@@ -75,11 +75,11 @@ for i in range(n):
     particles = entry["mc_particles"]
     particles.clear()
     p = ROOT.SHiP.MCParticle()
-    p.pdgCode = 13
+    p.pdg_code = 13
     p.vertex[2] = -500.0
     p.momentum[2] = 10.0 + i
     p.energy = 10.0 + i
-    p.motherId = -1
+    p.mother_id = -1
     p.status = 1
     particles.push_back(p)
     if with_header:

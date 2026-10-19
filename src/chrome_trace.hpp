@@ -130,13 +130,15 @@ class ScopedEvent {
 
 #define AEGIR_TRACE_CONCAT_(a, b) a##b
 #define AEGIR_TRACE_CONCAT(a, b) AEGIR_TRACE_CONCAT_(a, b)
-#define AEGIR_TRACE_EVENT(cat, name)                                        \
-  ::aegir::trace::ScopedEvent AEGIR_TRACE_CONCAT(_aegir_trace_, __LINE__) { \
-    cat, name                                                               \
+#define AEGIR_TRACE_EVENT(cat, name)                                  \
+  ::SHiP::aegir::trace::ScopedEvent AEGIR_TRACE_CONCAT(_aegir_trace_, \
+                                                       __LINE__) {    \
+    cat, name                                                         \
   }
 #define AEGIR_TRACE_COUNTER(cat, name, value) \
-  ::aegir::trace::write_counter(cat, name, static_cast<long long>(value))
-#define AEGIR_TRACE_THREAD_NAME(name) ::aegir::trace::set_thread_name(name)
+  ::SHiP::aegir::trace::write_counter(cat, name, static_cast<long long>(value))
+#define AEGIR_TRACE_THREAD_NAME(name) \
+  ::SHiP::aegir::trace::set_thread_name(name)
 
 #else  // !AEGIR_ENABLE_TRACE
 

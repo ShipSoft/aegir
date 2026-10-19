@@ -9,7 +9,10 @@
 # are recorded although they deposit nothing; that a plane cutting through the
 # target records like any other (the planes live in a parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
-# 'hit_ancestry' writes exactly the hit tracks and their ancestors. Then check
+# 'hit_ancestry' writes exactly the hit tracks and their ancestors. Check that
+# the recording plane's plane_particles hold the tracks it recorded, from
+# their origin, with their full ancestry, and that a replay of them tracks
+# exactly those again. Then check
 # that bad configurations fail with a clear error instead of running, and that
 # the fixed-target production workflow evaluates to the intended settings.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
@@ -131,9 +134,111 @@ sys.stdout.flush()
 os._exit(0 if ok else 1)  # dodge a PyROOT RNTuple teardown crash
 EOF
 
+# plane_particles: one status-1 entry per track plane 3 recorded going
+# forward, in crossing order, at the track's origin (as in sim_particles, when
+# it is there); everything else is ancestry with another status, and every
+# chain of mothers ends at an entry without any.
+cat >"$workdir/check_plane_particles.py" <<'EOF'
+import math
+import os
+import sys
+
+import ROOT
+
+# Every recorded track and all of its ancestors must be in sim_particles too,
+# whatever the particle_ke_cut. With --want-history KE_CUT, some ancestry must
+# be written, and some of those tracks must be below KE_CUT (GeV), which
+# sim_particles would otherwise leave out.
+path, want_history = sys.argv[1], sys.argv[2] == "--want-history"
+ke_cut = float(sys.argv[3]) if want_history else 0.0
+SCORING_PLANE, RECORDING = 100, 3
+
+reader = ROOT.RNTupleReader.Open("events", path)
+hits_view = reader.GetView["std::vector<SHiP::SimHit>"]("sim_hits")
+parts_view = reader.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
+plane_view = reader.GetView["std::vector<SHiP::MCParticle>"]("plane_particles")
+errors = []
+recorded_total = history_total = below_cut = 0
+
+n = reader.GetNEntries()
+for i in range(n):
+    def expect(cond, what):
+        if not cond:
+            errors.append(f"entry {i}: {what}")
+
+    recorded = []
+    for h in hits_view(i):
+        if (h.detector_id == SCORING_PLANE and h.geometry_node_id == RECORDING
+                and h.momentum[2] > 0 and h.track_id not in recorded):
+            recorded.append(h.track_id)
+    tracks = {p.track_id: p for p in parts_view(i)}
+    written = {(p.pdg_code, tuple(p.vertex)) for p in tracks.values()}
+    out = list(plane_view(i))
+    finals = [p for p in out if p.status == 1]
+    expect(len(finals) == len(recorded),
+           f"{len(finals)} status-1 entries for {len(recorded)} recorded tracks")
+    expect(all(p.status == 1 for p in out[: len(finals)]),
+           "recorded tracks do not come first")
+    def close(a, b):
+        # A recorded primary is the generator's particle, which differs from
+        # Geant4's copy by the round trip through Geant4 units.
+        return all(math.isclose(x, y, rel_tol=1e-9, abs_tol=1e-9)
+                   for x, y in zip(a, b))
+
+    for track_id, p in zip(recorded, out):
+        sp = tracks.get(track_id)
+        expect(sp is not None, f"recorded track {track_id} not in sim_particles")
+        chain = track_id
+        while chain in tracks and tracks[chain].parent_id != 0:
+            if tracks[chain].energy < ke_cut:
+                below_cut += 1
+            chain = tracks[chain].parent_id
+        expect(chain in tracks, f"track {track_id}: ancestor {chain} not written")
+        if sp is not None:
+            expect(p.pdg_code == sp.pdg_code
+                   and close(p.vertex, sp.vertex)
+                   and close(p.momentum, sp.momentum),
+                   f"track {track_id} is not at its origin")
+        pmag = math.sqrt(sum(c * c for c in p.momentum))
+        expect(p.energy >= pmag * (1 - 1e-12), f"track {track_id}: E < |p|")
+    size = len(out)
+    # Every Geant4 track in the record is written; primaries (no mothers
+    # here) are the generator's copy, so they are matched above instead.
+    expect(all((p.pdg_code, tuple(p.vertex)) in written
+               for p in out if p.mother_id >= 0),
+           "an ancestor is missing from sim_particles")
+    for k, p in enumerate(out):
+        mothers = list(p.mothers)
+        expect(p.mother_id == (mothers[0] if mothers else -1), f"{k}: mother_id")
+        expect(all(0 <= m < size and m != k for m in mothers)
+               and len(set(mothers)) == len(mothers), f"{k}: bad mothers")
+    for k in range(len(finals)):
+        seen = set()
+        while out[k].mother_id >= 0 and k not in seen:
+            seen.add(k)
+            k = out[k].mother_id
+        expect(out[k].mother_id < 0, "a chain of mothers loops")
+    recorded_total += len(recorded)
+    history_total += size - len(finals)
+
+for e in errors[:20]:
+    print(e)
+print(f"{n} entries, {recorded_total} recorded tracks, {history_total} "
+      f"ancestors, {below_cut} written below the particle_ke_cut, "
+      f"{len(errors)} problem(s)")
+ok = n > 0 and recorded_total > 0 and not errors
+if want_history and (history_total == 0 or below_cut == 0):
+    print("no ancestry, or none of it below the particle_ke_cut")
+    ok = False
+sys.stdout.flush()
+os._exit(0 if ok else 1)
+EOF
+
 for pdg in 14 13; do
   (cd "$workdir" && phlex -c <(jsonnet --tla-code pdg="$pdg" "$workflow"))
   python3 "$workdir/check_planes.py" "$workdir/gun_st_scoring_planes.root" "$pdg"
+  python3 "$workdir/check_plane_particles.py" "$workdir/gun_st_scoring_planes.root" \
+    --no-history
   mv "$workdir/gun_st_scoring_planes.root" "$workdir/all_$pdg.root"
   rm -f "$workdir"/gun_st_scoring_planes*.root
 done
@@ -206,6 +311,114 @@ python3 "$workdir/check_ancestry.py" "$workdir/all_13.root" \
   "$workdir/gun_st_scoring_planes.root"
 rm -f "$workdir"/gun_st_scoring_planes*.root
 
+# Pions showering in the tungsten, recorded on plane 3 from 1 GeV: the
+# recorded tracks are mostly secondaries, so their ancestry runs through
+# several Geant4 generations. With a particle_ke_cut above the plane's
+# threshold, some recorded tracks and ancestors are below the cut, and must
+# still be in both plane_particles and sim_particles.
+cat >"$workdir/pions.jsonnet" <<EOF
+local wf = import '$workflow';
+local base = wf(pdg=211, events=20);
+base {
+  modules+: {
+    geant4+: {
+      particle_ke_cut: 5.0,
+      scoring_planes: [
+        if p.id == 3 then p { ke_threshold: 1.0 } else p
+        for p in base.modules.geant4.scoring_planes
+      ],
+    },
+  },
+}
+EOF
+(cd "$workdir" && phlex -c <(jsonnet "$workdir/pions.jsonnet"))
+python3 "$workdir/check_plane_particles.py" "$workdir/gun_st_scoring_planes.root" \
+  --want-history 5.0
+mv "$workdir/gun_st_scoring_planes.root" "$workdir/pions.root"
+rm -f "$workdir"/gun_st_scoring_planes*.root
+
+# Replay the pions' plane_particles through Geant4 without the planes: each
+# event must start from exactly its recorded tracks, at their origins, and
+# point back to the event it came from.
+cat >"$workdir/replay.jsonnet" <<EOF
+local lib = import '$here/../workflows/lib.libsonnet';
+{
+  stage: lib.stage,
+  driver: lib.driver(std.parseInt(std.extVar('events'))),
+  sources: {
+    field: lib.null_field,
+    geometry: lib.builtin_geometry,
+    input: {
+      cpp: 'file_source',
+      stage: lib.stage,
+      input_file: '$workdir/pions.root',
+      product: 'plane_particles',
+    },
+  },
+  modules: {
+    geant4: lib.geant4 { seed: 20261019 },
+    output: lib.full_output('$workdir/replay.root', '$workdir/replay_validation.root'),
+  },
+}
+EOF
+cat >"$workdir/check_replay.py" <<'EOF'
+import os
+import sys
+
+import ROOT
+
+alive = []
+
+
+def particles(v):
+    return [(p.pdg_code, tuple(p.vertex), tuple(p.momentum), p.energy, p.status,
+             tuple(p.mothers)) for p in v]
+
+
+def by_event(path, field, key):
+    # Copied out entry by entry: a view returns a reference into its buffer.
+    reader = ROOT.RNTupleReader.Open("events", path)
+    number = reader.GetView["std::uint64_t"]("event_number")
+    header = reader.GetView["SHiP::EventHeader"]("event_header")
+    mc = reader.GetView["std::vector<SHiP::MCParticle>"](field)
+    parts = reader.GetView["std::vector<SHiP::SimParticle>"]("sim_particles")
+    alive.extend((reader, number, header, mc, parts))
+    return {
+        key(number(i), header(i)): (
+            particles(mc(i)),
+            sorted(tuple(p.vertex) for p in parts(i) if p.parent_id == 0),
+        )
+        for i in range(reader.GetNEntries())
+    }
+
+
+stage1 = by_event(sys.argv[1], "plane_particles", lambda n, h: int(n))
+stage2 = by_event(sys.argv[2], "mc_particles",
+                  lambda n, h: int(h.original_event_id))
+errors = []
+if sorted(stage1) != sorted(stage2):
+    errors.append(f"replayed events {sorted(stage2)}, expected {sorted(stage1)}")
+replayed = 0
+for event in sorted(stage1.keys() & stage2.keys()):
+    plane, (mc, got) = stage1[event][0], stage2[event]
+    if mc != plane:
+        errors.append(f"event {event}: mc_particles differ from plane_particles")
+    # status is the 5th entry, the vertex the 2nd
+    want = sorted(p[1] for p in plane if p[4] == 1)
+    if got != want:
+        errors.append(f"event {event}: {len(got)} primaries, expected {len(want)}")
+    replayed += len(got)
+
+for e in errors[:20]:
+    print(e)
+print(f"{len(stage2)} events, {replayed} replayed tracks, {len(errors)} problem(s)")
+sys.stdout.flush()
+os._exit(0 if replayed > 0 and not errors else 1)
+EOF
+n=$(python3 "$here/count_entries.py" "$workdir/pions.root")
+(cd "$workdir" && phlex -c <(jsonnet --ext-str events="$n" "$workdir/replay.jsonnet"))
+python3 "$workdir/check_replay.py" "$workdir/pions.root" "$workdir/replay.root"
+
 # Bad configurations: each must stop the job with the given message. The
 # last argument is merged into the geant4 module's configuration.
 expect_failure() {
@@ -246,6 +459,11 @@ expect_failure missing_volume "must be placed exactly once" \
   "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'NoSuchVolume' }] }"
 expect_failure two_placements "must be placed exactly once" \
   "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, after_volume: 'ScoringPlane' }] }"
+expect_failure record_without_kill "record_particles needs kill: true" \
+  "{ scoring_planes: [{ name: 'p', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], record_particles: true }] }"
+expect_failure two_recording_planes "only one scoring plane may record particles, 'a' already does" \
+  "{ scoring_planes: [{ name: 'a', id: 1, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1500], kill: true, record_particles: true },
+    { name: 'b', id: 2, half_x: 100, half_y: 100, half_z: 1, position: [0, 0, 1600], kill: true, record_particles: true }] }"
 expect_failure unknown_keep "unknown keep_particles 'hits'" \
   "{ keep_particles: 'hits' }"
 expect_failure ancestry_with_ke_cut "set particle_ke_cut to 0" \
@@ -260,7 +478,8 @@ g4 = json.load(sys.stdin)["modules"]["geant4"]
 plane = g4["scoring_planes"][0]
 sys.exit(not (g4["keep_particles"] == "hit_ancestry" and g4["particle_ke_cut"] == 0
               and g4["ke_threshold"] == 1.5 and plane["ke_threshold"] == 1.5
-              and plane["after_volume"] == "/SHiP/muon_shield/magn_absorb"))
+              and plane["after_volume"] == "/SHiP/muon_shield/magn_absorb"
+              and plane["kill"] and plane["record_particles"]))
 ' || {
   echo "FAIL: fixed_target_production.jsonnet evaluates to unexpected geant4 settings"
   exit 1

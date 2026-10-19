@@ -311,3 +311,17 @@ add_test(
     NAME scoring_planes
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/scoring_planes.sh
 )
+
+# Plane particles: the replay record of a recording scoring plane holds each
+# recorded track once with status 1, and its full ancestry as history, built
+# here from a hand-made event without Geant4.
+add_executable(plane_particles_test tests/plane_particles_test.cpp)
+target_link_libraries(
+    plane_particles_test
+    PRIVATE SHiP::SHiPDataModel SHiP::SHiPUnits
+)
+target_include_directories(
+    plane_particles_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME plane_particles COMMAND plane_particles_test)

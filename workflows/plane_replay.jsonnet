@@ -2,8 +2,10 @@
 // recorded in an earlier run (e.g. fixed_target_production.jsonnet) and
 // simulate them further. Each event of the input becomes one event here.
 //
-// plane_particles holds every track the plane recorded, as it was when it
-// was produced (HepMC status 1), plus its ancestry (other statuses, which
+// plane_particles holds every track the plane recorded (except those
+// descended from another recorded track, which replaying their ancestor
+// produces again), as it was when it was produced (HepMC status 1), plus its
+// ancestry (other statuses, which
 // Geant4 does not track), so the tracks are simulated again from their
 // origin, not from the plane. The geometry must therefore not contain the
 // killing plane, or it would stop them again; this workflow has no scoring

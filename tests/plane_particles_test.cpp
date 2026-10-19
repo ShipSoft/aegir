@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <print>
 #include <stdexcept>
 #include <unordered_map>
@@ -55,6 +56,28 @@ SHiP::SimParticle track(int id, int parent, int pdg) {
   return p;
 }
 
+// Whether no status-1 entry has a status-1 entry among its ancestors.
+bool final_state_has_no_final_state_ancestor(
+    std::vector<SHiP::MCParticle> const& out) {
+  using SHiP::aegir::hepmc::final_state;
+  for (auto const& p : out) {
+    if (p.status != final_state) {
+      continue;
+    }
+    std::vector<std::int32_t> pending = p.mothers;
+    while (!pending.empty()) {
+      auto const& mother = out.at(static_cast<std::size_t>(pending.back()));
+      pending.pop_back();
+      if (mother.status == final_state) {
+        return false;
+      }
+      pending.insert(pending.end(), mother.mothers.begin(),
+                     mother.mothers.end());
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 int main() {
@@ -80,13 +103,13 @@ int main() {
   std::unordered_map<int, std::size_t> const primary_source{
       {1, 3}, {2, 4}, {3, 5}};
 
-  // Secondaries: 4 from 2, 5 and 6 from 4, 7 from 3. Muon 5 stands in for a
-  // track below particle_ke_cut, found only in the lineage store.
+  // Secondaries: 4 from 2, 5 and 6 from 4, 7 from 3, 9 from 6. Muon 5 stands
+  // in for a track below particle_ke_cut, found only in the lineage store.
   double const m_mu = 0.1056583755;
   auto mu = track(5, 4, 13);
   mu.energy = std::sqrt(1 + (m_mu * m_mu)) - m_mu;  // |p| = 1 GeV
   std::vector<SHiP::SimParticle> const tracks{
-      track(4, 2, 211), mu, track(6, 4, 22), track(7, 3, 211)};
+      track(4, 2, 211), mu, track(6, 4, 22), track(7, 3, 211), track(9, 6, 11)};
   auto const find_track = [&tracks](int id) -> SHiP::SimParticle const* {
     auto const it = std::ranges::find(tracks, id, &SHiP::SimParticle::track_id);
     return it == tracks.end() ? nullptr : &*it;
@@ -141,6 +164,25 @@ int main() {
   check(kaon.pdg_code == 321 && kaon.status == simulation_history,
         "kaon primary as history");
   check(kaon.mother_id == out[1].mother_id, "kaon's mother_id is followed");
+  check(final_state_has_no_final_state_ancestor(out),
+        "no status-1 entry has a status-1 ancestor");
+
+  // Electron 9 descends from the recorded photon 6, so replaying the photon
+  // makes it again: it is left out, whatever the crossing order.
+  auto const nested = SHiP::aegir::build_plane_particles(
+      {9, 6}, find_track, primary_source, generator);
+  check(SHiP::mothers_are_populated(nested),
+        "nested: mother links are consistent");
+  // Photon 6; pion 4, primary 2 and generator 0, 1 as history.
+  check(nested.size() == 5, "nested: the descendant is left out");
+  check(
+      std::ranges::count(nested, final_state, &SHiP::MCParticle::status) == 1 &&
+          nested[0].pdg_code == 22 && nested[0].status == final_state,
+      "nested: only the photon has status 1");
+  check(std::ranges::count(nested, 11, &SHiP::MCParticle::pdg_code) == 0,
+        "nested: no entry for the electron");
+  check(final_state_has_no_final_state_ancestor(nested),
+        "nested: no status-1 entry has a status-1 ancestor");
 
   bool threw = false;
   try {

@@ -11,8 +11,10 @@
 // so that a later stage replays it from where it was produced, plus the
 // track's full ancestry. Ancestors are Geant4 tracks (status
 // simulation_history) up to the primary, then the primary's generator mothers
-// with their own status. Nothing but the marked tracks has status 1, so
-// geant4_module tracks exactly those on replay.
+// with their own status. A marked track descended from another marked track
+// (e.g. a delta ray made before its parent reached the plane) is left out:
+// replaying the ancestor makes it again. Nothing else has status 1, so
+// geant4_module tracks exactly the remaining marked tracks on replay.
 //
 // Free of Geant4 so that it can be tested on its own.
 
@@ -25,6 +27,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -34,7 +37,8 @@
 namespace SHiP::aegir {
 
 /// Build the replay record of `recorded` (Geant4 track ids, in crossing
-/// order; duplicates are ignored).
+/// order; duplicates, and tracks descended from another recorded track, are
+/// ignored).
 ///
 /// `find_track(id)` returns the SimParticle recorded for a track id, or
 /// nullptr. `primary_source` maps the track id of every primary to the index
@@ -100,8 +104,27 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     return out.size() - 1;
   };
 
+  // Whether a recorded track descends from another recorded track. A missing
+  // ancestor is left for add_track to report.
+  std::unordered_set<int> const marked(recorded.begin(), recorded.end());
+  auto const has_marked_ancestor = [&](int id) {
+    while (!primary_source.contains(id)) {
+      auto const* sp = find_track(id);
+      if (sp == nullptr) {
+        return false;
+      }
+      id = sp->parent_id;
+      if (marked.contains(id)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   for (auto const id : recorded) {
-    add_track(id, hepmc::final_state);
+    if (!has_marked_ancestor(id)) {
+      add_track(id, hepmc::final_state);
+    }
   }
 
   // Resolve mothers; entries appended on the way are resolved in turn. A

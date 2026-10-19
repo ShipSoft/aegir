@@ -5,7 +5,7 @@
 //   1  box 1 cm behind the target (placed with after_volume),
 //   2  cylindrical shell r = 80-81 mm around the target (placed by position),
 //   3  box at z = 3 m that kills every track reaching it, but records only
-//      those above 50 GeV,
+//      those above 50 GeV, and writes those for replay (plane_particles),
 //   4  small box cutting through the tungsten at z = 250 mm, which only a
 //      parallel world allows.
 // The sizes only need to produce these cases; they stand for no real setup.
@@ -60,6 +60,7 @@ function(pdg=14, events=200) {
           position: [0.0, 0.0, 3000.0],
           ke_threshold: 50.0,
           kill: true,
+          record_particles: true,
         },
         {
           name: 'plane_in_target',

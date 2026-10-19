@@ -104,6 +104,7 @@ its `generatorStatus`:
 | 3 | Documentation entry | no |
 | 4 | Incoming beam particle | no |
 | 11-200 | Intermediate entry, generator-dependent classification | no |
+| 201+ | Left to the simulation. aegir writes 201 for the Geant4 ancestors of a replayed particle (see [Replaying a plane's particles](#replaying-a-planes-particles)) | no |
 
 Only status-1 entries become primaries. Note that "final state" does not mean
 stable: a final-state `K_S` is status 1 and is expected to decay in the
@@ -117,7 +118,8 @@ own HepMC example uses the same `status == 1` test.
 
 Skipped primaries are counted and reported once per event in an aggregated
 warning; they remain in the output `mc_particles` product, so the record is
-not lost.
+not lost. Entries with status above 200 are left out of the warning, since a
+replayed event always carries them.
 
 This filter is a no-op for a generator running in the default
 `record: 'final_state'` mode, where every emitted entry is status 1. It
@@ -259,6 +261,7 @@ Each entry of `scoring_planes` takes:
 | `gap` | double | `0` | With `after_volume`: distance from the volume's downstream end to the plane's upstream face (mm) |
 | `ke_threshold` | double | `0` | Record only tracks entering with at least this kinetic energy (GeV). With `kill`, tracks below it are stopped too, unrecorded |
 | `kill` | bool | `false` | Stop and kill every track that steps into the plane, as FairShip's `exitHadronAbsorber` does: recorded or not, including secondaries born inside the plane |
+| `record_particles` | bool | `false` | Also write the tracks this plane records going downstream as `plane_particles`, for a later run to replay; see [Replaying a plane's particles](#replaying-a-planes-particles). Needs `kill`, and only one plane may set it |
 
 Exactly one of `position` and `after_volume` must be given. `after_volume`
 is an exact logical-volume name, and the volume must be placed exactly once
@@ -319,3 +322,58 @@ pixi run phlex -c <(jsonnet --tla-code seed=42 --tla-code ecut=0.5 \
 It needs the GeoModel geometry DB (`pixi run build_geometry`). The
 `scoring_planes` test only checks that the workflow evaluates to the
 intended settings.
+
+The plane also has `record_particles` set, so the output holds the
+`plane_particles` that `workflows/plane_replay.jsonnet` simulates further.
+
+### Replaying a plane's particles
+
+A staged simulation splits a run at a plane. The first stage, such as the
+fixed-target production above, runs up to the plane. The second stage takes
+the particles that reached it and simulates them through the rest of the
+detector, as many times or with as many settings as needed, without
+regenerating the target interactions.
+
+A plane with `record_particles` marks every track it records while the track
+moves downstream (positive z momentum). Tracks entering it from downstream
+are still recorded as hits but not marked. At the end of the event the marked
+tracks are written to the `plane_particles` field of the output, as
+`SHiP::MCParticle`s:
+
+- Each marked track appears once with status 1, with its kinematics where it
+  was produced, not where it crossed the plane. The second stage simulates it
+  again from its origin. The crossing itself stays in `sim_hits`.
+- Its full ancestry follows: the chain of Geant4 tracks back to the primary
+  with status 201, and the primary's mothers in the generator record with
+  their own status. `mothers` and `mother_id` index into `plane_particles`.
+  The primary's own entry is the generator's particle with status 201.
+- The same tracks, the marked ones and every Geant4 ancestor, are also
+  written to `sim_particles`, even those below `particle_ke_cut`, so the
+  full history of each marked particle can be followed there by `parent_id`.
+  Other tracks below the cut are still left out.
+
+Since only the marked tracks have status 1, the second stage tracks exactly
+those (see [Primary selection](#primary-selection)). Two rules keep a track
+from being replayed twice: the recording plane must `kill`, so nothing
+descended from a marked track can reach it, and only one plane may record.
+
+`file_source` reads the field back with `product: 'plane_particles'`. Its
+`product` key names any `std::vector<SHiP::MCParticle>` field of the input
+(`mc_particles` by default), or `sim_particles`, which it converts to
+MCParticles. It passes on the input's event header and, when that has no
+`original_event_id` yet, sets it to the first run's `event_number`, so each
+replayed event can be matched to the event it came from even when the first
+run dropped empty events.
+
+```bash
+pixi run phlex -c <(jsonnet --tla-code seed=42 --tla-code events=10000 \
+  workflows/fixed_target_production.jsonnet)
+n=$(pixi run python3 scripts/count_entries.py fixed_target_production.root)
+pixi run phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
+  --tla-code events="$n" --tla-code seed=43 workflows/plane_replay.jsonnet)
+```
+
+The second stage's geometry must not contain the killing plane: the replayed
+particles start upstream of it and would be stopped there again.
+`plane_replay.jsonnet` therefore has no scoring planes. The `scoring_planes`
+test runs both stages on the builtin geometry.

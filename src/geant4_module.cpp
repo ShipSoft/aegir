@@ -61,6 +61,8 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -78,6 +80,7 @@
 #include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
+#include "plane_particles.hpp"
 #include "scoring_planes.hpp"
 #include "seed_config.hpp"
 #include "units/clhep_bridge.hpp"
@@ -87,13 +90,18 @@ namespace {
 
 using SHiP::aegir::g4::ConfigurableDetectorConstruction;
 using SHiP::aegir::g4::EnergyCutAction;
+using SHiP::aegir::g4::find_track;
 using SHiP::aegir::g4::kScoringWorldName;
+using SHiP::aegir::g4::persist_ancestry;
 using SHiP::aegir::g4::prune_to_hit_ancestry;
 using SHiP::aegir::g4::ScoringPlaneConfig;
 using SHiP::aegir::g4::ScoringShape;
 using SHiP::aegir::g4::SDMode;
 using SHiP::aegir::g4::tl_hits;
+using SHiP::aegir::g4::tl_lineage;
+using SHiP::aegir::g4::tl_lineage_map;
 using SHiP::aegir::g4::tl_particles;
+using SHiP::aegir::g4::tl_recorded_tracks;
 using SHiP::aegir::g4::tl_track_map;
 using SHiP::aegir::g4::TrackingAction;
 using SHiP::aegir::g4::validate_scoring_planes;
@@ -124,6 +132,31 @@ thread_local std::unordered_map<int, G4ParticleDefinition*> tl_pdg_cache;
 thread_local std::size_t tl_hits_hwm = 0;
 thread_local std::size_t tl_particles_hwm = 0;
 
+// The plane_particles of the event just processed (empty if no track was
+// marked), from the tracks a recording plane marked. `primary_sources` holds
+// the index into `particles` of each primary, in the order they were added.
+std::vector<SHiP::MCParticle> record_plane_particles(
+    G4Event const& event, std::vector<std::size_t> const& primary_sources,
+    std::vector<SHiP::MCParticle> const& particles) {
+  if (tl_recorded_tracks.empty()) {
+    return {};
+  }
+  AEGIR_TRACE_EVENT("g4", "plane_particles");
+  // Geant4 numbered the primaries when it turned them into tracks; vertices
+  // and their particles are in the order they were added.
+  std::unordered_map<int, std::size_t> primary_source;
+  std::size_t n = 0;
+  for (auto const* vertex = event.GetPrimaryVertex(); vertex != nullptr;
+       vertex = vertex->GetNext()) {
+    for (auto const* primary = vertex->GetPrimary(); primary != nullptr;
+         primary = primary->GetNext()) {
+      primary_source.emplace(primary->GetTrackID(), primary_sources.at(n++));
+    }
+  }
+  return SHiP::aegir::build_plane_particles(tl_recorded_tracks, find_track,
+                                            primary_source, particles);
+}
+
 struct Geant4SimConfig {
   std::string physics_list = "FTFP_BERT";
   int verbosity = 0;
@@ -153,7 +186,11 @@ struct Geant4SimConfig {
 
 class Geant4Sim {
  public:
-  explicit Geant4Sim(Geant4SimConfig cfg) : cfg_{std::move(cfg)} {}
+  explicit Geant4Sim(Geant4SimConfig cfg)
+      : cfg_{std::move(cfg)},
+        record_particles_{std::ranges::any_of(
+            cfg_.scoring_planes,
+            [](ScoringPlaneConfig const& p) { return p.record_particles; })} {}
 
   ~Geant4Sim() {
     if (!master_constructed_) {
@@ -186,7 +223,9 @@ class Geant4Sim {
     // unsafe).
   }
 
-  SHiP::SimResult simulate(
+  // The simulation result, and the plane_particles replay record (empty
+  // unless a scoring plane records particles; see plane_particles.hpp).
+  std::tuple<SHiP::SimResult, std::vector<SHiP::MCParticle>> simulate(
       std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
       std::shared_ptr<SHiP::IFieldSource> const& field,
       phlex::handle<std::vector<SHiP::MCParticle>> particles) {
@@ -225,6 +264,9 @@ class Geant4Sim {
     tl_hits.clear();
     tl_particles.clear();
     tl_track_map.clear();
+    tl_recorded_tracks.clear();
+    tl_lineage.clear();
+    tl_lineage_map.clear();
     tl_hits.reserve(tl_hits_hwm);
     tl_particles.reserve(std::max(tl_particles_hwm, particles->size()));
 
@@ -237,12 +279,23 @@ class Geant4Sim {
     // what needs cross-hierarchy uniqueness. G4int is 32-bit, so the id
     // saturates past ~2^31 events — far beyond any single run here.
     auto event = std::make_unique<G4Event>(static_cast<G4int>(index.number()));
+    // Index into *particles of each primary, in the order they are added.
+    std::vector<std::size_t> primary_sources;
     {
       AEGIR_TRACE_EVENT("g4", "build_primaries");
       std::size_t unknown_pdg = 0;
       std::size_t no_momentum = 0;
       std::size_t not_final_state = 0;
-      for (auto const& mc : *particles) {
+      std::size_t history = 0;
+      for (std::size_t i = 0; i < particles->size(); ++i) {
+        auto const& mc = (*particles)[i];
+        // History written by an earlier stage (plane_particles) is expected
+        // input, not something to warn about.
+        if (!cfg_.track_all_primaries &&
+            SHiP::aegir::hepmc::is_simulation_history(mc.status)) {
+          ++history;
+          continue;
+        }
         // Only entries the generator left undecayed are ours to track:
         // decayed (2), documentation (3), beam (4) and intermediate (11-200)
         // entries are the generator's own bookkeeping, and tracking them
@@ -288,6 +341,13 @@ class Geant4Sim {
                                                cb::g4(mom[1]), cb::g4(mom[2]));
         vertex->SetPrimary(particle);
         event->AddPrimaryVertex(vertex);
+        primary_sources.push_back(i);
+      }
+      if (history > 0) {
+        spdlog::debug(
+            "geant4_module: event {}: {} history entries (HepMC status > 200) "
+            "not tracked",
+            event->GetEventID(), history);
       }
       if (auto const skipped = unknown_pdg + no_momentum + not_final_state;
           skipped > 0) {
@@ -309,6 +369,12 @@ class Geant4Sim {
       tl_kernel->GetEventManager()->ProcessOneEvent(event.get());
     }
     state_mgr->SetNewState(G4State_GeomClosed);
+
+    // Both before keep_hit_ancestry prunes tl_particles, which would leave
+    // tl_track_map pointing at the wrong entries.
+    auto plane_particles =
+        record_plane_particles(*event, primary_sources, *particles);
+    persist_ancestry(tl_recorded_tracks);
 
     event.reset();
 
@@ -336,7 +402,7 @@ class Geant4Sim {
                    elapsed > 0 ? done / elapsed : 0.0);
     }
 
-    return result;
+    return {std::move(result), std::move(plane_particles)};
   }
 
  private:
@@ -500,7 +566,8 @@ class Geant4Sim {
     detector_->ConstructParallelSD();
 
     auto* evt_mgr = tl_kernel->GetEventManager();
-    evt_mgr->SetUserAction(new TrackingAction(cfg_.particle_ke_cut));
+    evt_mgr->SetUserAction(
+        new TrackingAction(cfg_.particle_ke_cut, record_particles_));
     if (cfg_.energy_cut) {
       evt_mgr->SetUserAction(new EnergyCutAction(cfg_.energy_cut_threshold));
     }
@@ -515,6 +582,8 @@ class Geant4Sim {
   }
 
   Geant4SimConfig cfg_;
+  // Whether a scoring plane records particles for replay.
+  bool record_particles_;
 
   std::once_flag init_flag_;
   // Written at most once inside the call_once body, read only after the
@@ -599,9 +668,9 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
     phlex::configuration const& config) {
   namespace su = SHiP::units;
   static std::unordered_set<std::string> const known_keys{
-      "name",  "id",           "shape",  "half_x",   "half_y",
-      "r_min", "r_max",        "half_z", "position", "after_volume",
-      "gap",   "ke_threshold", "kill"};
+      "name",  "id",           "shape",  "half_x",          "half_y",
+      "r_min", "r_max",        "half_z", "position",        "after_volume",
+      "gap",   "ke_threshold", "kill",   "record_particles"};
 
   std::vector<ScoringPlaneConfig> planes;
   auto const entries = config.get_if_present<std::vector<phlex::configuration>>(
@@ -646,6 +715,7 @@ std::vector<ScoringPlaneConfig> read_scoring_planes(
     plane.ke_threshold =
         SHiP::aegir::get_quantity(entry, "ke_threshold", 0.0 * su::GeV);
     plane.kill = entry.get<bool>("kill", false);
+    plane.record_particles = entry.get<bool>("record_particles", false);
     planes.push_back(std::move(plane));
   }
   // Fail at configuration time, before any Geant4 object exists; placement
@@ -744,5 +814,5 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           product_selector{.creator = "geometry"_id, .layer = "job"_id},
           product_selector{.creator = "field"_id, .layer = "job"_id},
           product_selector{.creator = "mc_particles"_id, .layer = "event"_id})
-      .output_product_suffixes("sim_result");
+      .output_product_suffixes("sim_result", "plane_particles");
 }

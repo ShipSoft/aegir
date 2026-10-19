@@ -313,7 +313,7 @@ class SimRNTupleWriter {
   std::string m_filename;
   std::atomic<std::uint64_t> m_total_gen{0};
   std::atomic<std::uint64_t> m_total_written{0};
-  std::atomic<std::uint64_t> m_max_event_id{0};
+  std::atomic<std::int64_t> m_max_event_id{-1};
   std::atomic<bool> m_write_failed{false};
 };
 

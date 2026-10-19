@@ -225,7 +225,9 @@ class SimRNTupleWriter {
   ~SimRNTupleWriter() {
     pool_.reset();
     writer_.reset();
-    write_summary();
+    if (!m_write_failed.load(std::memory_order_relaxed)) {
+      write_summary();
+    }
   }
 
   void write_summary() const noexcept {
@@ -286,7 +288,12 @@ class SimRNTupleWriter {
     state.entry->BindRawPtr(
         state.sim_particles,
         const_cast<std::vector<SHiP::SimParticle>*>(&result.particles));
-    state.ctx->Fill(*state.entry);
+    try {
+      state.ctx->Fill(*state.entry);
+    } catch (...) {
+      m_write_failed.store(true, std::memory_order_relaxed);
+      throw;
+    }
   }
 
  private:
@@ -307,6 +314,7 @@ class SimRNTupleWriter {
   std::atomic<std::uint64_t> m_total_gen{0};
   std::atomic<std::uint64_t> m_total_written{0};
   std::atomic<std::uint64_t> m_max_event_id{0};
+  std::atomic<bool> m_write_failed{false};
 };
 
 // Validation histograms for MC particles (thread-safe via per-thread

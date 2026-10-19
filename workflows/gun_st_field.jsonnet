@@ -7,9 +7,9 @@
 //     Convert it with `--symmetry quadrant_dipole` (FairShip's quadSymm).
 //   - spectrometer: map origin at the magnet centre, z = 89570 mm.
 local lib = import 'lib.libsonnet';
-{
+function(events=100) {
   stage: lib.stage,
-  driver: lib.driver(100),
+  driver: lib.driver(events),
   sources: {
     geometry: lib.geomodel_geometry,
     field: lib.field_map([
@@ -32,6 +32,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4,
-    output: lib.full_output('gun_st_field_output.root', 'gun_st_field_validation.root'),
+    output: lib.full_output('gun_st_field_output.root', 'gun_st_field_validation.root', events),
   },
 }

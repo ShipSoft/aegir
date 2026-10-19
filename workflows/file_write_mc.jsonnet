@@ -25,6 +25,7 @@ local lib = import 'lib.libsonnet';
       cpp: 'sim_output_module',
       mode: 'mc_only',
       rntuple_file: std.extVar('outfile'),
+      n_events_requested: n_events,
       histo_file: std.extVar('histofile'),
     },
   },

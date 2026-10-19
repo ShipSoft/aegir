@@ -29,7 +29,7 @@ local n_events = std.parseInt(std.extVar('events'));
   driver: lib.driver(n_events),
   sources: { gun: lib.gun },
   modules: {
-    output: lib.mc_only_output(std.extVar('outfile'), std.extVar('histofile')) {
+    output: lib.mc_only_output(std.extVar('outfile'), std.extVar('histofile'), n_events) {
       cluster_size_mib: 1,
       fill_contexts: 2,
     },

@@ -47,6 +47,12 @@
     sensitive_volumes: ['ScoringPlane'],
   },
 
+  mygeomodel_geometry:: {
+    cpp: 'geometry_geomodel_provider',
+    db_file: '/vols/ship/masmith/stack/geometry/my_ship_geometry.db',
+    sensitive_volumes: ['ScoringPlane'],
+  },
+
   // The generator sources follow the same seeding convention as the geant4
   // module below: without a `seed`, each run draws a random one (logged at
   // startup, so a run can be reproduced after the fact). Merge one in for
@@ -160,17 +166,23 @@
   // memory use (issue #77): cluster_size_mib (default 32) and fill_contexts
   // (default 4, or the phlex thread count if lower). Override by merging, e.g.
   //   lib.full_output(f, h) { cluster_size_mib: 16, fill_contexts: 8 }
-  mc_only_output(rntuple_file, histo_file):: {
+  //
+  // Pass `events`, the same total given to lib.driver, so the file_summary
+  // records how many events were requested and readers can tell a complete
+  // file from one whose job stopped early. Without it the summary stores null.
+  mc_only_output(rntuple_file, histo_file, events=null):: {
     cpp: 'sim_output_module',
     mode: 'mc_only',
     rntuple_file: rntuple_file,
     histo_file: histo_file,
+    [if events != null then 'n_events_requested']: events,
   },
 
-  full_output(rntuple_file, histo_file):: {
+  full_output(rntuple_file, histo_file, events=null):: {
     cpp: 'sim_output_module',
     mode: 'full',
     rntuple_file: rntuple_file,
     histo_file: histo_file,
+    [if events != null then 'n_events_requested']: events,
   },
 }

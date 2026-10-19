@@ -34,7 +34,7 @@ function(seed=null, ecut=0.5, events=100000) {
       scoring_planes: [lib.exit_hadron_absorber_plane { ke_threshold: ecut }],
       [if seed != null then 'seed']: seed,
     },
-    output: lib.full_output('fixed_target_production.root', 'fixed_target_production_validation.root') {
+    output: lib.full_output('fixed_target_production.root', 'fixed_target_production_validation.root', events) {
       filter_empty: true,
     },
   },

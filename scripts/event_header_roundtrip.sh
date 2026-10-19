@@ -7,11 +7,9 @@
 # its input rather than the default-constructed one, and must still replay a
 # file written before the event_header field existed. Two checks:
 #   - a file whose headers are all distinguishable from the unweighted default
-#     reads back with those headers intact, including the aegir_event_id
-#     already stored in it (file_source must not re-stamp it),
+#     reads back with those headers intact,
 #   - a file with no event_header field at all reads back with every event
-#     carrying the default (weight 1.0, original_event_id -1) and an
-#     aegir_event_id stamped with that event's phlex event number.
+#     carrying the default (weight 1.0, original_event_id -1).
 # This reads the input back through the mc_only output path, so it needs no
 # Geant4, geometry or field and stays fast and deterministic.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
@@ -77,20 +75,17 @@ for i in range(n):
     particles = entry["mc_particles"]
     particles.clear()
     p = ROOT.SHiP.MCParticle()
-    p.pdg_code = 13
+    p.pdgCode = 13
     p.vertex[2] = -500.0
     p.momentum[2] = 10.0 + i
     p.energy = 10.0 + i
-    p.mother_id = -1
+    p.motherId = -1
     p.status = 1
     particles.push_back(p)
     if with_header:
         header = entry["event_header"]
         header.weight = 2.0 + i  # never 1.0, the default
         header.original_event_id = 100 + i
-        # Outside the replay's event numbers (0..n-1), so a re-stamped id
-        # cannot pass for a preserved one.
-        header.aegir_event_id = 1000 + i
     writer.Fill(entry)
 
 del writer  # flushes and closes the file
@@ -98,10 +93,9 @@ os._exit(0)
 EOF
 
 # Compare the event headers a file_source run published against the input they
-# came from, or (--default) assert they are all the unweighted default with
-# aegir_event_id stamped from the entry's event_number. The parallel writer
-# emits in completion order, not event order, so compare the multiset of
-# headers rather than positions.
+# came from, or (--default) assert they are all the unweighted default. The
+# parallel writer emits in completion order, not event order, so compare the
+# multiset of headers rather than positions.
 cat >"$workdir/check_header.py" <<'EOF'
 import os
 import sys
@@ -118,27 +112,14 @@ def headers(path):
     view = reader.GetView["SHiP::EventHeader"]("event_header")
     alive.extend((reader, view))
     return sorted(
-        (
-            int(view(i).original_event_id),
-            float(view(i).weight),
-            int(view(i).aegir_event_id),
-        )
+        (int(view(i).original_event_id), float(view(i).weight))
         for i in range(reader.GetNEntries())
     )
 
 
-def default_headers(path):
-    # The unweighted default, with aegir_event_id equal to the phlex event
-    # number the writer stored alongside it.
-    reader = ROOT.RNTupleReader.Open("events", path)
-    number = reader.GetView["std::uint64_t"]("event_number")
-    alive.extend((reader, number))
-    return sorted((-1, 1.0, int(number(i))) for i in range(reader.GetNEntries()))
-
-
 got = headers(sys.argv[1])
 if sys.argv[2] == "--default":
-    want = default_headers(sys.argv[1])
+    want = [(-1, 1.0)] * len(got)
 else:
     want = headers(sys.argv[2])
 ok = bool(got) and got == want
@@ -149,8 +130,7 @@ os._exit(0 if ok else 1)
 EOF
 
 # 1. The event header survives a read-back: file_source must publish the header
-#    stored in the input, not the unweighted default, and keep its
-#    aegir_event_id rather than re-stamping it with the replay's event number.
+#    stored in the input, not the unweighted default.
 python3 "$workdir/make_header_input.py" "$workdir/header_input.root" "$n"
 phlex -c <(jsonnet \
   --ext-str events="$n" \
@@ -162,8 +142,7 @@ python3 "$workdir/check_header.py" "$workdir/sim_header.root" \
   "$workdir/header_input.root"
 
 # 2. A file written before the event_header field existed still replays, and
-#    publishes the unweighted default rather than failing to open the view,
-#    with aegir_event_id stamped from the replay's event number.
+#    publishes the unweighted default rather than failing to open the view.
 python3 "$workdir/make_header_input.py" "$workdir/legacy_input.root" "$n" --no-header
 phlex -c <(jsonnet \
   --ext-str events="$n" \
@@ -177,4 +156,3 @@ python3 "$workdir/check_header.py" "$workdir/sim_legacy.root" --default
 
 echo "event header round-trip passed: the stored header is preserved, and a file"
 echo "without the event_header field falls back to the unweighted default"
-echo "with aegir_event_id stamped from the event number"

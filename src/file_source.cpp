@@ -98,7 +98,7 @@ class FileSource : public phlex::source {
     if (!file_ || file_->IsZombie()) {
       throw std::runtime_error("file_source: cannot open '" + input_file + "'");
     }
-    std::unique_ptr<ROOT::RNTuple> anchor{
+    const std::unique_ptr<ROOT::RNTuple> anchor{
         file_->Get<ROOT::RNTuple>(ntuple.c_str())};
     if (!anchor) {
       throw std::runtime_error("file_source: no RNTuple '" + ntuple + "' in '" +

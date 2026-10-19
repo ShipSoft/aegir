@@ -334,15 +334,21 @@ the particles that reached it and simulates them through the rest of the
 detector, as many times or with as many settings as needed, without
 regenerating the target interactions.
 
+The second stage tracks each saved particle again from its origin, the point
+where it was produced, and not from where it crossed the plane. Its path from
+the origin to the plane is simulated a second time, through the same material,
+with the second stage's random numbers. A replayed particle therefore does not
+follow its first-stage path, and it may not reach the plane at all. Use the
+first stage's `sim_hits` for where the particles actually crossed.
+
 A plane with `record_particles` marks every track it records while the track
 moves downstream (positive z momentum). Tracks entering it from downstream
 are still recorded as hits but not marked. At the end of the event the marked
 tracks are written to the `plane_particles` field of the output, as
 `SHiP::MCParticle`s:
 
-- Each marked track appears once with status 1, with its kinematics where it
-  was produced, not where it crossed the plane. The second stage simulates it
-  again from its origin. The crossing itself stays in `sim_hits`.
+- Each marked track appears once with status 1, with its vertex, momentum and
+  time at its origin. The crossing itself stays in `sim_hits`.
 - Its full ancestry follows: the chain of Geant4 tracks back to the primary
   with status 201, and the primary's mothers in the generator record with
   their own status. `mothers` and `mother_id` index into `plane_particles`.

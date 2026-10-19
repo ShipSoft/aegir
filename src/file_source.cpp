@@ -12,11 +12,9 @@
 //
 // The RNTuple layout matches what sim_output_module writes: a tuple (default
 // name "events") with a std::vector<SHiP::MCParticle> field "mc_particles"
-// and, in full-simulation output, a std::vector<SHiP::SimParticle> field
-// "sim_particles" and a std::vector<SHiP::MCParticle> field "plane_particles".
-// The `product` key names the field to read: "sim_particles" is simulation
-// *output*, so it is projected onto MCParticles; any other field is read as
-// MCParticles as it is. "plane_particles" restarts a simulation from the
+// and, in full-simulation output, a std::vector<SHiP::MCParticle> field
+// "plane_particles". The `product` key names the field to read, which must
+// hold MCParticles. "plane_particles" restarts a simulation from the
 // particles a scoring plane recorded in an earlier stage (only their status-1
 // entries are tracked; the rest is their ancestry).
 //
@@ -34,8 +32,8 @@
 #include <ROOT/RNTupleView.hxx>
 #include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
-#include <SHiP/SimParticle.hpp>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -45,26 +43,14 @@
 #include <vector>
 
 #include "mc_particle_source.hpp"
-#include "sim_particle_convert.hpp"
 
 namespace {
-
-// Project a simulation SimParticle onto an MCParticle suitable as sim input.
-SHiP::MCParticle to_mc_particle(SHiP::SimParticle const& sp) {
-  auto mc = SHiP::aegir::to_mc_particle(sp);
-  // SimParticle::parent_id is the parent's track id (0 for primaries); map the
-  // primary case to MCParticle's -1 convention.
-  mc.mother_id = sp.parent_id == 0 ? -1 : sp.parent_id;
-  return mc;
-}
 
 class FileSource : public phlex::source {
  public:
   FileSource(std::string stage, std::string const& input_file,
              std::string const& ntuple, std::string const& product, long skip)
-      : stage_{std::move(stage)},
-        skip_{skip},
-        read_sim_{product == "sim_particles"} {
+      : stage_{std::move(stage)}, skip_{skip} {
     // skip_ is cast to the unsigned ROOT::NTupleSize_t in generate(); reject a
     // negative skip here rather than let it wrap around to a huge offset.
     if (skip < 0) {
@@ -98,10 +84,12 @@ class FileSource : public phlex::source {
                                "' has no field '" + product + "' in '" +
                                ntuple + "'");
     }
-    if (read_sim_) {
-      sim_view_ = reader_->GetView<std::vector<SHiP::SimParticle>>(product);
-    } else {
+    try {
       mc_view_ = reader_->GetView<std::vector<SHiP::MCParticle>>(product);
+    } catch (std::exception const& e) {
+      throw std::runtime_error(
+          "file_source: field '" + product + "' of '" + input_file +
+          "' is not a std::vector<SHiP::MCParticle>: " + e.what());
     }
 
     // The event header is optional: files written before it existed have no
@@ -137,15 +125,6 @@ class FileSource : public phlex::source {
     // thread-safe, so all reads share io_mutex_. The view returns a reference
     // into its own buffer, so copy out while still holding the lock.
     std::scoped_lock const lock{io_mutex_};
-    if (read_sim_) {
-      auto const& sim_particles = (*sim_view_)(entry);
-      std::vector<SHiP::MCParticle> particles;
-      particles.reserve(sim_particles.size());
-      for (auto const& sp : sim_particles) {
-        particles.push_back(to_mc_particle(sp));
-      }
-      return particles;
-    }
     return (*mc_view_)(entry);
   }
 
@@ -186,13 +165,11 @@ class FileSource : public phlex::source {
  private:
   std::string stage_;
   long skip_;
-  bool read_sim_;
   ROOT::NTupleSize_t n_entries_{0};
   // Declared before reader_, so it outlives the reader.
   std::unique_ptr<TFile> file_;
   std::unique_ptr<ROOT::RNTupleReader> reader_;
   std::optional<ROOT::RNTupleView<std::vector<SHiP::MCParticle>>> mc_view_;
-  std::optional<ROOT::RNTupleView<std::vector<SHiP::SimParticle>>> sim_view_;
   // Set only when the input carries an "event_header" field; absent for files
   // written before the header existed.
   std::optional<ROOT::RNTupleView<SHiP::EventHeader>> header_view_;

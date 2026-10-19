@@ -23,8 +23,8 @@ option(
 )
 
 # Dependencies
-find_package(SHiPDataModel 0.6 REQUIRED)
-find_package(SHiPFieldService 0.4 REQUIRED COMPONENTS G4Adapter MapIO)
+find_package(SHiPDataModel 0.6...<0.7 REQUIRED)
+find_package(SHiPFieldService 0.4...<0.5 REQUIRED COMPONENTS G4Adapter MapIO)
 
 find_package(spdlog REQUIRED)
 find_package(phlex 0.4.1 REQUIRED)
@@ -65,7 +65,7 @@ find_package(SHiPRandom 0.4 REQUIRED)
 # >=0.5: SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile,
 # shared between geant4_module and any other Geant4 geometry user (e.g.
 # aegir-genie's GENIE source) — see aegir-genie issue #11.
-find_package(SHiPGeometryService 0.5 CONFIG REQUIRED)
+find_package(SHiPGeometryService 0.5...<0.6 CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace

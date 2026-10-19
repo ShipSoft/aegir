@@ -60,7 +60,7 @@ set_target_properties(
 )
 
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
-find_package(SHiPRandom 0.2 REQUIRED)
+find_package(SHiPRandom 0.4 REQUIRED)
 
 # >=0.5: SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile,
 # shared between geant4_module and any other Geant4 geometry user (e.g.

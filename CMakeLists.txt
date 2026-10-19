@@ -62,10 +62,11 @@ set_target_properties(
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
 find_package(SHiPRandom 0.4 REQUIRED)
 
-# >=0.5: SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile,
+# SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile are
 # shared between geant4_module and any other Geant4 geometry user (e.g.
-# aegir-genie's GENIE source) — see aegir-genie issue #11.
-find_package(SHiPGeometryService 0.5...<0.6 CONFIG REQUIRED)
+# aegir-genie's GENIE source), see aegir-genie issue #11. >=0.6:
+# geant4WorldLogical() returns a reference and the library requires C++23.
+find_package(SHiPGeometryService 0.6...<0.7 CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace

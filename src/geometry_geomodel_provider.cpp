@@ -41,16 +41,12 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
       // process; in the full GENIE chain, aegir-genie's geometry analyzer
       // has already loaded and converted it (aegir-genie issue #11).
       service_ = SHiP::GeometryService::sharedFromFile(db_path_);
-      auto* worldLV = service_->geant4WorldLogical();
-      if (!worldLV) {
-        throw std::runtime_error(
-            "GeoModelGeometrySource: GeoModel->G4 conversion failed for " +
-            db_path_);
-      }
+      // Throws if the conversion fails, so the volume is never null.
+      auto& worldLV = service_->geant4WorldLogical();
 
       // Wrap the logical volume in a physical volume placement (world)
-      world_ = new G4PVPlacement(nullptr, G4ThreeVector(), worldLV,
-                                 worldLV->GetName(), nullptr, false, 0);
+      world_ = new G4PVPlacement(nullptr, G4ThreeVector(), &worldLV,
+                                 worldLV.GetName(), nullptr, false, 0);
 
       // The GeoModel tree is redundant once the Geant4 geometry is built: the
       // GeoModel->G4 conversion produced independent G4 objects owned by the G4

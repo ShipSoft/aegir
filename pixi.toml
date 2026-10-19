@@ -76,13 +76,13 @@ clang-tools = ">=19"
 # generator sources fill.
 shipdatamodel = ">=0.6,<0.7"
 shipgeometry = "*"
-# >=0.5: SHiP::GeometryService, SHiP/GeometryService/ headers and the
-# SHiP::GeometryService target. Its process-wide geometry thread and shared
+# >=0.6: geant4WorldLogical() returns G4LogicalVolume& and the pre-0.5
+# spellings are gone. Its process-wide geometry thread and shared
 # service registry are shared between geant4_module and any other Geant4
 # geometry user (e.g. aegir-genie's GENIE source, its issue #11). Keep in
 # lockstep with aegir-genie's pin: ld.so dedups the library process-wide and
 # the first-loaded copy wins.
-shipgeometryservice = ">=0.5,<0.6"
+shipgeometryservice = ">=0.6,<0.7"
 
 [activation]
 scripts = ["activate.sh"]

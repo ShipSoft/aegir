@@ -12,11 +12,15 @@
 #pragma once
 
 #include <SHiP/detectors/detector_id.hpp>
+#include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <format>
+#include <initializer_list>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "phlex/configuration.hpp"
@@ -62,15 +66,87 @@ struct SensitiveVolume {
       "'");
 }
 
+/// The detector id of a `detector` name in a `sensitive_volumes` entry: one
+/// of the SHiP::detector_id enumerators.
+[[nodiscard]] inline std::int32_t detector_id_from_name(std::string_view name) {
+  using enum SHiP::detector_id;
+  for (auto const [known, id] : {std::pair{"UpstreamTagger", UpstreamTagger},
+                                 std::pair{"SurroundTagger", SurroundTagger},
+                                 std::pair{"StrawTubes", StrawTubes},
+                                 std::pair{"Calorimeter", Calorimeter},
+                                 std::pair{"TimingDetector", TimingDetector}}) {
+    if (name == known) {
+      return static_cast<std::int32_t>(id);
+    }
+  }
+  throw std::invalid_argument(
+      "unknown detector '" + std::string{name} +
+      "' (expected UpstreamTagger, SurroundTagger, StrawTubes, Calorimeter "
+      "or TimingDetector)");
+}
+
+[[noreturn]] inline void sensitive_volume_error(std::size_t index,
+                                                std::string const& what) {
+  throw std::invalid_argument("sensitive_volumes entry #" +
+                              std::to_string(index) +
+                              " (counting from 0): " + what);
+}
+
 /// Read the `sensitive_volumes` list of a geometry provider's configuration.
+/// Each entry is either a volume-name pattern, whose detector id comes from
+/// detector_id_for_pattern(), or `{pattern: ..., detector: ...}`, which names
+/// the detector itself. The two forms can be mixed.
 [[nodiscard]] inline std::vector<SensitiveVolume> read_sensitive_volumes(
     phlex::configuration const& config) {
+  // phlex::configuration only reads lists of one kind, so read the entries
+  // as raw JSON values and tell the two forms apart here.
+  auto const entries =
+      config.get<std::vector<boost::json::value>>("sensitive_volumes");
   std::vector<SensitiveVolume> volumes;
-  for (auto& pattern :
-       config.get<std::vector<std::string>>("sensitive_volumes")) {
-    auto const detector_id = detector_id_for_pattern(pattern);
+  volumes.reserve(entries.size());
+  for (std::size_t i = 0; i < entries.size(); ++i) {
+    auto const& entry = entries[i];
+    if (entry.is_string()) {
+      std::string pattern{entry.as_string()};
+      try {
+        auto const detector_id = detector_id_for_pattern(pattern);
+        volumes.push_back(
+            {.pattern = std::move(pattern), .detector_id = detector_id});
+      } catch (std::invalid_argument const&) {
+        sensitive_volume_error(
+            i, std::format("no detector id is known for pattern '{0}'; write "
+                           "it as {{pattern: '{0}', detector: ...}} to name "
+                           "the detector",
+                           pattern));
+      }
+      continue;
+    }
+    if (!entry.is_object()) {
+      sensitive_volume_error(
+          i, "expected a pattern or {pattern: ..., detector: ...}");
+    }
+    auto const object = boost::json::value_to<phlex::configuration>(entry);
+    for (auto const& key : object.keys()) {
+      if (key != "pattern" && key != "detector") {
+        sensitive_volume_error(i, "unknown key '" + key + "'");
+      }
+    }
+    auto pattern = object.get_if_present<std::string>("pattern");
+    auto const detector = object.get_if_present<std::string>("detector");
+    if (!pattern || pattern->empty()) {
+      sensitive_volume_error(i, "no 'pattern'");
+    }
+    if (!detector) {
+      sensitive_volume_error(i, "no 'detector' for pattern '" + *pattern + "'");
+    }
+    std::int32_t detector_id = 0;
+    try {
+      detector_id = detector_id_from_name(*detector);
+    } catch (std::invalid_argument const& e) {
+      sensitive_volume_error(i, e.what());
+    }
     volumes.push_back(
-        {.pattern = std::move(pattern), .detector_id = detector_id});
+        {.pattern = std::move(*pattern), .detector_id = detector_id});
   }
   return volumes;
 }

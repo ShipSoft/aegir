@@ -185,6 +185,48 @@ Example workflow configuration:
 }
 ```
 
+### Sensitive volumes
+
+The GDML and GeoModel geometry providers take a `sensitive_volumes` list.
+Every logical volume whose name contains one of its patterns gets the
+sensitive detector chosen by `sd_mode`. If a volume matches more than one
+entry, the first one wins. The `detector_id` of each hit says which SHiP
+subsystem it belongs to, using the `SHiP::detector_id` values of the data
+model.
+
+An entry can be a bare pattern, and aegir then looks up its detector:
+
+| Pattern | `detector_id` |
+|:---|:---|
+| `UpstreamTagger`, `upstream_tagger` | `0` (UpstreamTagger) |
+| `SurroundTagger` | `1` (SurroundTagger) |
+| `StrawTubes`, `trackers` | `2` (StrawTubes) |
+| `Calorimeter`, `calorimeter` | `3` (Calorimeter) |
+| `TimingDetector`, `timing_detector` | `4` (TimingDetector) |
+| `Scoring`, `ScoringPlane` | `99`, the toy geometries' test planes, which belong to no subsystem |
+
+For any other pattern, name the detector yourself with
+`{ pattern: ..., detector: ... }`. `detector` is one of `UpstreamTagger`,
+`SurroundTagger`, `StrawTubes`, `Calorimeter`, `TimingDetector` or
+`test_fixture` (id 99). Both kinds of entry can go in one list, and
+several entries can share a detector:
+
+```jsonnet
+geometry: {
+  cpp: 'geometry_geomodel_provider',
+  db_file: 'ship_geometry.db',
+  sensitive_volumes: [
+    'upstream_tagger',
+    { pattern: 'straw_gas', detector: 'StrawTubes' },
+    { pattern: 'timing_detector/bar', detector: 'TimingDetector' },
+  ],
+},
+```
+
+A pattern aegir doesn't know, an unknown detector name, or an unknown key
+stops the job while the configuration is read, before Geant4 starts. The
+builtin geometry always uses `Scoring`, with id 99.
+
 ## Scoring planes
 
 A scoring plane is a thin box or cylindrical shell that records the
@@ -230,7 +272,7 @@ The hits are told apart from detector hits by their ids:
 
 | `SimHit` field | Scoring-plane value |
 |:---|:---|
-| `detector_id` | `100` (`SHiP::aegir::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids and of the `sensitive_volumes` indices (which limits a geometry to 100 `sensitive_volumes` patterns) |
+| `detector_id` | `100` (`SHiP::aegir::g4::kScoringPlaneDetectorId`), clear of the SHiP subsystem ids (0–4) and of the test planes' 99 (see [Sensitive volumes](#sensitive-volumes)) |
 | `geometry_node_id` | the plane's `id` |
 | `position`, `momentum`, `time` | at the entry point |
 | `energy_deposit` | `0` |

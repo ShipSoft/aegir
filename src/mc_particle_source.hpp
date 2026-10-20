@@ -103,7 +103,7 @@ inline phlex::provider_bundles mc_particle_provider_bundles(
                 phlex::data_cell_index const& id) -> product_ptr {
           auto header =
               generate_header ? generate_header(id) : SHiP::EventHeader{};
-          return product_for(std::move(header));
+          return product_for(header);
         },
         .max_concurrency = max_concurrency,
         .spec = std::move(header_spec),

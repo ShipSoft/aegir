@@ -5,7 +5,8 @@
 
 # Field deflection: generate a constant 0.5 T By map with
 # generate_constant_fieldmap, run gun_st_field_smoke through field_map_provider,
-# and check the 20 GeV μ− lands where the analytic circle puts it at each
+# once with the map given as a magnet list and once through a placement
+# manifest, and check the 20 GeV μ− lands where the analytic circle puts it at each
 # scoring plane. Catches a field-service update that breaks map loading or
 # evaluation, which the no-field tests would not notice.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
@@ -22,6 +23,25 @@ generate_constant_fieldmap "$workdir/world_05T_y.root" world_05T_y \
 
 # The workflow names its map and output files relative to the working directory.
 (cd "$workdir" && phlex -c <(jsonnet "$workflows/gun_st_field_smoke.jsonnet"))
+
+# Same map, loaded through a placement manifest instead of a magnet list. The
+# manifest sits next to the map and is passed by absolute path, so the run
+# directory is elsewhere and only the manifest can lead to the map.
+mkdir "$workdir/manifest"
+cat >"$workdir/placements.json" <<'EOF'
+{
+  "format_version": 1,
+  "maps": {"world_05T_y": {"file": "world_05T_y.root"}},
+  "magnets": [
+    {"name": "WorldField", "volume_pattern": "World", "map": "world_05T_y"}
+  ]
+}
+EOF
+(cd "$workdir/manifest" && phlex -c <(jsonnet -J "$workflows" -e "
+  local lib = import 'lib.libsonnet';
+  (import 'gun_st_field_smoke.jsonnet') {
+    sources+: { field: lib.field_placements('$workdir/placements.json') },
+  }"))
 
 # Mean x of the primary muon (track 1) at each scoring plane, compared with the
 # exact circle x0 + R - sqrt(R^2 - L^2), R = p / (0.3 B), L measured from the
@@ -70,4 +90,6 @@ os._exit(0 if ok else 1)
 EOF
 
 python3 "$workdir/check_deflection.py" "$workdir/gun_st_field_smoke.root"
-echo "field deflection passed: muon follows the analytic circle in 0.5 T"
+python3 "$workdir/check_deflection.py" "$workdir/manifest/gun_st_field_smoke.root"
+echo "field deflection passed: muon follows the analytic circle in 0.5 T, with the
+map given as a magnet list and through a placement manifest"

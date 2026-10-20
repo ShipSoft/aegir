@@ -6,7 +6,8 @@
 // G4VUserDetectorConstruction
 //
 // Delegates Construct() to IGeometrySource::construct() and assigns the
-// configured SD type to volumes matching IGeometrySource::sensitiveVolumes().
+// configured SD type to volumes matching IGeometrySource::sensitiveVolumes(),
+// whose hits carry that entry's detector id.
 // Registers the configured scoring planes as a parallel world
 // (ScoringParallelWorld, see scoring_planes.hpp).
 
@@ -72,16 +73,6 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
         sd_mode_{sd_mode},
         ke_threshold_{ke_threshold},
         regions_{std::move(regions)} {
-    // Detector hits carry their sensitive-volume pattern's index as detector
-    // id; keep those below the scoring planes' id so the two cannot collide.
-    if (std::cmp_greater(source.sensitiveVolumes().size(),
-                         kScoringPlaneDetectorId)) {
-      throw std::invalid_argument(
-          "geant4_module: at most " + std::to_string(kScoringPlaneDetectorId) +
-          " sensitive_volumes patterns are supported (detector id " +
-          std::to_string(kScoringPlaneDetectorId) +
-          " is reserved for scoring planes)");
-    }
     if (!scoring_planes.empty()) {
       scoring_world_ = new ScoringParallelWorld(std::move(scoring_planes));
       RegisterParallelWorld(scoring_world_);
@@ -127,19 +118,16 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   }
 
   void ConstructSDandField() override {
-    auto const& sv_names = source_->sensitiveVolumes();
+    // The detector ids were resolved when the geometry provider read its
+    // configuration (read_sensitive_volumes), so nothing here can fail.
+    auto const& sensitive_volumes = source_->sensitiveVolumes();
     DetectorIdMap detector_ids;
 
-    for (auto const& pattern : sv_names) {
-      (void)SHiP::aegir::detector_id_for_pattern(pattern);
-    }
     auto const volumes = detector_volumes();
     for (auto* lv : volumes) {
-      for (int i = 0; std::cmp_less(i, sv_names.size()); ++i) {
-        if (G4StrUtil::contains(lv->GetName(), std::string_view{sv_names[i]})) {
-          detector_ids.emplace(
-              lv, static_cast<int>(
-                      SHiP::aegir::detector_id_for_pattern(sv_names[i])));
+      for (auto const& sv : sensitive_volumes) {
+        if (G4StrUtil::contains(lv->GetName(), std::string_view{sv.pattern})) {
+          detector_ids.emplace(lv, sv.detector_id);
           break;
         }
       }

@@ -140,8 +140,8 @@ phlex -c workflows/fixed_target_mt.jsonnet
 # run_fixedTarget.py (see docs/geant4_integration.md)
 phlex -c <(jsonnet --tla-code seed=42 workflows/fixed_target_production.jsonnet)
 
-# Second stage: simulate the particles that reached the plane again from where
-# they were produced, with the absorber plane removed
+# Second stage: simulate the particles that reached the plane onwards from
+# where they crossed it, with the absorber plane removed
 phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
   --tla-code events="$(python3 scripts/count_entries.py fixed_target_production.root)" \
   workflows/plane_replay.jsonnet)

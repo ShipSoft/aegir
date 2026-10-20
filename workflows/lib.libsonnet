@@ -142,9 +142,9 @@
   // parallel world, so it also records what passes beside the shield.
   // It records every track reaching it — muons, neutrinos and all others —
   // and stops it, so nothing is tracked beyond. The tracks it records going
-  // downstream are also written as plane_particles, from their origin and
-  // with their ancestry, for workflows/plane_replay.jsonnet to simulate
-  // further. Merge in a `ke_threshold` (GeV) to match the run's energy cut.
+  // downstream are also written as plane_particles, as they entered the
+  // plane and with their ancestry, for workflows/plane_replay.jsonnet to
+  // simulate further. Merge in a `ke_threshold` (GeV) to match the run's energy cut.
   exit_hadron_absorber_plane:: {
     name: 'exit_hadron_absorber',
     id: 1,

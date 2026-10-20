@@ -104,7 +104,7 @@ its `generatorStatus`:
 | 3 | Documentation entry | no |
 | 4 | Incoming beam particle | no |
 | 11-200 | Intermediate entry, generator-dependent classification | no |
-| 201+ | Left to the simulation. aegir writes 201 for the Geant4 ancestors of a replayed particle (see [Replaying a plane's particles](#replaying-a-planes-particles)) | no |
+| 201+ | Left to the simulation. aegir writes 201 for the ancestry of a replayed particle, including the particle itself where it was produced (see [Replaying a plane's particles](#replaying-a-planes-particles)) | no |
 
 Only status-1 entries become primaries. Note that "final state" does not mean
 stable: a final-state `K_S` is status 1 and is expected to decay in the
@@ -334,12 +334,13 @@ the particles that reached it and simulates them through the rest of the
 detector, as many times or with as many settings as needed, without
 regenerating the target interactions.
 
-The second stage tracks each saved particle again from its origin, the point
-where it was produced, and not from where it crossed the plane. Its path from
-the origin to the plane is simulated a second time, through the same material,
-with the second stage's random numbers. A replayed particle therefore does not
-follow its first-stage path, and it may not reach the plane at all. Use the
-first stage's `sim_hits` for where the particles actually crossed.
+The second stage starts each saved particle where it entered the plane, with
+the position, momentum and time it had there. Starting it from where it was
+produced instead would simulate its path to the plane a second time, with new
+random numbers. The first stage only saved the particles whose path happened
+to reach the plane, so many would not reach it again: in a test with
+secondaries of a pion shower in 1 m of tungsten, only about 30% did, and the
+replayed flux at the plane was too low at every momentum.
 
 A plane with `record_particles` marks every track it records while the track
 moves downstream (positive z momentum). Tracks entering it from downstream
@@ -347,14 +348,15 @@ are still recorded as hits but not marked. At the end of the event the marked
 tracks are written to the `plane_particles` field of the output, as
 `SHiP::MCParticle`s:
 
-- Each marked track appears once with status 1, with its vertex, momentum and
-  time at its origin. The crossing itself stays in `sim_hits`. A marked track
-  that descends from another marked track is left out, because replaying the
-  ancestor produces it again.
-- Its full ancestry follows: the chain of Geant4 tracks back to the primary
-  with status 201, and the primary's mothers in the generator record with
-  their own status. `mothers` and `mother_id` index into `plane_particles`.
-  The primary's own entry is the generator's particle with status 201.
+- Each marked track appears once with status 1, with its position,
+  momentum, total energy and time where it entered the plane, the same as its
+  hit in `sim_hits`. A marked track that descends from another marked track
+  is left out, because replaying the ancestor produces it again.
+- Its full ancestry follows with status 201: first the same track where it
+  was produced, then the chain of Geant4 tracks back to the primary, then the
+  primary's mothers in the generator record with their own status.
+  `mothers` and `mother_id` index into `plane_particles`. The primary's own
+  entry is the generator's particle with status 201.
 - The same tracks, the marked ones and every Geant4 ancestor, are also
   written to `sim_particles`, even those below `particle_ke_cut`, so the
   full history of each marked particle can be followed there by `parent_id`.
@@ -384,6 +386,6 @@ pixi run phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
 ```
 
 The second stage's geometry must not contain the killing plane: the replayed
-particles start upstream of it and would be stopped there again.
+particles start on its surface and would be stopped at once.
 `plane_replay.jsonnet` therefore has no scoring planes. The `scoring_planes`
 test runs both stages on the builtin geometry.

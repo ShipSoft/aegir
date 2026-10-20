@@ -317,10 +317,7 @@ add_test(
 # recorded track once with status 1, and its full ancestry as history, built
 # here from a hand-made event without Geant4.
 add_executable(plane_particles_test tests/plane_particles_test.cpp)
-target_link_libraries(
-    plane_particles_test
-    PRIVATE SHiP::SHiPDataModel SHiP::SHiPUnits
-)
+target_link_libraries(plane_particles_test PRIVATE SHiP::DataModel SHiP::Units)
 target_include_directories(
     plane_particles_test
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src

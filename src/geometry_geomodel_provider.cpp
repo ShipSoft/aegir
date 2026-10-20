@@ -25,13 +25,14 @@ namespace {
 
 class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
   std::string db_path_;
-  std::vector<std::string> sensitive_vols_;
+  std::vector<SHiP::aegir::SensitiveVolume> sensitive_vols_;
   mutable std::once_flag init_flag_;
   mutable std::shared_ptr<SHiP::GeometryService> service_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
-  GeoModelGeometrySource(std::string path, std::vector<std::string> sv)
+  GeoModelGeometrySource(std::string path,
+                         std::vector<SHiP::aegir::SensitiveVolume> sv)
       : db_path_{std::move(path)}, sensitive_vols_{std::move(sv)} {}
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
@@ -63,8 +64,8 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
     return world_;
   }
 
-  [[nodiscard]] std::vector<std::string> const& sensitiveVolumes()
-      const override {
+  [[nodiscard]] std::vector<SHiP::aegir::SensitiveVolume> const&
+  sensitiveVolumes() const override {
     return sensitive_vols_;
   }
 };
@@ -93,7 +94,7 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
     }
   }
 
-  auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
+  auto sv = SHiP::aegir::read_sensitive_volumes(config);
 
   // Publish as the interface type: consumers request
   // std::shared_ptr<SHiP::aegir::IGeometrySource>.

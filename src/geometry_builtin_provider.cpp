@@ -32,7 +32,9 @@ namespace su = SHiP::units;
 inline double g4(auto q) { return SHiP::aegir::clhep::g4(q); }
 
 class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
-  std::vector<std::string> sensitive_vols_{"Scoring"};
+  std::vector<SHiP::aegir::SensitiveVolume> sensitive_vols_{
+      {.pattern = "Scoring",
+       .detector_id = SHiP::aegir::detector_id_for_pattern("Scoring")}};
   mutable std::once_flag init_flag_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
@@ -71,8 +73,8 @@ class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
     return world_;
   }
 
-  [[nodiscard]] std::vector<std::string> const& sensitiveVolumes()
-      const override {
+  [[nodiscard]] std::vector<SHiP::aegir::SensitiveVolume> const&
+  sensitiveVolumes() const override {
     return sensitive_vols_;
   }
 };

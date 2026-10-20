@@ -14,8 +14,8 @@
 namespace SHiP::aegir::g4 {
 
 /// SimHit::detector_id of every scoring-plane hit. Kept clear of the SHiP
-/// subsystem ids (SHiP::detector_id, 0–4) and of the sensitive-volume indices
-/// the geometry's own sensitive detectors write, so a plane hit cannot be
+/// subsystem ids (SHiP::detector_id, 0–4) and of the test-fixture id (99,
+/// kTestFixtureDetectorId in sensitive_volumes.hpp), so a plane hit cannot be
 /// mistaken for a detector hit. Which plane recorded the hit is stored in
 /// SimHit::geometry_node_id (the plane's configured `id`).
 inline constexpr std::int32_t kScoringPlaneDetectorId = 100;

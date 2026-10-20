@@ -34,7 +34,7 @@ inline double g4(auto q) { return SHiP::aegir::clhep::g4(q); }
 class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
   std::vector<SHiP::aegir::SensitiveVolume> sensitive_vols_{
       {.pattern = "Scoring",
-       .detector_id = SHiP::aegir::detector_id_for_pattern("Scoring")}};
+       .detector_id = SHiP::aegir::kTestFixtureDetectorId}};
   mutable std::once_flag init_flag_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 

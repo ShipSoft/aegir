@@ -34,6 +34,13 @@ struct SensitiveVolume {
   std::int32_t detector_id;
 };
 
+/// SimHit::detector_id of hits in the toy geometries' "Scoring" planes (the
+/// builtin geometry and the target-only GDML), which belong to no SHiP
+/// subsystem. Kept clear of SHiP::detector_id (0-4), of the -1 of a volume
+/// without an id and of the scoring planes' 100, and inside the output
+/// module's h_hit_detector range.
+inline constexpr std::int32_t kTestFixtureDetectorId = 99;
+
 /// The detector id of a bare `sensitive_volumes` pattern. The correspondence
 /// between a volume-name pattern and a SHiP::detector_id is a fact about the
 /// geometry, so the known patterns are listed here rather than restated in
@@ -46,10 +53,7 @@ struct SensitiveVolume {
   if (pattern == "UpstreamTagger" || pattern == "upstream_tagger") {
     return id(SHiP::detector_id::UpstreamTagger);
   }
-  // No SurroundTagger geometry exists yet; the test fixtures' "Scoring"/
-  // "ScoringPlane" planes stand in for it.
-  if (pattern == "SurroundTagger" || pattern == "Scoring" ||
-      pattern == "ScoringPlane") {
+  if (pattern == "SurroundTagger") {
     return id(SHiP::detector_id::SurroundTagger);
   }
   if (pattern == "StrawTubes" || pattern == "trackers") {
@@ -61,15 +65,22 @@ struct SensitiveVolume {
   if (pattern == "TimingDetector" || pattern == "timing_detector") {
     return id(SHiP::detector_id::TimingDetector);
   }
+  if (pattern == "Scoring" || pattern == "ScoringPlane") {
+    return kTestFixtureDetectorId;
+  }
   throw std::invalid_argument(
       "sensitive_volumes: no detector id for pattern '" + std::string{pattern} +
       "'");
 }
 
 /// The detector id of a `detector` name in a `sensitive_volumes` entry: one
-/// of the SHiP::detector_id enumerators.
+/// of the SHiP::detector_id enumerators, or `test_fixture` for
+/// kTestFixtureDetectorId.
 [[nodiscard]] inline std::int32_t detector_id_from_name(std::string_view name) {
   using enum SHiP::detector_id;
+  if (name == "test_fixture") {
+    return kTestFixtureDetectorId;
+  }
   for (auto const [known, id] : {std::pair{"UpstreamTagger", UpstreamTagger},
                                  std::pair{"SurroundTagger", SurroundTagger},
                                  std::pair{"StrawTubes", StrawTubes},
@@ -81,8 +92,8 @@ struct SensitiveVolume {
   }
   throw std::invalid_argument(
       "unknown detector '" + std::string{name} +
-      "' (expected UpstreamTagger, SurroundTagger, StrawTubes, Calorimeter "
-      "or TimingDetector)");
+      "' (expected UpstreamTagger, SurroundTagger, StrawTubes, Calorimeter, "
+      "TimingDetector or test_fixture)");
 }
 
 [[noreturn]] inline void sensitive_volume_error(std::size_t index,

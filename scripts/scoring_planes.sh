@@ -135,9 +135,8 @@ os._exit(0 if ok else 1)  # dodge a PyROOT RNTuple teardown crash
 EOF
 
 # plane_particles: one status-1 entry per track plane 3 recorded going
-# forward, in crossing order, at its hit on the plane, unless the track
-# descends from another recorded track. Its mother is the same track at its
-# origin (as in sim_particles, when it is there); everything else is ancestry
+# forward, in crossing order, at its hit on the plane. Its mother is the
+# same track at its origin (as in sim_particles, when it is there); everything else is ancestry
 # with another status, and every chain of mothers ends at an entry without
 # any.
 cat >"$workdir/check_plane_particles.py" <<'EOF'
@@ -174,15 +173,7 @@ for i in range(n):
                 and h.momentum[2] > 0 and h.track_id not in hits):
             hits[h.track_id] = (tuple(h.position), tuple(h.momentum), h.time)
     tracks = {p.track_id: p for p in parts_view(i)}
-
-    def has_recorded_ancestor(t):
-        while t in tracks and tracks[t].parent_id != 0:
-            t = tracks[t].parent_id
-            if t in hits:
-                return True
-        return False
-
-    recorded = [t for t in hits if not has_recorded_ancestor(t)]
+    recorded = list(hits)
     written = {(p.pdg_code, tuple(p.vertex)) for p in tracks.values()}
     out = list(plane_view(i))
     finals = [p for p in out if p.status == 1]

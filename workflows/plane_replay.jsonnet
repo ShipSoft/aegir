@@ -2,14 +2,13 @@
 // recorded in an earlier run (e.g. fixed_target_production.jsonnet) and
 // simulate them further. Each event of the input becomes one event here.
 //
-// plane_particles holds every track the plane recorded (except those
-// descended from another recorded track, which replaying their ancestor
-// produces again), as it entered the plane (HepMC status 1), plus its
-// ancestry (other statuses, which Geant4 does not track), so the tracks are
-// simulated from the plane on. The geometry must therefore not contain the
-// killing plane, or it would stop them at once; this workflow has no scoring
-// planes. The input's event header is passed on, with original_event_id set
-// to the earlier run's event number.
+// plane_particles holds every track the plane recorded, as it entered the
+// plane (HepMC status 1), plus its ancestry (other statuses, which Geant4
+// does not track), so the tracks are simulated from the plane on. The
+// geometry must therefore not contain the killing plane, or it would stop
+// them at once; this workflow has no scoring planes. The input's event
+// header is passed on, with original_event_id set to the earlier run's event
+// number.
 //
 // Top-level arguments (--tla-code / --tla-str):
 //   infile  output of the earlier run (--tla-str)

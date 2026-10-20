@@ -24,7 +24,7 @@ option(
 
 # Dependencies
 find_package(SHiPDataModel 0.6...<0.7 REQUIRED)
-find_package(SHiPFieldService 0.4...<0.5 REQUIRED COMPONENTS G4Adapter MapIO)
+find_package(SHiPFieldService 0.5...<0.6 REQUIRED COMPONENTS G4Adapter MapIO)
 
 find_package(spdlog REQUIRED)
 find_package(phlex 0.4.1 REQUIRED)

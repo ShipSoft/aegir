@@ -61,4 +61,4 @@ class IGeometrySource {
       pattern + "'");
 }
 
-}  // namespace SHiP
+}  // namespace SHiP::aegir

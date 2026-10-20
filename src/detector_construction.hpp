@@ -131,13 +131,15 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     DetectorIdMap detector_ids;
 
     for (auto const& pattern : sv_names) {
-      (void)SHiP::detector_id_for_pattern(pattern);
+      (void)SHiP::aegir::detector_id_for_pattern(pattern);
     }
     auto const volumes = detector_volumes();
     for (auto* lv : volumes) {
       for (int i = 0; std::cmp_less(i, sv_names.size()); ++i) {
         if (G4StrUtil::contains(lv->GetName(), std::string_view{sv_names[i]})) {
-          detector_ids.emplace(lv, static_cast<int>(SHiP::detector_id_for_pattern(pattern)));
+          detector_ids.emplace(
+              lv, static_cast<int>(
+                      SHiP::aegir::detector_id_for_pattern(sv_names[i])));
           break;
         }
       }

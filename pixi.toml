@@ -2,7 +2,7 @@
 name = "aegir"
 description = "Phlex-based simulation framework for the SHiP experiment"
 channels = ["https://prefix.dev/ship-experiment/stable", "conda-forge"]
-platforms = ["linux-64"]
+platforms = ["linux-64", "linux-aarch64"]
 # Enables source dependencies for the (opt-in) multi-package dev workflow
 # below; inert for the default environment.
 preview = ["pixi-build"]

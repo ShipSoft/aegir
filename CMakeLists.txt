@@ -326,3 +326,16 @@ target_include_directories(
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME plane_particles COMMAND plane_particles_test)
+
+# Sensitive volumes: each sensitive_volumes entry gets the right detector id,
+# and bad entries are rejected when the configuration is read.
+add_executable(sensitive_volumes_test tests/sensitive_volumes_test.cpp)
+target_link_libraries(
+    sensitive_volumes_test
+    PRIVATE SHiP::SHiPDataModel phlex::configuration
+)
+target_include_directories(
+    sensitive_volumes_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME sensitive_volumes COMMAND sensitive_volumes_test)

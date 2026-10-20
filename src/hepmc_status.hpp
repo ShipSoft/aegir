@@ -38,16 +38,18 @@ inline constexpr int simulation_history = 201;
   return status == final_state;
 }
 
-/// True for the simulation's own entries (201 and above): history written by
-/// an earlier simulation stage, expected in its output and never tracked.
+/// True for aegir's own history entries (status 201): written by an earlier
+/// stage, expected in its output and never tracked. Other codes above 200
+/// are not aegir's, so they are reported like any other skipped entry.
 [[nodiscard]] constexpr bool is_simulation_history(int status) noexcept {
-  return status > intermediate_max;
+  return status == simulation_history;
 }
 
 static_assert(is_final_state(final_state));
 static_assert(!is_final_state(simulation_history));
 static_assert(is_simulation_history(simulation_history));
 static_assert(!is_simulation_history(intermediate_max));
+static_assert(!is_simulation_history(simulation_history + 1));
 static_assert(!is_final_state(empty));
 static_assert(!is_final_state(decayed));
 static_assert(!is_final_state(documentation));

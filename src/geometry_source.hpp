@@ -51,7 +51,7 @@ class IGeometrySource {
     return detector_id::SurroundTagger;
   if (pattern == "trackers" || pattern == "StrawTubes")
     return detector_id::StrawTubes;
-  if (pattern == "Calorimeter" || "calorimeter")
+  if (pattern == "Calorimeter" || pattern == "calorimeter")
     return detector_id::Calorimeter;
   if (pattern == "timing_detector" || pattern == "TimingDetector")
     return detector_id::TimingDetector;

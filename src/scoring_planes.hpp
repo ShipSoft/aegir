@@ -96,6 +96,12 @@ struct ScoringPlaneConfig {
   /// Stop and kill every track that steps into the plane, recorded or not
   /// (FairShip's StopTrack()).
   bool kill = false;
+  /// Write the tracks recorded here, as they entered the plane and with their
+  /// full ancestry, as the `plane_particles` product for a later stage to
+  /// replay from the plane. Only forward crossings (pz > 0) count. At most
+  /// one plane may set it, and it must also kill, so that nothing a recorded
+  /// track produces after crossing is recorded too.
+  bool record_particles = false;
 };
 
 /// What the sensitive detector needs to know about a placed plane.
@@ -103,6 +109,7 @@ struct ScoringPlaneInfo {
   std::int32_t id = 0;
   double ke_threshold = 0;  // Geant4 internal units
   bool kill = false;
+  bool record_particles = false;
 };
 
 using ScoringPlaneMap = std::unordered_map<G4LogicalVolume*, ScoringPlaneInfo>;
@@ -151,6 +158,7 @@ inline void validate_scoring_planes(
     std::vector<ScoringPlaneConfig> const& planes) {
   std::unordered_set<std::string> names;
   std::unordered_set<std::int32_t> ids;
+  std::string recording;  // the plane recording particles, if any
   for (auto const& p : planes) {
     if (p.name.empty()) {
       throw std::invalid_argument("scoring plane without a name");
@@ -162,11 +170,21 @@ inline void validate_scoring_planes(
       error = "id " + std::to_string(p.id) + " used by more than one plane";
     } else if (p.ke_threshold < SHiP::Energy::zero()) {
       error = "ke_threshold must not be negative";
+    } else if (p.record_particles && !p.kill) {
+      // Without the kill, a track a recorded track produces after crossing
+      // could be recorded too, and a replay would simulate both.
+      error = "record_particles needs kill: true";
+    } else if (p.record_particles && !recording.empty()) {
+      error = "only one scoring plane may record particles, '" + recording +
+              "' already does";
     } else if (error = scoring_plane_detail::shape_error(p); error.empty()) {
       error = scoring_plane_detail::placement_error(p);
     }
     if (!error.empty()) {
       throw std::invalid_argument("scoring plane '" + p.name + "': " + error);
+    }
+    if (p.record_particles) {
+      recording = p.name;
     }
   }
 }
@@ -515,15 +533,17 @@ inline ScoringPlaneMap place_scoring_planes(
     placed.emplace(lv,
                    ScoringPlaneInfo{.id = cfg.id,
                                     .ke_threshold = cb::g4(cfg.ke_threshold),
-                                    .kill = cfg.kill});
+                                    .kill = cfg.kill,
+                                    .record_particles = cfg.record_particles});
     auto const mm = [](double v) {
       return cb::length(v).numerical_value_in(SHiP::units::mm);
     };
     spdlog::info(
         "geant4: scoring plane '{}' (id {}) placed, centre ({:.1f}, {:.1f}, "
-        "{:.1f}) mm{}",
+        "{:.1f}) mm{}{}",
         cfg.name, cfg.id, mm(centre.x()), mm(centre.y()), mm(centre.z()),
-        cfg.kill ? ", kills every track stepping into it" : "");
+        cfg.kill ? ", kills every track stepping into it" : "",
+        cfg.record_particles ? ", records particles for replay" : "");
   }
   return placed;
 }
@@ -577,6 +597,20 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
     SHiP::view::set_path_length(
         hit, SHiP::aegir::clhep::length(track->GetTrackLength()));
     tl_hits.push_back(hit);
+    // Forward along global z, the beam direction: backsplash entering from
+    // downstream is recorded as a hit but not replayed. The replay starts
+    // from where the track entered the plane.
+    if (plane.record_particles && pre->GetMomentum().z() > 0) {
+      SHiP::MCParticle at_plane;
+      at_plane.pdg_code = hit.pdg_code;
+      at_plane.vertex = hit.position;
+      at_plane.momentum = hit.momentum;
+      SHiP::view::set_energy(at_plane,
+                             SHiP::aegir::clhep::energy(pre->GetTotalEnergy()));
+      at_plane.time = hit.time;
+      tl_recorded_tracks.push_back(
+          {.track_id = track->GetTrackID(), .particle = std::move(at_plane)});
+    }
     return true;
   }
 

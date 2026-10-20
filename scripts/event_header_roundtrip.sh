@@ -9,7 +9,9 @@
 #   - a file whose headers are all distinguishable from the unweighted default
 #     reads back with those headers intact,
 #   - a file with no event_header field at all reads back with every event
-#     carrying the default (weight 1.0, original_event_id -1).
+#     carrying the default (weight 1.0, original_event_id -1),
+#   - a header without an original_event_id gets the input's event_number,
+#     while one that has an id keeps it.
 # This reads the input back through the mc_only output path, so it needs no
 # Geant4, geometry or field and stays fast and deterministic.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
@@ -54,7 +56,9 @@ EOF
 # every event, so a gun-written file cannot tell a header that was really read
 # back from one that fell through to the default. With --no-header the
 # event_header field is left out entirely, reproducing a file written before the
-# field existed.
+# field existed. With --event-number the file also has the event_number field
+# sim_output_module writes (50 + i), and with --unset-id the headers leave
+# original_event_id at -1 for file_source to fill from it.
 cat >"$workdir/make_header_input.py" <<'EOF'
 import os
 import sys
@@ -63,11 +67,15 @@ import ROOT
 
 out, n = sys.argv[1], int(sys.argv[2])
 with_header = "--no-header" not in sys.argv
+with_event_number = "--event-number" in sys.argv
+unset_id = "--unset-id" in sys.argv
 
 model = ROOT.RNTupleModel.Create()
 model.MakeField["std::vector<SHiP::MCParticle>"]("mc_particles")
 if with_header:
     model.MakeField["SHiP::EventHeader"]("event_header")
+if with_event_number:
+    model.MakeField["std::uint64_t"]("event_number")
 writer = ROOT.RNTupleWriter.Recreate(ROOT.std.move(model), "events", out)
 entry = writer.CreateEntry()
 
@@ -85,7 +93,9 @@ for i in range(n):
     if with_header:
         header = entry["event_header"]
         header.weight = 2.0 + i  # never 1.0, the default
-        header.original_event_id = 100 + i
+        header.original_event_id = -1 if unset_id else 100 + i
+    if with_event_number:
+        entry["event_number"] = 50 + i
     writer.Fill(entry)
 
 del writer  # flushes and closes the file
@@ -120,6 +130,8 @@ def headers(path):
 got = headers(sys.argv[1])
 if sys.argv[2] == "--default":
     want = [(-1, 1.0)] * len(got)
+elif sys.argv[2] == "--from-event-number":
+    want = [(50 + i, 2.0 + i) for i in range(len(got))]
 else:
     want = headers(sys.argv[2])
 ok = bool(got) and got == want
@@ -130,8 +142,10 @@ os._exit(0 if ok else 1)
 EOF
 
 # 1. The event header survives a read-back: file_source must publish the header
-#    stored in the input, not the unweighted default.
-python3 "$workdir/make_header_input.py" "$workdir/header_input.root" "$n"
+#    stored in the input, not the unweighted default, and keep its
+#    original_event_id over the input's event_number.
+python3 "$workdir/make_header_input.py" "$workdir/header_input.root" "$n" \
+  --event-number
 phlex -c <(jsonnet \
   --ext-str events="$n" \
   --ext-str infile="$workdir/header_input.root" \
@@ -154,5 +168,19 @@ got=$(python3 "$here/count_entries.py" "$workdir/sim_legacy.root")
 [ "$got" = "$n" ] || { echo "legacy read: expected $n events, got $got"; exit 1; }
 python3 "$workdir/check_header.py" "$workdir/sim_legacy.root" --default
 
-echo "event header round-trip passed: the stored header is preserved, and a file"
-echo "without the event_header field falls back to the unweighted default"
+# 3. A header without an original_event_id gets the event_number of the job
+#    that wrote the input, so a replayed event can be traced back to it.
+python3 "$workdir/make_header_input.py" "$workdir/unset_input.root" "$n" \
+  --event-number --unset-id
+phlex -c <(jsonnet \
+  --ext-str events="$n" \
+  --ext-str infile="$workdir/unset_input.root" \
+  --ext-str simout="$workdir/sim_unset.root" \
+  --ext-str histo="$workdir/valid_unset.root" \
+  "$workdir/read.jsonnet")
+python3 "$workdir/check_header.py" "$workdir/sim_unset.root" \
+  --from-event-number
+
+echo "event header round-trip passed: the stored header is preserved, a file"
+echo "without the event_header field falls back to the unweighted default, and"
+echo "an unset original_event_id is filled from the input's event_number"

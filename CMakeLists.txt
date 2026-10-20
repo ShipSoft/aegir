@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(
     aegir
-    VERSION 0.4.0
+    VERSION 0.5.0
     DESCRIPTION "Phlex-based simulation framework for the SHiP experiment"
     LANGUAGES CXX
 )
@@ -23,8 +23,8 @@ option(
 )
 
 # Dependencies
-find_package(SHiPDataModel 0.6 REQUIRED)
-find_package(SHiPFieldService 0.4 REQUIRED COMPONENTS G4Adapter MapIO)
+find_package(SHiPDataModel 0.6...<0.7 REQUIRED)
+find_package(SHiPFieldService 0.4...<0.5 REQUIRED COMPONENTS G4Adapter MapIO)
 
 find_package(spdlog REQUIRED)
 find_package(phlex 0.4.1 REQUIRED)
@@ -62,10 +62,11 @@ set_target_properties(
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
 find_package(SHiPRandom 0.4 REQUIRED)
 
-# >=0.5: SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile,
+# SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile are
 # shared between geant4_module and any other Geant4 geometry user (e.g.
-# aegir-genie's GENIE source) — see aegir-genie issue #11.
-find_package(SHiPGeometryService 0.5 CONFIG REQUIRED)
+# aegir-genie's GENIE source), see aegir-genie issue #11. >=0.6:
+# geant4WorldLogical() returns a reference and the library requires C++23.
+find_package(SHiPGeometryService 0.6...<0.7 CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace
@@ -248,8 +249,8 @@ add_test(
 )
 
 # file_source round-trip: write an RNTuple, read it back through file_source +
-# Geant4, and check the count helper, read-all, the skip offset, and the
-# re-simulation of both MCParticle and SimParticle inputs.
+# Geant4, and check the count helper, read-all, the skip offset, the
+# re-simulation, and the errors for a missing or non-MCParticle product.
 add_test(
     NAME file_source_roundtrip
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/file_source_roundtrip.sh
@@ -311,3 +312,17 @@ add_test(
     NAME scoring_planes
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/scoring_planes.sh
 )
+
+# Plane particles: the replay record of a recording scoring plane holds each
+# recorded track once with status 1, and its full ancestry as history, built
+# here from a hand-made event without Geant4.
+add_executable(plane_particles_test tests/plane_particles_test.cpp)
+target_link_libraries(
+    plane_particles_test
+    PRIVATE SHiP::SHiPDataModel SHiP::SHiPUnits
+)
+target_include_directories(
+    plane_particles_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME plane_particles COMMAND plane_particles_test)

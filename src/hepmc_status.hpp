@@ -24,6 +24,9 @@ inline constexpr int beam = 4;           ///< Incoming beam particle
 // 11-200 are intermediate entries with a generator-dependent classification.
 inline constexpr int intermediate_min = 11;
 inline constexpr int intermediate_max = 200;
+// 201 and above are left to the simulation. aegir uses 201 for the Geant4
+// tracks in the ancestry of a particle recorded for replay (plane_particles).
+inline constexpr int simulation_history = 201;
 
 /// True for entries the generator left undecayed — the ones a detector
 /// simulation is responsible for. Note that "final state" does not mean
@@ -35,7 +38,18 @@ inline constexpr int intermediate_max = 200;
   return status == final_state;
 }
 
+/// True for aegir's own history entries (status 201): written by an earlier
+/// stage, expected in its output and never tracked. Other codes above 200
+/// are not aegir's, so they are reported like any other skipped entry.
+[[nodiscard]] constexpr bool is_simulation_history(int status) noexcept {
+  return status == simulation_history;
+}
+
 static_assert(is_final_state(final_state));
+static_assert(!is_final_state(simulation_history));
+static_assert(is_simulation_history(simulation_history));
+static_assert(!is_simulation_history(intermediate_max));
+static_assert(!is_simulation_history(simulation_history + 1));
 static_assert(!is_final_state(empty));
 static_assert(!is_final_state(decayed));
 static_assert(!is_final_state(documentation));

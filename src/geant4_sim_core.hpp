@@ -17,10 +17,13 @@
 #include <SHiP/QuantityView.hpp>
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
+#include <cstddef>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "plane_particles.hpp"
 #include "units/clhep_bridge.hpp"
 
 namespace SHiP::aegir::g4 {
@@ -29,6 +32,52 @@ namespace SHiP::aegir::g4 {
 inline thread_local std::vector<SimHit> tl_hits;
 inline thread_local std::vector<SimParticle> tl_particles;
 inline thread_local std::unordered_map<int, std::size_t> tl_track_map;
+// Tracks a record_particles scoring plane marked for replay, with their state
+// at the crossing, in crossing order.
+inline thread_local std::vector<PlaneCrossing> tl_recorded_tracks;
+// Tracks below particle_ke_cut, kept only while a plane records particles so
+// that a recorded track's ancestry never breaks. Those in that ancestry are
+// moved to tl_particles by persist_ancestry(); the rest are dropped.
+inline thread_local std::vector<SimParticle> tl_lineage;
+inline thread_local std::unordered_map<int, std::size_t> tl_lineage_map;
+
+// The record of a track, from tl_particles or tl_lineage; nullptr if none.
+inline SimParticle const* find_track(int track_id) {
+  if (auto const it = tl_track_map.find(track_id); it != tl_track_map.end()) {
+    return &tl_particles[it->second];
+  }
+  if (auto const it = tl_lineage_map.find(track_id);
+      it != tl_lineage_map.end()) {
+    return &tl_lineage[it->second];
+  }
+  return nullptr;
+}
+
+// Write the whole ancestry of the `recorded` tracks, the tracks themselves
+// included: append each one found only in tl_lineage (below
+// particle_ke_cut) to tl_particles, so that sim_particles holds the full
+// history of every recorded track and every parent_id along it resolves. A
+// track above the cut can have a parent below it, so the walk continues
+// through tracks that are already written.
+inline void persist_ancestry(std::vector<PlaneCrossing> const& recorded) {
+  std::unordered_set<int> seen;
+  for (auto const& crossing : recorded) {
+    auto id = crossing.track_id;
+    while (id != 0 && seen.insert(id).second) {
+      if (auto const it = tl_track_map.find(id); it != tl_track_map.end()) {
+        id = tl_particles[it->second].parent_id;
+        continue;
+      }
+      auto const it = tl_lineage_map.find(id);
+      if (it == tl_lineage_map.end()) {
+        break;
+      }
+      tl_track_map.emplace(id, tl_particles.size());
+      tl_particles.push_back(tl_lineage[it->second]);
+      id = tl_particles.back().parent_id;
+    }
+  }
+}
 
 using DetectorIdMap = std::unordered_map<G4LogicalVolume*, int>;
 
@@ -135,13 +184,23 @@ class EnergyCutAction : public G4UserSteppingAction {
 
 class TrackingAction : public G4UserTrackingAction {
  public:
-  explicit TrackingAction(SHiP::Energy particle_ke_cut = SHiP::Energy::zero())
-      : particle_ke_cut_{SHiP::aegir::clhep::g4(particle_ke_cut)} {}
+  // keep_lineage: record the tracks below particle_ke_cut in tl_lineage
+  // instead of dropping them, for the ancestry of recorded plane particles.
+  explicit TrackingAction(SHiP::Energy particle_ke_cut = SHiP::Energy::zero(),
+                          bool keep_lineage = false)
+      : particle_ke_cut_{SHiP::aegir::clhep::g4(particle_ke_cut)},
+        keep_lineage_{keep_lineage} {}
 
   void PreUserTrackingAction(const G4Track* track) override {
+    auto* particles = &tl_particles;
+    auto* index = &tl_track_map;
     if (particle_ke_cut_ > 0 && track->GetParentID() != 0 &&
         track->GetKineticEnergy() < particle_ke_cut_) {
-      return;
+      if (!keep_lineage_) {
+        return;
+      }
+      particles = &tl_lineage;
+      index = &tl_lineage_map;
     }
 
     SimParticle p;
@@ -160,21 +219,56 @@ class TrackingAction : public G4UserTrackingAction {
     const auto* creator = track->GetCreatorProcess();
     p.creator_process = creator ? creator->GetProcessSubType() : 0;
 
-    tl_track_map[p.track_id] = tl_particles.size();
-    tl_particles.push_back(p);
+    (*index)[p.track_id] = particles->size();
+    particles->push_back(p);
   }
 
   void PostUserTrackingAction(const G4Track* track) override {
-    auto const it = tl_track_map.find(track->GetTrackID());
-    if (it != tl_track_map.end()) {
-      SHiP::view::set_endpoint(
-          tl_particles[it->second],
-          SHiP::aegir::clhep::position(track->GetPosition()));
+    auto const endpoint = SHiP::aegir::clhep::position(track->GetPosition());
+    if (auto const it = tl_track_map.find(track->GetTrackID());
+        it != tl_track_map.end()) {
+      SHiP::view::set_endpoint(tl_particles[it->second], endpoint);
+    } else if (auto const lit = tl_lineage_map.find(track->GetTrackID());
+               lit != tl_lineage_map.end()) {
+      SHiP::view::set_endpoint(tl_lineage[lit->second], endpoint);
     }
   }
 
  private:
   double particle_ke_cut_;  // Geant4 internal units
+  bool keep_lineage_;
 };
+
+// Keep only the particles that left a hit and every ancestor of those, as
+// FairShip's stack does (SetMinPoints(1), mothers stored). Order is kept.
+// The parent ids of what is kept resolve only if every ancestor was
+// recorded, i.e. without a particle_ke_cut.
+inline void prune_to_hit_ancestry(std::vector<SimParticle>& particles,
+                                  std::vector<SimHit> const& hits) {
+  std::unordered_map<int, std::size_t> index;
+  index.reserve(particles.size());
+  for (std::size_t i = 0; i < particles.size(); ++i) {
+    index.emplace(particles[i].track_id, i);
+  }
+  std::vector<bool> keep(particles.size(), false);
+  for (auto const& hit : hits) {
+    // Walk up until the primaries (parent 0) or a chain already marked.
+    for (auto it = index.find(hit.track_id);
+         it != index.end() && !keep[it->second];
+         it = index.find(particles[it->second].parent_id)) {
+      keep[it->second] = true;
+    }
+  }
+  std::size_t kept = 0;
+  for (std::size_t i = 0; i < particles.size(); ++i) {
+    if (keep[i]) {
+      if (kept != i) {
+        particles[kept] = std::move(particles[i]);
+      }
+      ++kept;
+    }
+  }
+  particles.resize(kept);
+}
 
 }  // namespace SHiP::aegir::g4

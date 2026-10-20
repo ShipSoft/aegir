@@ -66,7 +66,7 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
 - `install` — `cmake --install build`, populating `$CONDA_PREFIX/lib` and `bin`.
   It also installs a CMake package for event-generator plugins built outside
   aegir (such as aegir-genie): `find_package(aegir)`, link
-  `aegir::source_helper` and include `<aegir/mc_particle_source.hpp>`.
+  `SHiP::aegir::source_helper` and include `<aegir/mc_particle_source.hpp>`.
 - `test` — `ctest --test-dir build --output-on-failure`. Runs the integration
   tests registered in [`CMakeLists.txt`](CMakeLists.txt), each a script in
   [`scripts/`](scripts/). CI runs this task.
@@ -135,6 +135,16 @@ phlex -c workflows/pythia8_st.jsonnet
 
 # Fixed-target -> Geant4 MT
 phlex -c workflows/fixed_target_mt.jsonnet
+
+# Fixed-target production: what leaves the hadron absorber, as in FairShip's
+# run_fixedTarget.py (see docs/geant4_integration.md)
+phlex -c <(jsonnet --tla-code seed=42 workflows/fixed_target_production.jsonnet)
+
+# Second stage: simulate the particles that reached the plane onwards from
+# where they crossed it, with the absorber plane removed
+phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
+  --tla-code events="$(python3 scripts/count_entries.py fixed_target_production.root)" \
+  workflows/plane_replay.jsonnet)
 ```
 
 ### One-off via `pixi run`

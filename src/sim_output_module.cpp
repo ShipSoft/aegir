@@ -72,6 +72,7 @@ struct FillState {
   ROOT::RFieldToken mc_particles;
   ROOT::RFieldToken sim_hits;
   ROOT::RFieldToken sim_particles;
+  ROOT::RFieldToken plane_particles;
 };
 
 // Write options that bound per-context buffering. The stock defaults target
@@ -315,6 +316,8 @@ class SimRNTupleWriter {
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     model->MakeField<std::vector<SHiP::SimHit>>("sim_hits");
     model->MakeField<std::vector<SHiP::SimParticle>>("sim_particles");
+    // Replay record of a record_particles scoring plane; empty otherwise.
+    model->MakeField<std::vector<SHiP::MCParticle>>("plane_particles");
     writer_ = RNTupleParallelWriter::Recreate(
         std::move(model), "events", filename, make_write_options(cluster_mib));
     pool_.emplace(*writer_, n_contexts, [](FillState& state) {
@@ -323,6 +326,7 @@ class SimRNTupleWriter {
       state.mc_particles = state.entry->GetToken("mc_particles");
       state.sim_hits = state.entry->GetToken("sim_hits");
       state.sim_particles = state.entry->GetToken("sim_particles");
+      state.plane_particles = state.entry->GetToken("plane_particles");
     });
     spdlog::info(
         "sim_output_module: writing '{}' with {} fill context(s), "
@@ -337,7 +341,9 @@ class SimRNTupleWriter {
   }
 
   void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
-             SHiP::SimResult const& result, SHiP::EventHeader const& header) {
+             SHiP::SimResult const& result,
+             std::vector<SHiP::MCParticle> const& plane_particles,
+             SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
     summary_.count_processed();
@@ -361,6 +367,10 @@ class SimRNTupleWriter {
     state.entry->BindRawPtr(
         state.sim_particles,
         const_cast<std::vector<SHiP::SimParticle>*>(&result.particles));
+
+    state.entry->BindRawPtr(
+        state.plane_particles,
+        const_cast<std::vector<SHiP::MCParticle>*>(&plane_particles));
     try {
       state.ctx->Fill(*state.entry);
     } catch (...) {
@@ -735,6 +745,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "geant4"_id,
                              .layer = "event"_id,
                              .suffix = "sim_result"_id},
+            product_selector{.creator = "geant4"_id,
+                             .layer = "event"_id,
+                             .suffix = "plane_particles"_id},
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 

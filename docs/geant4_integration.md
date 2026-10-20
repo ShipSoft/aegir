@@ -104,6 +104,7 @@ its `generatorStatus`:
 | 3 | Documentation entry | no |
 | 4 | Incoming beam particle | no |
 | 11-200 | Intermediate entry, generator-dependent classification | no |
+| 201+ | Left to the simulation. aegir writes 201 for the ancestry of a replayed particle, including the particle itself where it was produced (see [Replaying a plane's particles](#replaying-a-planes-particles)) | no |
 
 Only status-1 entries become primaries. Note that "final state" does not mean
 stable: a final-state `K_S` is status 1 and is expected to decay in the
@@ -117,7 +118,8 @@ own HepMC example uses the same `status == 1` test.
 
 Skipped primaries are counted and reported once per event in an aggregated
 warning; they remain in the output `mc_particles` product, so the record is
-not lost.
+not lost. Entries with status 201, the history aegir writes, are left out of
+the warning, since a replayed event always carries them.
 
 This filter is a no-op for a generator running in the default
 `record: 'final_state'` mode, where every emitted entry is status 1. It
@@ -147,6 +149,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `energy_cut` | bool | `false` | Enable stepping energy cut |
 | `energy_cut_threshold` | double | `ke_threshold` | KE below which tracks are killed (GeV) |
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
+| `keep_particles` | string | `all` | Which `SimParticle`s are written. `all` writes every recorded particle. `hit_ancestry` writes only the particles that left a hit, plus all their ancestors, as FairShip's stack does, so every `parent_id` in the output points to a written particle. `hit_ancestry` needs `particle_ke_cut` at 0, because a skipped ancestor would break the chain |
 | `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
@@ -258,6 +261,7 @@ Each entry of `scoring_planes` takes:
 | `gap` | double | `0` | With `after_volume`: distance from the volume's downstream end to the plane's upstream face (mm) |
 | `ke_threshold` | double | `0` | Record only tracks entering with at least this kinetic energy (GeV). With `kill`, tracks below it are stopped too, unrecorded |
 | `kill` | bool | `false` | Stop and kill every track that steps into the plane, as FairShip's `exitHadronAbsorber` does: recorded or not, including secondaries born inside the plane |
+| `record_particles` | bool | `false` | Also write the tracks this plane records going downstream as `plane_particles`, for a later run to replay; see [Replaying a plane's particles](#replaying-a-planes-particles). Needs `kill`, and only one plane may set it |
 
 Exactly one of `position` and `after_volume` must be given. `after_volume`
 is an exact logical-volume name, and the volume must be placed exactly once
@@ -296,3 +300,92 @@ geant4: lib.geant4 {
 builtin geometry, one of them cutting through the tungsten target, and
 `scripts/scoring_planes.sh` (ctest `scoring_planes`) checks the recorded hits
 against the geometry for neutrinos and muons.
+
+### Fixed-target production
+
+`workflows/fixed_target_production.jsonnet` is the counterpart of FairShip's
+`run_fixedTarget.py`. It generates Pythia8 p-W interactions in the GeoModel
+target and tracks them through the target and the hadron absorber. The
+plane 1 cm behind the absorber (`lib.exit_hadron_absorber_plane`, the first
+plane in the example above) records and stops every particle reaching it
+above the energy cut `ecut`. Everything below `ecut` is killed wherever it
+is. Only the particles reaching the plane and their ancestors are written
+(`keep_particles: 'hit_ancestry'`), and events without a plane hit are
+dropped, as in FairShip. Like FairShip's default, the run has no magnetic
+field in the absorber.
+
+```bash
+pixi run phlex -c <(jsonnet --tla-code seed=42 --tla-code ecut=0.5 \
+  --tla-code events=10000 workflows/fixed_target_production.jsonnet)
+```
+
+It needs the GeoModel geometry DB (`pixi run build_geometry`). The
+`scoring_planes` test only checks that the workflow evaluates to the
+intended settings.
+
+The plane also has `record_particles` set, so the output holds the
+`plane_particles` that `workflows/plane_replay.jsonnet` simulates further.
+
+### Replaying a plane's particles
+
+A staged simulation splits a run at a plane. The first stage, such as the
+fixed-target production above, runs up to the plane. The second stage takes
+the particles that reached it and simulates them through the rest of the
+detector, as many times or with as many settings as needed, without
+regenerating the target interactions.
+
+The second stage starts each saved particle where it entered the plane, with
+the position, momentum and time it had there. Starting it from where it was
+produced instead would simulate its path to the plane a second time, with new
+random numbers. The first stage only saved the particles whose path happened
+to reach the plane, so many would not reach it again: in a test with
+secondaries of a pion shower in 1 m of tungsten, only about 30% did, and the
+replayed flux at the plane was too low at every momentum.
+
+A plane with `record_particles` marks every track it records while the track
+moves downstream (positive z momentum). Tracks entering it from downstream
+are still recorded as hits but not marked. At the end of the event the marked
+tracks are written to the `plane_particles` field of the output, as
+`SHiP::MCParticle`s:
+
+- Each marked track appears once with status 1, with its position,
+  momentum, total energy and time where it entered the plane, the same as its
+  hit in `sim_hits`.
+- Its full ancestry follows with status 201: first the same track where it
+  was produced, then the chain of Geant4 tracks back to the primary, then the
+  primary's mothers in the generator record with their own status.
+  `mothers` and `mother_id` index into `plane_particles`. The primary's own
+  entry is the generator's particle with status 201.
+- The same tracks, the marked ones and every Geant4 ancestor, are also
+  written to `sim_particles`, even those below `particle_ke_cut`, so the
+  full history of each marked particle can be followed there by `parent_id`.
+  Other tracks below the cut are still left out.
+
+Since only the marked tracks have status 1, the second stage tracks exactly
+those (see [Primary selection](#primary-selection)). Two rules keep a track
+from being replayed twice. The recording plane must `kill`, so nothing a
+marked track produces after crossing can reach it, and only one plane may
+record. Secondaries it produced before the plane, such as delta rays, can
+still cross and be marked. They are replayed too: the second stage starts
+their ancestor at the plane, so it does not produce them again.
+
+`file_source` reads the field back with `product: 'plane_particles'`. Its
+`product` key names any `std::vector<SHiP::MCParticle>` field of the input
+(`mc_particles` by default). It passes on the input's event header and, when
+that has no `original_event_id` yet, sets it to the first run's
+`event_number`, so each
+replayed event can be matched to the event it came from even when the first
+run dropped empty events.
+
+```bash
+pixi run phlex -c <(jsonnet --tla-code seed=42 --tla-code events=10000 \
+  workflows/fixed_target_production.jsonnet)
+n=$(pixi run python3 scripts/count_entries.py fixed_target_production.root)
+pixi run phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
+  --tla-code events="$n" --tla-code seed=43 workflows/plane_replay.jsonnet)
+```
+
+The second stage's geometry must not contain the killing plane: the replayed
+particles start on its surface and would be stopped at once.
+`plane_replay.jsonnet` therefore has no scoring planes. The `scoring_planes`
+test runs both stages on the builtin geometry.

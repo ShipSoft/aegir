@@ -192,22 +192,25 @@ int main() {
   check(final_state_has_no_final_state_ancestor(out),
         "no status-1 entry has a status-1 ancestor");
 
-  // Electron 9 descends from the recorded photon 6, so replaying the photon
-  // makes it again: it is left out, whatever the crossing order.
+  // Electron 9 descends from the recorded photon 6. The replay starts the
+  // photon at the plane, which does not make the electron again, so both
+  // are replayed.
   auto const nested =
       SHiP::aegir::build_plane_particles({crossing(9, 11), crossing(6, 22)},
                                          find_track, primary_source, generator);
   check(SHiP::mothers_are_populated(nested),
         "nested: mother links are consistent");
-  // Photon 6 at the plane; photon 6 at its origin, pion 4, primary 2 and
-  // generator 0, 1 as history.
-  check(nested.size() == 6, "nested: the descendant is left out");
+  // Electron 9 and photon 6 at the plane; both at their origin, pion 4,
+  // primary 2 and generator 0, 1 as history.
+  check(nested.size() == 8, "nested: every ancestor appears exactly once");
   check(
-      std::ranges::count(nested, final_state, &SHiP::MCParticle::status) == 1 &&
-          nested[0].pdg_code == 22 && nested[0].status == final_state,
-      "nested: only the photon has status 1");
-  check(std::ranges::count(nested, 11, &SHiP::MCParticle::pdg_code) == 0,
-        "nested: no entry for the electron");
+      std::ranges::count(nested, final_state, &SHiP::MCParticle::status) == 2 &&
+          nested[0].pdg_code == 11 && nested[1].pdg_code == 22,
+      "nested: both recorded tracks have status 1");
+  auto const& electron = nested[nested[0].mother_id];
+  check(electron.pdg_code == 11 && electron.status == simulation_history &&
+            electron.mother_id == nested[1].mother_id,
+        "nested: the electron comes from the photon at its origin");
   check(final_state_has_no_final_state_ancestor(nested),
         "nested: no status-1 entry has a status-1 ancestor");
 

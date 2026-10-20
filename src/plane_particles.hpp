@@ -13,9 +13,10 @@
 // origin, then come the Geant4 tracks it descends from (all with status
 // simulation_history) up to the primary, then the primary's generator mothers
 // with their own status. A marked track descended from another marked track
-// (e.g. a delta ray made before its parent reached the plane) is left out:
-// replaying the ancestor makes it again. Nothing else has status 1, so
-// geant4_module tracks exactly the remaining marked tracks on replay.
+// (e.g. a delta ray made before its parent reached the plane) is kept: the
+// replay starts its ancestor at the plane, which does not make it again.
+// Nothing else has status 1, so geant4_module tracks exactly the marked
+// tracks on replay.
 //
 // Free of Geant4 so that it can be tested on its own.
 
@@ -45,8 +46,7 @@ struct PlaneCrossing {
 };
 
 /// Build the replay record of `recorded` (in crossing order; later crossings
-/// of a track, and tracks descended from another recorded track, are
-/// ignored).
+/// of a track are ignored).
 ///
 /// `find_track(id)` returns the SimParticle recorded for a track id, or
 /// nullptr. `primary_source` maps the track id of every primary to the index
@@ -118,30 +118,10 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     return out.size() - 1;
   };
 
-  // Whether a recorded track descends from another recorded track. A missing
-  // ancestor is left for add_track to report.
-  std::unordered_set<int> marked;
-  for (auto const& crossing : recorded) {
-    marked.insert(crossing.track_id);
-  }
-  auto const has_marked_ancestor = [&](int id) {
-    while (!primary_source.contains(id)) {
-      auto const* sp = find_track(id);
-      if (sp == nullptr) {
-        return false;
-      }
-      id = sp->parent_id;
-      if (marked.contains(id)) {
-        return true;
-      }
-    }
-    return false;
-  };
-
   std::unordered_set<int> added;
   for (auto const& crossing : recorded) {
     auto const id = crossing.track_id;
-    if (added.contains(id) || has_marked_ancestor(id)) {
+    if (added.contains(id)) {
       continue;
     }
     added.insert(id);

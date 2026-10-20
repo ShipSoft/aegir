@@ -171,8 +171,8 @@ inline void validate_scoring_planes(
     } else if (p.ke_threshold < SHiP::Energy::zero()) {
       error = "ke_threshold must not be negative";
     } else if (p.record_particles && !p.kill) {
-      // Without the kill, a recorded track could have a recorded descendant,
-      // and a replay would simulate both.
+      // Without the kill, a track a recorded track produces after crossing
+      // could be recorded too, and a replay would simulate both.
       error = "record_particles needs kill: true";
     } else if (p.record_particles && !recording.empty()) {
       error = "only one scoring plane may record particles, '" + recording +

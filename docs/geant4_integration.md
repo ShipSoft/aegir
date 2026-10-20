@@ -350,8 +350,7 @@ tracks are written to the `plane_particles` field of the output, as
 
 - Each marked track appears once with status 1, with its position,
   momentum, total energy and time where it entered the plane, the same as its
-  hit in `sim_hits`. A marked track that descends from another marked track
-  is left out, because replaying the ancestor produces it again.
+  hit in `sim_hits`.
 - Its full ancestry follows with status 201: first the same track where it
   was produced, then the chain of Geant4 tracks back to the primary, then the
   primary's mothers in the generator record with their own status.
@@ -363,11 +362,12 @@ tracks are written to the `plane_particles` field of the output, as
   Other tracks below the cut are still left out.
 
 Since only the marked tracks have status 1, the second stage tracks exactly
-those (see [Primary selection](#primary-selection)). Three rules keep a track
+those (see [Primary selection](#primary-selection)). Two rules keep a track
 from being replayed twice. The recording plane must `kill`, so nothing a
-marked track produces after crossing can reach it. Secondaries it produced
-before the plane, such as delta rays, can still cross and be marked; these are
-left out of `plane_particles`. And only one plane may record.
+marked track produces after crossing can reach it, and only one plane may
+record. Secondaries it produced before the plane, such as delta rays, can
+still cross and be marked. They are replayed too: the second stage starts
+their ancestor at the plane, so it does not produce them again.
 
 `file_source` reads the field back with `product: 'plane_particles'`. Its
 `product` key names any `std::vector<SHiP::MCParticle>` field of the input

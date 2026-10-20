@@ -7,6 +7,8 @@
 //
 // Delegates Construct() to IGeometrySource::construct() and assigns the
 // configured SD type to volumes matching IGeometrySource::sensitiveVolumes().
+// Registers the configured scoring planes as a parallel world
+// (ScoringParallelWorld, see scoring_planes.hpp).
 
 #pragma once
 
@@ -22,37 +24,77 @@
 #include <utility>
 #include <vector>
 
-#include "FieldService/G4MagFieldAdapter.h"
-#include "FieldService/IFieldSource.h"
+#include "SHiP/FieldService/G4MagFieldAdapter.h"
+#include "SHiP/FieldService/IFieldSource.h"
 #include "geant4_sim_core.hpp"
 #include "geometry_source.hpp"
+#include "scoring_planes.hpp"
 
-namespace SHiP::g4 {
+namespace SHiP::aegir::g4 {
 
 enum class SDMode { scoring, crossing };
 
 class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   IGeometrySource const*
       source_;  // non-owning; Job-layer product outlives the G4 run
-  ship::IFieldSource const* field_source_;  // non-owning; may have no regions
+  SHiP::IFieldSource const* field_source_;  // non-owning; may have no regions
   SDMode sd_mode_;
-  ship::Energy ke_threshold_;  // used by CrossingSD
-  std::vector<std::pair<std::string, ship::Length>>
+  SHiP::Energy ke_threshold_;  // used by CrossingSD
+  std::vector<std::pair<std::string, SHiP::Length>>
       regions_;  // pattern -> production cut
+  // The scoring planes' parallel world, or null without planes. Owned by
+  // G4VUserDetectorConstruction once registered (leaked with it, like the
+  // rest of the Geant4 setup).
+  ScoringParallelWorld* scoring_world_ = nullptr;
+
+  // The detector geometry's logical volumes: the volume store without the
+  // scoring planes' parallel world, which the sensitive-volume and field
+  // patterns must not match.
+  [[nodiscard]] std::vector<G4LogicalVolume*> detector_volumes() const {
+    std::vector<G4LogicalVolume*> volumes;
+    for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
+      if (scoring_world_ == nullptr || !scoring_world_->contains(lv)) {
+        volumes.push_back(lv);
+      }
+    }
+    return volumes;
+  }
 
  public:
   ConfigurableDetectorConstruction(
-      IGeometrySource const& source, ship::IFieldSource const& field_source,
+      IGeometrySource const& source, SHiP::IFieldSource const& field_source,
       SDMode sd_mode = SDMode::scoring,
-      ship::Energy ke_threshold = ship::Energy::zero(),
-      std::vector<std::pair<std::string, ship::Length>> regions = {})
+      SHiP::Energy ke_threshold = SHiP::Energy::zero(),
+      std::vector<std::pair<std::string, SHiP::Length>> regions = {},
+      std::vector<ScoringPlaneConfig> scoring_planes = {})
       : source_{&source},
         field_source_{&field_source},
         sd_mode_{sd_mode},
         ke_threshold_{ke_threshold},
-        regions_{std::move(regions)} {}
+        regions_{std::move(regions)} {
+    // Detector hits carry their sensitive-volume pattern's index as detector
+    // id; keep those below the scoring planes' id so the two cannot collide.
+    if (std::cmp_greater(source.sensitiveVolumes().size(),
+                         kScoringPlaneDetectorId)) {
+      throw std::invalid_argument(
+          "geant4_module: at most " + std::to_string(kScoringPlaneDetectorId) +
+          " sensitive_volumes patterns are supported (detector id " +
+          std::to_string(kScoringPlaneDetectorId) +
+          " is reserved for scoring planes)");
+    }
+    if (!scoring_planes.empty()) {
+      scoring_world_ = new ScoringParallelWorld(std::move(scoring_planes));
+      RegisterParallelWorld(scoring_world_);
+    }
+  }
 
-  // Called once, on ship::geometry_thread() (the run manager is initialised
+  /// Whether scoring planes are configured, i.e. the run needs
+  /// G4ParallelWorldPhysics(kScoringWorldName).
+  [[nodiscard]] bool has_scoring_planes() const {
+    return scoring_world_ != nullptr;
+  }
+
+  // Called once, on SHiP::geometry_thread() (the run manager is initialised
   // there — the process's single Geant4 geometry-creating thread)
   G4VPhysicalVolume* Construct() override {
     auto* world = source_->construct();
@@ -66,7 +108,7 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     for (auto const& [pattern, cut] : regions_) {
       auto* region = new G4Region(pattern);
       auto* cuts = new G4ProductionCuts();
-      cuts->SetProductionCut(aegir::clhep::g4(cut));
+      cuts->SetProductionCut(SHiP::aegir::clhep::g4(cut));
       region->SetProductionCuts(cuts);
       bool matched = false;
       for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
@@ -75,9 +117,10 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
           matched = true;
         }
       }
-      if (!matched)
+      if (!matched) {
         throw std::runtime_error("Production-cut region '" + pattern +
                                  "' matches no logical volumes");
+      }
     }
 
     return world;
@@ -90,12 +133,11 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     for (auto const& pattern : sv_names) {
       (void)SHiP::detector_id_for_pattern(pattern);
     }
-
-    for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
-      for (auto const& pattern : sv_names) {
-        if (G4StrUtil::contains(lv->GetName(), std::string_view{pattern})) {
-          detector_ids.emplace(
-              lv, static_cast<int>(SHiP::detector_id_for_pattern(pattern)));
+    auto const volumes = detector_volumes();
+    for (auto* lv : volumes) {
+      for (int i = 0; std::cmp_less(i, sv_names.size()); ++i) {
+        if (G4StrUtil::contains(lv->GetName(), std::string_view{sv_names[i]})) {
+          detector_ids.emplace(lv, static_cast<int>(SHiP::detector_id_for_pattern(pattern)));
           break;
         }
       }
@@ -119,22 +161,23 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     // pattern is treated as a hard configuration error (wrong field setup is
     // a silent physics bug otherwise).
     for (auto const& fr : field_source_->regions()) {
-      auto* adapter = new ship::G4MagFieldAdapter(fr.field);
+      auto* adapter = new SHiP::G4MagFieldAdapter(fr.field);
       auto* fmgr = new G4FieldManager(adapter);
       bool matched = false;
-      for (auto* lv : *G4LogicalVolumeStore::GetInstance()) {
+      for (auto* lv : volumes) {
         if (G4StrUtil::contains(lv->GetName(),
                                 std::string_view{fr.volume_pattern})) {
           lv->SetFieldManager(fmgr, /*forceToAllDaughters=*/true);
           matched = true;
         }
       }
-      if (!matched)
+      if (!matched) {
         throw std::runtime_error("Field region '" + fr.name +
                                  "': volume_pattern '" + fr.volume_pattern +
                                  "' matches no logical volumes");
+      }
     }
   }
 };
 
-}  // namespace SHiP::g4
+}  // namespace SHiP::aegir::g4

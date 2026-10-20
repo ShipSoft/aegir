@@ -19,48 +19,48 @@
 #include <G4Types.hh>
 #include <SHiP/Units.hpp>
 
-namespace aegir::clhep {
+namespace SHiP::aegir::clhep {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // --- ingest: Geant4 internal double -> canonical quantity -------------------
 
-[[nodiscard]] inline ship::Length length(G4double v) {
+[[nodiscard]] inline SHiP::Length length(G4double v) {
   return (v / CLHEP::mm) * su::mm;
 }
-[[nodiscard]] inline ship::Time time(G4double v) {
+[[nodiscard]] inline SHiP::Time time(G4double v) {
   return (v / CLHEP::ns) * su::ns;
 }
-[[nodiscard]] inline ship::Energy energy(G4double v) {
+[[nodiscard]] inline SHiP::Energy energy(G4double v) {
   return (v / CLHEP::GeV) * su::GeV;
 }
 // Geant4 momenta are energy-scaled (p*c, internal MeV).
-[[nodiscard]] inline ship::Momentum momentum(G4double v) {
+[[nodiscard]] inline SHiP::Momentum momentum(G4double v) {
   return (v / CLHEP::GeV) * su::GeV_per_c;
 }
-[[nodiscard]] inline ship::Vec3<ship::Length> position(G4ThreeVector const& v) {
+[[nodiscard]] inline SHiP::Vec3<SHiP::Length> position(G4ThreeVector const& v) {
   return {length(v.x()), length(v.y()), length(v.z())};
 }
-[[nodiscard]] inline ship::Vec3<ship::Momentum> momentum(
+[[nodiscard]] inline SHiP::Vec3<SHiP::Momentum> momentum(
     G4ThreeVector const& v) {
   return {momentum(v.x()), momentum(v.y()), momentum(v.z())};
 }
 
 // --- egress: canonical quantity -> Geant4 internal double -------------------
 
-[[nodiscard]] inline G4double g4(ship::Length l) {
+[[nodiscard]] inline G4double g4(SHiP::Length l) {
   return l.numerical_value_in(su::mm) * CLHEP::mm;
 }
-[[nodiscard]] inline G4double g4(ship::Time t) {
+[[nodiscard]] inline G4double g4(SHiP::Time t) {
   return t.numerical_value_in(su::ns) * CLHEP::ns;
 }
-[[nodiscard]] inline G4double g4(ship::Energy e) {
+[[nodiscard]] inline G4double g4(SHiP::Energy e) {
   return e.numerical_value_in(su::GeV) * CLHEP::GeV;
 }
 // The one consciously-bridged c convention: a GeV/c quantity becomes the
 // numeric GeV value Geant4 expects for momenta.
-[[nodiscard]] inline G4double g4(ship::Momentum p) {
+[[nodiscard]] inline G4double g4(SHiP::Momentum p) {
   return p.numerical_value_in(su::GeV_per_c) * CLHEP::GeV;
 }
 
-}  // namespace aegir::clhep
+}  // namespace SHiP::aegir::clhep

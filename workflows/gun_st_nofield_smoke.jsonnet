@@ -2,6 +2,7 @@
 // and same 20 GeV μ− offset in x; field_null_provider means no deflection.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.builtin_geometry,

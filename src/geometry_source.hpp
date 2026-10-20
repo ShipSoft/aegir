@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace SHiP {
+namespace SHiP::aegir {
 
 class IGeometrySource {
  public:

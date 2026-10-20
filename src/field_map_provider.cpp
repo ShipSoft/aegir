@@ -1,0 +1,58 @@
+// SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+//
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+// field_map_provider.cpp — Phlex provider plugin for magnetic field maps in
+// the SHiP field-map format (field_service docs/field_map_format.md). Builds a
+// SHiP::FieldMapSource from a jsonnet `magnets` list and publishes it as a
+// Job-layer product.
+
+#include <algorithm>
+#include <cmath>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "SHiP/FieldService/FieldMapIO.h"
+#include "SHiP/FieldService/IFieldSource.h"
+#include "phlex/source.hpp"
+#include "provider_helpers.hpp"
+
+PHLEX_REGISTER_PROVIDERS(s, config) {
+  std::vector<SHiP::FieldMapSource::MagnetConfig> magnets;
+  for (auto const& m :
+       config.get<std::vector<phlex::configuration>>("magnets")) {
+    SHiP::FieldMapSource::MagnetConfig magnet{
+        .name = m.get<std::string>("name"),
+        .volume_pattern = m.get<std::string>("volume_pattern"),
+        .file = m.get<std::string>("file"),
+        .map = m.get<std::string>("map"),
+    };
+    // Maps are stored in their own frame; `translation` (mm) places the
+    // map's origin in the global frame. Omitted means the origins coincide.
+    if (auto const t = m.get_if_present<std::vector<double>>("translation")) {
+      if (t->size() != magnet.translation.size()) {
+        throw std::invalid_argument("field_map_provider: magnet '" +
+                                    magnet.name +
+                                    "': translation needs 3 values (mm)");
+      }
+      if (!std::ranges::all_of(*t, [](double v) { return std::isfinite(v); })) {
+        throw std::invalid_argument("field_map_provider: magnet '" +
+                                    magnet.name +
+                                    "': translation values must be finite");
+      }
+      std::ranges::copy(*t, magnet.translation.begin());
+    }
+    magnets.push_back(std::move(magnet));
+  }
+
+  // Publish as the interface type: consumers request
+  // std::shared_ptr<SHiP::IFieldSource>.
+  std::shared_ptr<SHiP::IFieldSource> const source =
+      std::make_shared<SHiP::FieldMapSource>(std::move(magnets));
+
+  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
+                                "job");
+}

@@ -4,6 +4,12 @@
 //   lib.geant4 { concurrency: 4 }
 // overrides or extends a block without repeating it.
 {
+  // Phlex requires every job to name its stage; products are labelled with
+  // it. Workflows set `stage: lib.stage` at the top level. Phlex does not
+  // pass that key on to sources, so the generator sources below carry their
+  // own copy for the products they publish.
+  stage:: 'simulation',
+
   driver(events):: {
     cpp: 'generate_layers',
     layers: {
@@ -14,17 +20,22 @@
   // ── sources ────────────────────────────────────────────────────────────
   null_field:: { cpp: 'field_null_provider' },
 
-  covfie_field(magnets):: {
-    cpp: 'field_covfie_provider',
+  // Field maps in the SHiP field-map format. Each magnet names a `file`
+  // (bare names resolve via $SHIPFIELD_ROOT/share/field/), the `map` inside
+  // it, and optionally a `translation` [x, y, z] in mm placing the map's
+  // origin in the global frame.
+  field_map(magnets):: {
+    cpp: 'field_map_provider',
     magnets: magnets,
   },
 
   // 0.5 T constant By over the whole World volume — the field-smoke setup.
-  world_field_05T_y:: self.covfie_field([
+  world_field_05T_y:: self.field_map([
     {
       name: 'WorldField',
       volume_pattern: 'World',
-      cvf_file: 'world_05T_y.cvf',
+      file: 'world_05T_y.root',
+      map: 'world_05T_y',
     },
   ]),
 
@@ -43,6 +54,7 @@
   // Default spray gun: 10–100 GeV μ− in a narrow cone from z = −500 mm.
   gun:: {
     cpp: 'particle_gun_source',
+    stage: $.stage,
     pdg: 13,
     p_min: 10.0,  // GeV/c
     p_max: 100.0,  // GeV/c
@@ -53,6 +65,7 @@
   // Pencil beam for the field smokes: straight 20 GeV μ− from z = −2 m.
   pencil_gun:: {
     cpp: 'particle_gun_source',
+    stage: $.stage,
     pdg: 13,
     p_min: 20.0,  // GeV/c
     p_max: 20.0,  // GeV/c
@@ -60,14 +73,22 @@
     vertex_z: -2000.0,  // mm
   },
 
+  // `record` selects how much of the generator's event record is emitted:
+  // 'final_state' (only what Geant4 will track) or 'full' (the whole record,
+  // with HepMC statuses and mother links intact — several times larger; the
+  // geant4 module still tracks only status-1 entries). See
+  // docs/generator_record.md.
   pythia8:: {
     cpp: 'pythia8_source',
+    stage: $.stage,
     beam_energy: 400.0,  // GeV
     process: 'SoftQCD:inelastic',
+    record: 'final_state',
   },
 
   fixed_target:: {
     cpp: 'fixed_target_source',
+    stage: $.stage,
     beam_energy: 400.0,  // GeV
     target_z: 74,  // proton number, not a coordinate
     target_a: 184,
@@ -76,13 +97,16 @@
     target_z_end: 1164.0,  // mm
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
+    record: 'final_state',
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker
   // file (gntpc -f rootracker); see docs/genie.md for how to produce one.
   genie_reader:: {
     cpp: 'genie_reader_source',
+    stage: $.stage,
     file: 'genie_events.rootracker.root',
+    record: 'final_state',
   },
 
   // ── modules ────────────────────────────────────────────────────────────
@@ -106,6 +130,31 @@
     energy_cut: true,
     particle_ke_cut: 1.0,  // GeV
     regions: { '/SHiP/target': 50, '/SHiP/muon_shield/magn_absorb': 50 },  // production cuts [mm]
+  },
+
+  // FairShip's exitHadronAbsorber scoring plane for the GeoModel geometry, as
+  // an entry for the geant4 module's `scoring_planes`: 1 cm behind the
+  // hadron absorber, in the air gap before the first muon-shield
+  // magnet (absorber end at z = 4350 mm, magn_1 from 4550 mm), with
+  // FairShip's size (3.56 m - 1 mm by 1.7 m - 1 mm half-widths, 1 mm
+  // half-thickness). That is wider than the muon-shield container
+  // (±1810 mm in x), which a scoring plane may be: it lives in its own
+  // parallel world, so it also records what passes beside the shield.
+  // It records every track reaching it — muons, neutrinos and all others —
+  // and stops it, so nothing is tracked beyond. The tracks it records going
+  // downstream are also written as plane_particles, as they entered the
+  // plane and with their ancestry, for workflows/plane_replay.jsonnet to
+  // simulate further. Merge in a `ke_threshold` (GeV) to match the run's energy cut.
+  exit_hadron_absorber_plane:: {
+    name: 'exit_hadron_absorber',
+    id: 1,
+    half_x: 3559.0,  // mm
+    half_y: 1699.0,  // mm
+    half_z: 1.0,  // mm
+    after_volume: '/SHiP/muon_shield/magn_absorb',
+    gap: 10.0,  // mm
+    kill: true,
+    record_particles: true,
   },
 
   noop_output:: { cpp: 'sim_output_module', mode: 'noop' },

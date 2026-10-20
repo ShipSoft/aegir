@@ -25,6 +25,7 @@ cat >"$workdir/write.jsonnet" <<'EOF'
 local lib = import 'lib.libsonnet';
 local n_events = std.parseInt(std.extVar('events'));
 {
+  stage: lib.stage,
   driver: lib.driver(n_events),
   sources: { gun: lib.gun },
   modules: {

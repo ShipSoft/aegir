@@ -33,20 +33,20 @@ An [automatic class reference](https://shipsoft.github.io/aegir/) is built using
 
 ## Dependencies
 
-Pixi resolves everything below from [`prefix.dev/ship`][ship-channel] (the
+Pixi resolves everything below from [`prefix.dev/ship-experiment/stable`][ship-channel] (the
 SHiP-specific packages live there, with rattler-build recipes in
 [ship-conda-recipes][recipes]) and `conda-forge`. The list is reference; you
 do not need to install these manually when using pixi.
 
 - [SHiPDataModel](https://github.com/ShipSoft/data-model) (event data classes)
-- [Phlex](https://github.com/Framework-R-D/phlex) (+ Boost, TBB, spdlog)
+- [Phlex](https://github.com/Framework-R-D/phlex) 0.4.1+ (+ Boost, TBB, spdlog)
 - ROOT 6.40+ (Core, RIO, Hist, MathCore, ROOTNTuple)
 - Geant4 11.3+ (with multi-threading enabled)
-- Pythia8 8.3+
+- Pythia8 8.312+
 - Random123
 - Optional: SHiPGeometryService (for GeoModel geometry)
 
-[ship-channel]: https://prefix.dev/channels/ship
+[ship-channel]: https://prefix.dev/channels/@ship-experiment/stable
 [recipes]: https://github.com/ShipSoft/ship-conda-recipes
 
 ## Building with pixi (recommended)
@@ -64,7 +64,12 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
 - `configure` — run CMake with `CMAKE_PREFIX_PATH=$CONDA_PREFIX`.
 - `build` — `cmake --build build -j`. Depends on `configure`.
 - `install` — `cmake --install build`, populating `$CONDA_PREFIX/lib` and `bin`.
-- `test` — `ctest --test-dir build --output-on-failure` (no-op until tests are added).
+  It also installs a CMake package for event-generator plugins built outside
+  aegir (such as aegir-genie): `find_package(aegir)`, link
+  `SHiP::aegir::source_helper` and include `<aegir/mc_particle_source.hpp>`.
+- `test` — `ctest --test-dir build --output-on-failure`. Runs the integration
+  tests registered in [`CMakeLists.txt`](CMakeLists.txt), each a script in
+  [`scripts/`](scripts/). CI runs this task.
 - `smoke` — quick end-to-end check used by CI ([`scripts/smoke.sh`](scripts/smoke.sh)).
 - `clean` — `rm -rf build`.
 
@@ -99,6 +104,18 @@ the default search path.
 common ones. `ls workflows/` shows the full set (multi-threaded variants, no-op
 sinks, GeoModel-based geometry, etc.).
 
+Phlex requires every job to name its processing stage, and labels the
+products the job creates with that name. The aegir workflows set `stage:
+'simulation'` at the top level (`lib.stage` in
+[`workflows/lib.libsonnet`](workflows/lib.libsonnet)). The event generator
+sources need the same name in their own block (`stage: 'simulation'`), because
+Phlex does not pass the top-level setting on to them. The `lib` blocks already
+include it. If you write a workflow from scratch, set both. `phlex --stage`
+overrides only the top-level setting. With `phlex --stage foo`, the generator
+products keep the `simulation` label while the geometry, field and Geant4
+products get `foo`. The job still runs, but its products carry two different
+stage labels.
+
 ### From `pixi shell` (interactive)
 
 ```bash
@@ -118,6 +135,16 @@ phlex -c workflows/pythia8_st.jsonnet
 
 # Fixed-target -> Geant4 MT
 phlex -c workflows/fixed_target_mt.jsonnet
+
+# Fixed-target production: what leaves the hadron absorber, as in FairShip's
+# run_fixedTarget.py (see docs/geant4_integration.md)
+phlex -c <(jsonnet --tla-code seed=42 workflows/fixed_target_production.jsonnet)
+
+# Second stage: simulate the particles that reached the plane onwards from
+# where they crossed it, with the absorber plane removed
+phlex -c <(jsonnet --tla-str infile=fixed_target_production.root \
+  --tla-code events="$(python3 scripts/count_entries.py fixed_target_production.root)" \
+  workflows/plane_replay.jsonnet)
 ```
 
 ### One-off via `pixi run`

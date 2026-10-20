@@ -29,6 +29,9 @@
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -38,9 +41,12 @@
 #include <vector>
 
 #include "TH1D.h"
+#include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
+#include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
+#include "scoring_plane_id.hpp"
 
 namespace {
 
@@ -58,10 +64,12 @@ struct FillState {
   // Field tokens cached once per context to avoid a per-event name lookup.
   // Entries and tokens belong to their context's clone of the model, so they
   // must stay together with the context.
+  ROOT::RFieldToken event_number;
   ROOT::RFieldToken event_header;
   ROOT::RFieldToken mc_particles;
   ROOT::RFieldToken sim_hits;
   ROOT::RFieldToken sim_particles;
+  ROOT::RFieldToken plane_particles;
 };
 
 // Write options that bound per-context buffering. The stock defaults target
@@ -137,17 +145,34 @@ std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
                                  std::make_pair(low, high));
 }
 
+// The plane-hit PDG histogram covers |PDG| < 6000, which takes in the
+// hyperons and the charm and beauty baryons. Nuclei and ions (10LZZZAAAI) are
+// far outside that, so it fills them into one extra bin on each side, at
+// +-kIonPdgBin, rather than its overflow.
+constexpr double kIonPdgBin = 6000;
+
+double pdg_bin(std::int32_t pdg) {
+  if (std::abs(pdg) >= 1000000000) {
+    return pdg > 0 ? kIonPdgBin : -kIonPdgBin;
+  }
+  return pdg;
+}
+
 // RNTuple writer for MC particles only (used when no G4 simulation)
 class MCRNTupleWriter {
  public:
   MCRNTupleWriter(std::string filename, std::size_t cluster_mib,
                   std::size_t n_contexts) {
     auto model = RNTupleModel::CreateBare();
+    // The phlex event number: the multi-threaded writer stores events in the
+    // order they finish, so entry order says nothing about which event it is.
+    model->MakeField<std::uint64_t>("event_number");
     model->MakeField<SHiP::EventHeader>("event_header");
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     writer_ = RNTupleParallelWriter::Recreate(
         std::move(model), "events", filename, make_write_options(cluster_mib));
     pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.event_number = state.entry->GetToken("event_number");
       state.event_header = state.entry->GetToken("event_header");
       state.mc_particles = state.entry->GetToken("mc_particles");
     });
@@ -157,17 +182,19 @@ class MCRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
-  void write(std::vector<SHiP::MCParticle> const& particles,
+  void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::EventHeader const& header) {
-    auto lease = pool_->acquire();
+    std::uint64_t event_number = particles.data_cell_index().number();
+    auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind the inputs directly for the duration of Fill (which only reads
     // them), avoiding a full copy of the particle vector every event.
+    state.entry->BindRawPtr(state.event_number, &event_number);
     state.entry->BindRawPtr(state.event_header,
                             const_cast<SHiP::EventHeader*>(&header));
     state.entry->BindRawPtr(
         state.mc_particles,
-        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
+        const_cast<std::vector<SHiP::MCParticle>*>(&*particles));
     state.ctx->Fill(*state.entry);
   }
 
@@ -186,17 +213,22 @@ class SimRNTupleWriter {
                    std::size_t cluster_mib, std::size_t n_contexts)
       : filter_empty_{filter_empty} {
     auto model = RNTupleModel::CreateBare();
+    model->MakeField<std::uint64_t>("event_number");
     model->MakeField<SHiP::EventHeader>("event_header");
     model->MakeField<std::vector<SHiP::MCParticle>>("mc_particles");
     model->MakeField<std::vector<SHiP::SimHit>>("sim_hits");
     model->MakeField<std::vector<SHiP::SimParticle>>("sim_particles");
+    // Replay record of a record_particles scoring plane; empty otherwise.
+    model->MakeField<std::vector<SHiP::MCParticle>>("plane_particles");
     writer_ = RNTupleParallelWriter::Recreate(
         std::move(model), "events", filename, make_write_options(cluster_mib));
     pool_.emplace(*writer_, n_contexts, [](FillState& state) {
+      state.event_number = state.entry->GetToken("event_number");
       state.event_header = state.entry->GetToken("event_header");
       state.mc_particles = state.entry->GetToken("mc_particles");
       state.sim_hits = state.entry->GetToken("sim_hits");
       state.sim_particles = state.entry->GetToken("sim_particles");
+      state.plane_particles = state.entry->GetToken("plane_particles");
     });
     spdlog::info(
         "sim_output_module: writing '{}' with {} fill context(s), "
@@ -204,26 +236,35 @@ class SimRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
-  void write(std::vector<SHiP::MCParticle> const& particles,
-             SHiP::SimResult const& result, SHiP::EventHeader const& header) {
+  void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
+             SHiP::SimResult const& result,
+             std::vector<SHiP::MCParticle> const& plane_particles,
+             SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
-    if (filter_empty_ && result.hits.empty()) return;
+    if (filter_empty_ && result.hits.empty()) {
+      return;
+    }
 
-    auto lease = pool_->acquire();
+    std::uint64_t event_number = particles.data_cell_index().number();
+    auto const lease = pool_->acquire();
     auto& state = *lease;
     // Bind inputs directly for the duration of Fill (read-only), avoiding a
     // full copy of each vector every event.
+    state.entry->BindRawPtr(state.event_number, &event_number);
     state.entry->BindRawPtr(state.event_header,
                             const_cast<SHiP::EventHeader*>(&header));
     state.entry->BindRawPtr(
         state.mc_particles,
-        const_cast<std::vector<SHiP::MCParticle>*>(&particles));
+        const_cast<std::vector<SHiP::MCParticle>*>(&*particles));
     state.entry->BindRawPtr(
         state.sim_hits, const_cast<std::vector<SHiP::SimHit>*>(&result.hits));
     state.entry->BindRawPtr(
         state.sim_particles,
         const_cast<std::vector<SHiP::SimParticle>*>(&result.particles));
+    state.entry->BindRawPtr(
+        state.plane_particles,
+        const_cast<std::vector<SHiP::MCParticle>*>(&plane_particles));
     state.ctx->Fill(*state.entry);
   }
 
@@ -258,12 +299,25 @@ class MCHistogrammer {
       ctxs.momentum = f_momentum_.CreateFillContext();
       ctxs.pdg = f_pdg_.CreateFillContext();
     }
-    ctxs.multiplicity->Fill(static_cast<double>(particles.size()));
+    // Only final-state particles are histogrammed, so the plots mean "what
+    // was handed to the detector simulation" whichever record mode the
+    // generator ran in. Under `record: 'full'` the collection also holds
+    // beams, strings and decayed mothers, which would swamp the PDG axis and
+    // overflow the multiplicity one. The written product is unaffected — the
+    // full record still reaches disk.
+    std::size_t multiplicity = 0;
     for (auto const& p : particles) {
-      double pmag = aegir::magnitude(p.momentum);
+      if (!SHiP::aegir::hepmc::is_final_state(p.status)) {
+        continue;
+      }
+      ++multiplicity;
+      // Histograms are filled in the storage units straight off the persisted
+      // structs; no unit conversion occurs (docs/units.md).
+      double const pmag = SHiP::aegir::magnitude(p.momentum);
       ctxs.momentum->Fill(pmag);
-      ctxs.pdg->Fill(static_cast<double>(p.pdgCode));
+      ctxs.pdg->Fill(static_cast<double>(p.pdg_code));
     }
+    ctxs.multiplicity->Fill(static_cast<double>(multiplicity));
   }
 
   ~MCHistogrammer() {
@@ -273,7 +327,8 @@ class MCHistogrammer {
     fill_contexts_.clear();
     try {
       auto file = RFile::Recreate(filename_);
-      auto put = [&](char const* name, char const* title, HistD const& h) {
+      auto const put = [&](char const* name, char const* title,
+                           HistD const& h) {
         auto th1 = ROOT::Experimental::Hist::ConvertToTH1D(h);
         th1->SetNameTitle(name, title);
         file->Put(name, *th1);
@@ -308,7 +363,9 @@ class MCHistogrammer {
 };
 
 // Validation histograms for full simulation (thread-safe via per-thread
-// RHistFillContext atomic fillers)
+// RHistFillContext atomic fillers). Scoring-plane hits fill their own
+// h_plane_hit_* histograms and are left out of the h_hit_* ones, which describe
+// the detector's hits: plane hits carry detector id 100 and no energy deposit.
 class SimHistogrammer {
  public:
   explicit SimHistogrammer(std::string filename)
@@ -320,6 +377,10 @@ class SimHistogrammer {
         h_hit_z_{make_hist(200, -1000., 12000.)},
         h_hit_detector_{make_hist(100, -0.5, 99.5)},
         h_hit_momentum_{make_hist(200, 0., 500.)},
+        h_plane_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},
+        h_plane_hit_id_{make_hist(1000, -0.5, 999.5)},
+        h_plane_hit_momentum_{make_hist(200, 0., 500.)},
+        h_plane_hit_pdg_{make_hist(12001, -kIonPdgBin - 0.5, kIonPdgBin + 0.5)},
         h_particle_multiplicity_{make_hist(1000, -0.5, 999.5)},
         f_mc_multiplicity_{h_mc_multiplicity_},
         f_mc_momentum_{h_mc_momentum_},
@@ -328,6 +389,10 @@ class SimHistogrammer {
         f_hit_z_{h_hit_z_},
         f_hit_detector_{h_hit_detector_},
         f_hit_momentum_{h_hit_momentum_},
+        f_plane_hit_multiplicity_{h_plane_hit_multiplicity_},
+        f_plane_hit_id_{h_plane_hit_id_},
+        f_plane_hit_momentum_{h_plane_hit_momentum_},
+        f_plane_hit_pdg_{h_plane_hit_pdg_},
         f_particle_multiplicity_{h_particle_multiplicity_} {}
 
   void observe(std::vector<SHiP::MCParticle> const& particles,
@@ -341,20 +406,41 @@ class SimHistogrammer {
       ctxs.hit_z = f_hit_z_.CreateFillContext();
       ctxs.hit_detector = f_hit_detector_.CreateFillContext();
       ctxs.hit_momentum = f_hit_momentum_.CreateFillContext();
+      ctxs.plane_hit_multiplicity =
+          f_plane_hit_multiplicity_.CreateFillContext();
+      ctxs.plane_hit_id = f_plane_hit_id_.CreateFillContext();
+      ctxs.plane_hit_momentum = f_plane_hit_momentum_.CreateFillContext();
+      ctxs.plane_hit_pdg = f_plane_hit_pdg_.CreateFillContext();
       ctxs.particle_multiplicity = f_particle_multiplicity_.CreateFillContext();
     }
-    ctxs.mc_multiplicity->Fill(static_cast<double>(particles.size()));
+    // Final-state entries only, for the reason given in MCHistogrammer.
+    std::size_t mc_multiplicity = 0;
     for (auto const& p : particles) {
-      double pmag = aegir::magnitude(p.momentum);
+      if (!SHiP::aegir::hepmc::is_final_state(p.status)) {
+        continue;
+      }
+      ++mc_multiplicity;
+      double const pmag = SHiP::aegir::magnitude(p.momentum);
       ctxs.mc_momentum->Fill(pmag);
     }
-    ctxs.hit_multiplicity->Fill(static_cast<double>(result.hits.size()));
+    ctxs.mc_multiplicity->Fill(static_cast<double>(mc_multiplicity));
+    std::size_t plane_hits = 0;
     for (auto const& hit : result.hits) {
-      ctxs.hit_edep->Fill(hit.energyDeposit);
+      if (hit.detector_id == SHiP::aegir::g4::kScoringPlaneDetectorId) {
+        ++plane_hits;
+        ctxs.plane_hit_id->Fill(static_cast<double>(hit.geometry_node_id));
+        ctxs.plane_hit_momentum->Fill(SHiP::aegir::magnitude(hit.momentum));
+        ctxs.plane_hit_pdg->Fill(pdg_bin(hit.pdg_code));
+        continue;
+      }
+      ctxs.hit_edep->Fill(hit.energy_deposit);
       ctxs.hit_z->Fill(hit.position[2]);
-      ctxs.hit_detector->Fill(static_cast<double>(hit.detectorId));
-      ctxs.hit_momentum->Fill(aegir::magnitude(hit.momentum));
+      ctxs.hit_detector->Fill(static_cast<double>(hit.detector_id));
+      ctxs.hit_momentum->Fill(SHiP::aegir::magnitude(hit.momentum));
     }
+    ctxs.hit_multiplicity->Fill(
+        static_cast<double>(result.hits.size() - plane_hits));
+    ctxs.plane_hit_multiplicity->Fill(static_cast<double>(plane_hits));
     ctxs.particle_multiplicity->Fill(
         static_cast<double>(result.particles.size()));
   }
@@ -363,7 +449,8 @@ class SimHistogrammer {
     fill_contexts_.clear();
     try {
       auto file = RFile::Recreate(filename_);
-      auto put = [&](char const* name, char const* title, HistD const& h) {
+      auto const put = [&](char const* name, char const* title,
+                           HistD const& h) {
         auto th1 = ROOT::Experimental::Hist::ConvertToTH1D(h);
         th1->SetNameTitle(name, title);
         file->Put(name, *th1);
@@ -372,7 +459,8 @@ class SimHistogrammer {
           *h_mc_multiplicity_);
       put("h_mc_momentum", "MC particle |p|;|p| [GeV/c];Entries",
           *h_mc_momentum_);
-      put("h_hit_multiplicity", "Sim hits per event;N;Events",
+      put("h_hit_multiplicity",
+          "Sim hits per event (without scoring planes);N;Events",
           *h_hit_multiplicity_);
       put("h_hit_edep", "Hit energy deposit;E_{dep} [GeV];Entries",
           *h_hit_edep_);
@@ -380,6 +468,14 @@ class SimHistogrammer {
       put("h_hit_detector", "Hit detector ID;Detector ID;Entries",
           *h_hit_detector_);
       put("h_hit_momentum", "Hit |p|;|p| [GeV/c];Entries", *h_hit_momentum_);
+      put("h_plane_hit_multiplicity", "Scoring-plane hits per event;N;Events",
+          *h_plane_hit_multiplicity_);
+      put("h_plane_hit_id", "Scoring-plane hit plane id;Plane id;Entries",
+          *h_plane_hit_id_);
+      put("h_plane_hit_momentum", "Scoring-plane hit |p|;|p| [GeV/c];Entries",
+          *h_plane_hit_momentum_);
+      put("h_plane_hit_pdg", "Scoring-plane hit PDG code;PDG;Entries",
+          *h_plane_hit_pdg_);
       put("h_particle_multiplicity", "Sim particles per event;N;Events",
           *h_particle_multiplicity_);
     } catch (std::exception const& e) {
@@ -402,6 +498,10 @@ class SimHistogrammer {
     std::shared_ptr<ContextD> hit_z;
     std::shared_ptr<ContextD> hit_detector;
     std::shared_ptr<ContextD> hit_momentum;
+    std::shared_ptr<ContextD> plane_hit_multiplicity;
+    std::shared_ptr<ContextD> plane_hit_id;
+    std::shared_ptr<ContextD> plane_hit_momentum;
+    std::shared_ptr<ContextD> plane_hit_pdg;
     std::shared_ptr<ContextD> particle_multiplicity;
   };
 
@@ -409,10 +509,14 @@ class SimHistogrammer {
   std::shared_ptr<HistD> h_mc_multiplicity_, h_mc_momentum_;
   std::shared_ptr<HistD> h_hit_multiplicity_, h_hit_edep_, h_hit_z_,
       h_hit_detector_, h_hit_momentum_;
+  std::shared_ptr<HistD> h_plane_hit_multiplicity_, h_plane_hit_id_,
+      h_plane_hit_momentum_, h_plane_hit_pdg_;
   std::shared_ptr<HistD> h_particle_multiplicity_;
   FillerD f_mc_multiplicity_, f_mc_momentum_;
   FillerD f_hit_multiplicity_, f_hit_edep_, f_hit_z_, f_hit_detector_,
       f_hit_momentum_;
+  FillerD f_plane_hit_multiplicity_, f_plane_hit_id_, f_plane_hit_momentum_,
+      f_plane_hit_pdg_;
   FillerD f_particle_multiplicity_;
   tbb::enumerable_thread_specific<FillContexts> fill_contexts_;
 };
@@ -433,10 +537,10 @@ class SimNoop {
 PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
-  auto mode = config.get<std::string>("mode", std::string{"mc_only"});
-  auto rntuple_file =
+  auto const mode = config.get<std::string>("mode", std::string{"mc_only"});
+  auto const rntuple_file =
       config.get<std::string>("rntuple_file", std::string{"sim_output.root"});
-  auto histo_file =
+  auto const histo_file =
       config.get<std::string>("histo_file", std::string{"validation.root"});
   // Writer memory is bounded by fill_contexts x per-context buffering (which
   // scales with cluster_size_mib); see issue #77. The pool defaults to
@@ -446,20 +550,22 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   // active value here is the framework's thread count.
   auto const max_threads = tbb::global_control::active_value(
       tbb::global_control::max_allowed_parallelism);
-  auto cluster_mib = config.get<int>("cluster_size_mib", 32);
-  auto n_contexts = config.get<int>(
+  auto const cluster_mib = config.get<int>("cluster_size_mib", 32);
+  auto const n_contexts = config.get<int>(
       "fill_contexts", static_cast<int>(std::min<std::size_t>(
                            4, std::max<std::size_t>(1, max_threads))));
 
   if (mode != "mc_only" && mode != "full" && mode != "noop" &&
-      mode != "noop_full")
+      mode != "noop_full") {
     throw std::runtime_error(
         "Unknown sim_output_module mode: '" + mode +
         "' (expected 'mc_only', 'full', 'noop', or 'noop_full')");
-  if (cluster_mib <= 0 || n_contexts <= 0)
+  }
+  if (cluster_mib <= 0 || n_contexts <= 0) {
     throw std::runtime_error(
         "sim_output_module: cluster_size_mib and fill_contexts must be "
         "positive");
+  }
 
   if (mode == "noop") {
     auto noop = m.make<MCNoop>();
@@ -497,7 +603,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
   } else {
-    auto filter_empty = config.get<bool>("filter_empty", false);
+    auto const filter_empty = config.get<bool>("filter_empty", false);
 
     auto writer = m.make<SimRNTupleWriter>(
         rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),
@@ -515,6 +621,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "geant4"_id,
                              .layer = "event"_id,
                              .suffix = "sim_result"_id},
+            product_selector{.creator = "geant4"_id,
+                             .layer = "event"_id,
+                             .suffix = "plane_particles"_id},
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 

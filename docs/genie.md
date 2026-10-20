@@ -63,9 +63,28 @@ file.
 
 ## What is read
 
-Only stable final-state particles (GENIE status 1) are handed to Geant4; the
+By default only stable final-state particles (GENIE status 1) are emitted; the
 incoming neutrino, the struck nucleus and intermediate states are dropped.
+Set `record: 'full'` to keep the whole record instead — see
+[generator_record.md](generator_record.md), which also gives the GENIE→HepMC
+status mapping. Either way the emitted `status` is the HepMC code (GENIE's
+`kIStStableFinalState` becomes 1), and Geant4 tracks exactly the status-1
+entries.
+
 All particles of an event share the interaction vertex (`EvtVtx`), converted
-from GENIE's SI units to aegir's mm/ns. `motherId` is remapped to index the
-emitted collection and is `-1` when the mother was not itself final state —
-the common case.
+from GENIE's SI units to aegir's mm/ns. The `mothers` list is built from
+`StdHepFm` and, where the file has it, `StdHepLm`. These are two separate
+parents and not the ends of a range: GENIE itself uses the last-mother slot
+for a second mother. The indices are remapped to the emitted collection, and
+mothers that were not emitted are dropped. `mother_id` is the first mother left
+after that, or `-1` if none is left, which is the usual case under
+`record: 'final_state'`. Files without `StdHepLm` read as single-mother. See
+[generator_record.md](generator_record.md) for the full rules.
+
+Per-event metadata is copied into the `EventHeader`: the GENIE event weight
+(`EvtWght`) becomes `weight` and the event number (`EvtNum`) becomes
+`original_event_id` (event-level provenance). Both branches are optional — a
+file produced without them reads fine and keeps the unweighted defaults
+(`weight = 1.0`, `original_event_id = -1`). The reader warns once per missing
+branch when it opens the file, so a genuinely unweighted run is distinguishable
+from one where aegir did not find the weight.

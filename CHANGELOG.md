@@ -2,6 +2,137 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-10-20
+
+### Features
+
+- Add configurable scoring planes to the geant4 module
+- Place scoring planes in a Geant4 parallel world
+- Require an explicit id for every scoring plane
+- Add fixed-target production workflow with exit-absorber plane
+- Keep only hit tracks and their ancestry
+- *(file_source)* Read any MCParticle field and keep the event's origin
+- *(geant4)* Write a scoring plane's particles for replay
+- *(file_source)* [**breaking**] Drop the sim_particles replay mode
+- *(geant4)* Replay plane particles from where they crossed the plane
+
+### Bug fixes
+
+- *(pixi)* Cap shipdatamodel below 0.6
+- *(cmake)* Cap SHiPDataModel below 0.6
+- Keep scoring-plane hits out of the detector-hit histograms
+- Address the second scoring-plane review
+- Give the exit-absorber plane FairShip's size
+- Check scoring planes against the world's rotated bounds
+- Widen the scoring-plane validation histograms
+- Validate scoring planes when the parallel world is built
+- Cover baryons up to |PDG| 5999 in h_plane_hit_pdg
+- Write only the production plane's tracks and their ancestry
+- Read output written with data-model 0.5
+- *(geant4)* Leave out recorded tracks that descend from a recorded track
+- *(geant4)* Replay recorded tracks that descend from a recorded track
+- *(geant4)* Treat only status 201 as replay history
+
+### Refactor
+
+- Split scoring-plane validation and SD attachment
+- Read scoring-plane sizes only for their shape
+- Validate scoring planes in one place
+- [**breaking**] Build against data-model 0.6, field_service 0.4 and geometry_service 0.5
+- [**breaking**] Move aegir into the SHiP::aegir namespace
+
+### Documentation
+
+- *(pixi)* Note the geometry_service host dependency for dev builds
+- Describe keep_particles and the fixed-target production workflow
+- State that replayed particles restart from their origin
+
+### Performance
+
+- Count after_volume placements over the logical-volume graph
+
+### Styling
+
+- Declare the RNTuple anchor const in file_source
+
+### Testing
+
+- Predict the killing plane's record from the energy at plane 1
+- Drop the misspelt key from the missing_name case
+
+### Miscellaneous
+
+- Add advisory builds against ShipSoft library mains
+
+### Build
+
+- Resolve SHiP packages from ship-experiment/stable
+- Move to ship-random 0.4
+- Cap the SHiP dependency pins at the next minor
+- Move to geometry_service 0.6
+## [0.4.0] - 2026-10-13
+
+### Features
+
+- *(output)* Publish EventHeader from every generator source (#94)
+- *(units)* Add a quantity overload of magnitude
+- *(sources)* Propagate EventHeader from genie_reader and file sources
+- [**breaking**] Load field maps in the SHiP field-map format
+- [**breaking**] Require phlex 0.4.1
+- *(cmake)* Install the generator-source helper for external plugins
+- *(geant4)* Track only final-state primaries
+- Write each event's phlex event number
+- *(generators)* Add a full-record output mode
+- *(generators)* Record every mother, not just the first
+
+### Bug fixes
+
+- Build the SHiP siblings from source in the dev environment
+- Let a failed git diff fail the clang-tidy-diff task
+- Reject non-finite translations and place gun_st_field's maps
+- Key Pythia's random numbers to the event number
+
+### Refactor
+
+- *(io)* Finish the TFile-to-RFile migration
+- *(units)* Replace comment fences with typed acquisition
+- *(workflows)* Take the stage name from lib in the file workflows
+- Take PhiloxRng from ship-random
+
+### Documentation
+
+- Adopt AI policy
+- Describe what the clang-tidy gate actually does, and fix the local check
+- Say what a mismatched phlex --stage does to product labels
+- *(genie)* Describe both mother branches
+
+### Styling
+
+- Satisfy ruff 0.16 default lint in scripts
+- Apply the clang-tidy fixes that can be applied automatically
+
+### Testing
+
+- Check muon deflection in a generated field map
+- Check that generator sources require their own stage key
+- *(generator_status)* Match skip warnings to events by event number
+
+### Miscellaneous
+
+- Update pixi lock file
+- Remove redundant PR checklist template
+- Grant config-sync job explicit permissions
+- Sync shared configs
+- Update pixi lock file
+- Gate merges on uniform aggregator checks
+- Check C++ against the Core Guidelines with clang-tidy
+- Update pixi lock file
+- Update pixi lock file
+
+### Build
+
+- Require field-service 0.2.0
+- Require Pythia 8.312
 ## [0.3.0] - 2026-07-25
 
 ### Features

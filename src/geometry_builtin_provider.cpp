@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "geometry_source.hpp"
@@ -25,19 +26,19 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Dimension in Geant4 internal units from a quantity literal.
-inline double g4(auto q) { return aegir::clhep::g4(q); }
+inline double g4(auto q) { return SHiP::aegir::clhep::g4(q); }
 
-class BuiltinGeometrySource : public SHiP::IGeometrySource {
+class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
   std::vector<std::string> sensitive_vols_{"Scoring"};
   mutable std::once_flag init_flag_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
-    std::call_once(init_flag_, [this]() {
+    std::call_once(init_flag_, [this] {
       auto* nist = G4NistManager::Instance();
 
       auto* worldMat = nist->FindOrBuildMaterial("G4_AIR");
@@ -62,7 +63,7 @@ class BuiltinGeometrySource : public SHiP::IGeometrySource {
       std::array<double, 5> z_positions{g4(2 * su::m), g4(4 * su::m),
                                         g4(6 * su::m), g4(8 * su::m),
                                         g4(10 * su::m)};
-      for (int i = 0; i < static_cast<int>(z_positions.size()); ++i) {
+      for (int i = 0; std::cmp_less(i, z_positions.size()); ++i) {
         new G4PVPlacement(nullptr, G4ThreeVector(0, 0, z_positions[i]), planeLV,
                           "ScoringPlane", worldLV, false, i);
       }
@@ -84,10 +85,10 @@ PHLEX_REGISTER_PROVIDERS(s) {
   // Shared instance: geometry is constant across all events.
   // The provider returns a shared_ptr copy for each data cell.
   // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> source =
+  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
+  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
       std::make_shared<BuiltinGeometrySource>();
 
-  aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",
-                          "job");
+  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
+                                "detector", "job");
 }

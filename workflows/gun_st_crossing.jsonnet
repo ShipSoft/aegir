@@ -1,5 +1,6 @@
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(1000),
   sources: {
     field: lib.null_field,

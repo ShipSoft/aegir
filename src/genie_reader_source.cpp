@@ -12,26 +12,92 @@
 
 #include <TLeaf.h>
 #include <TTree.h>
+#include <spdlog/spdlog.h>
 
 #include <ROOT/RFile.hxx>
+#include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
+#include <SHiP/QuantityView.hpp>
 #include <SHiP/Units.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
+#include "record_mode.hpp"
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 using ROOT::Experimental::RFile;
 
-// GENIE GHepStatus: 1 = stable final state (trackable by Geant4).
-constexpr int kStableFinalState = 1;
+// GENIE GHepStatus codes (Framework/GHEP/GHepStatus.h). Only the ones needing
+// a distinct HepMC translation are named; the rest are nuclear/intermediate
+// bookkeeping handled by the default branch below.
+constexpr int kUndefined = -1;
+constexpr int kInitialState = 0;
+constexpr int kStableFinalState = 1;  ///< "to be tracked by detector-level MC"
+constexpr int kDecayedState = 3;
+
+// Translate a GENIE status to the HepMC convention that SHiP::MCParticle
+// carries (see hepmc_status.hpp). GENIE's intermediate and nuclear codes
+// (2, 10-16) have no HepMC counterpart, so they map into the 11-200
+// generator-dependent band, offset to stay clear of it while remaining
+// reversible.
+constexpr int kGenieIntermediateOffset = 100;
+
+[[nodiscard]] constexpr int genie_status_to_hepmc(int status) noexcept {
+  switch (status) {
+    case kStableFinalState:
+      return SHiP::aegir::hepmc::final_state;
+    case kInitialState:
+      // The incoming neutrino and the target nucleus.
+      return SHiP::aegir::hepmc::beam;
+    case kDecayedState:
+      return SHiP::aegir::hepmc::decayed;
+    case kUndefined:
+      return SHiP::aegir::hepmc::empty;
+    default:
+      return kGenieIntermediateOffset + status;
+  }
+}
+
+static_assert(genie_status_to_hepmc(kStableFinalState) ==
+              SHiP::aegir::hepmc::final_state);
+static_assert(genie_status_to_hepmc(2) <= SHiP::aegir::hepmc::intermediate_max);
+static_assert(genie_status_to_hepmc(16) <=
+              SHiP::aegir::hepmc::intermediate_max);
+
+// Remap mother indices from the full StdHep record to the emitted collection.
+// Mothers that were not themselves written out are dropped rather than
+// recorded as -1, which the data model reserves for mother_id alone; mother_id
+// is then the first survivor, keeping it equal to mothers.front(). Under
+// record_mode::final_state most mothers disappear, since the neutrino, the
+// struck nucleus and the intermediate states are not final state.
+void remap_mothers(std::vector<SHiP::MCParticle>& particles,
+                   std::vector<int> const& out_index, int n) {
+  for (auto& mc : particles) {
+    std::vector<std::int32_t> mapped;
+    mapped.reserve(mc.mothers.size());
+    for (auto const m : mc.mothers) {
+      if (m < 0 || m >= n) {
+        continue;
+      }
+      if (auto const out = out_index[static_cast<std::size_t>(m)]; out >= 0) {
+        mapped.push_back(out);
+      }
+    }
+    mc.mothers = std::move(mapped);
+    mc.mother_id = mc.mothers.empty() ? -1 : mc.mothers.front();
+  }
+}
 
 // Stock gntpc caps the StdHep arrays at 250 particles (kNPmax); the actual
 // buffer size is taken from the file in case it was produced with a larger
@@ -40,9 +106,13 @@ constexpr int kDefaultMaxParticles = 250;
 
 class GenieReaderSource : public phlex::source {
  public:
-  GenieReaderSource(std::string const& file, std::string const& tree_name,
-                    long long first_entry)
-      : file_name_{file}, first_entry_{first_entry} {
+  GenieReaderSource(std::string stage, std::string const& file,
+                    std::string const& tree_name, long long first_entry,
+                    SHiP::aegir::record_mode record)
+      : stage_{std::move(stage)},
+        file_name_{file},
+        first_entry_{first_entry},
+        record_{record} {
     try {
       file_ = RFile::Open(file);
     } catch (ROOT::RException const& e) {
@@ -50,21 +120,26 @@ class GenieReaderSource : public phlex::source {
                                "': " + e.what());
     }
     tree_ = file_->Get<TTree>(tree_name);
-    if (!tree_)
+    if (!tree_) {
       throw std::runtime_error("genie_reader_source: no TTree '" + tree_name +
                                "' in '" + file + "'");
+    }
 
     // The StdHep branches are variable-length arrays indexed by StdHepN; size
     // the buffers from the count leaf's file-wide maximum so GetEntry can
     // never write past them.
     int capacity = kDefaultMaxParticles;
-    if (auto* leaf = tree_->GetLeaf("StdHepPdg")) {
-      if (auto* count = leaf->GetLeafCount())
+    if (auto const* leaf = tree_->GetLeaf("StdHepPdg")) {
+      if (auto const* count = leaf->GetLeafCount()) {
         capacity = std::max(capacity, static_cast<int>(count->GetMaximum()));
+      }
     }
     pdg_.resize(capacity);
     status_.resize(capacity);
     first_mother_.resize(capacity);
+    // -1 is GENIE's "no mother", so an absent StdHepLm branch reads as "no
+    // second mother" for every entry rather than as index 0.
+    last_mother_.assign(static_cast<std::size_t>(capacity), -1);
     p4_.resize(4 * static_cast<std::size_t>(capacity));
 
     tree_->SetBranchStatus("*", false);
@@ -73,12 +148,182 @@ class GenieReaderSource : public phlex::source {
     enable_branch("StdHepPdg", pdg_.data());
     enable_branch("StdHepStatus", status_.data());
     enable_branch("StdHepFm", first_mother_.data());
+    // The second mother, where GENIE recorded one. Bound only if present:
+    // rootracker files written by older gntpc versions lack it, and the
+    // buffer's -1 default then reads as "single mother" throughout.
+    if (tree_->GetBranch("StdHepLm")) {
+      bind_branch("StdHepLm", last_mother_.data());
+    }
     enable_branch("StdHepP4", p4_.data());
+    // Event-level provenance for the EventHeader. Optional: files produced
+    // without these branches keep the unweighted defaults (weight 1.0, id -1)
+    // and are warned about.
+    enable_optional_branch("EvtWght", &weight_);
+    enable_optional_branch("EvtNum", &evt_num_);
   }
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
     auto const entry = first_entry_ + static_cast<long long>(id.number());
-    if (entry >= tree_->GetEntries())
+
+    std::vector<SHiP::MCParticle> particles;
+    std::vector<int> out_index;
+    int n = 0;
+    {
+      // The mc_particles and event_header providers become separate phlex nodes
+      // that may run concurrently; the TTree and its shared branch buffers are
+      // not thread-safe, so io_mutex_ serialises every read. Copy the particle
+      // record out of the buffers before releasing the lock.
+      std::scoped_lock const lock{io_mutex_};
+      require_in_range(entry);
+      load_entry(entry);
+
+      n = n_particles_;
+      if (n < 0 || std::cmp_greater(n, pdg_.size())) {
+        throw std::runtime_error("genie_reader_source: corrupt entry " +
+                                 std::to_string(entry) +
+                                 ": StdHepN = " + std::to_string(n));
+      }
+
+      // The interaction vertex is per event (EvtVtx, SI units); the
+      // per-particle StdHepX4 positions are nuclear-scale offsets and
+      // irrelevant for tracking. GENIE's SI values acquire their unit here
+      // (exact powers of ten to the canonical units).
+      SHiP::Vec3<SHiP::Length> const vertex{vtx_[0] * su::m, vtx_[1] * su::m,
+                                            vtx_[2] * su::m};
+      SHiP::Time const time = (vtx_[3] * su::s).in(su::ns);
+
+      particles.reserve(static_cast<std::size_t>(n));
+      // StdHep-record index -> output index for written particles. In full
+      // mode every entry is written, so this becomes the identity.
+      out_index.assign(static_cast<std::size_t>(n), -1);
+
+      for (int i = 0; i < n; ++i) {
+        if (record_ == SHiP::aegir::record_mode::final_state &&
+            status_[i] != kStableFinalState) {
+          continue;
+        }
+
+        out_index[static_cast<std::size_t>(i)] =
+            static_cast<int>(particles.size());
+
+        SHiP::MCParticle mc;
+        mc.pdg_code = pdg_[static_cast<std::size_t>(i)];
+        SHiP::view::set_vertex(mc, vertex);
+        // The rootracker "GeV" four-momentum columns are natural units: the
+        // spatial components are momenta, GeV/c.
+        SHiP::view::set_momentum(
+            mc, {p4(i, 0) * su::GeV_per_c, p4(i, 1) * su::GeV_per_c,
+                 p4(i, 2) * su::GeV_per_c});
+        SHiP::view::set_energy(mc, p4(i, 3) * su::GeV);
+        SHiP::view::set_time(mc, time);
+        mc.status = genie_status_to_hepmc(status_[i]);
+        // StdHep record indices for now; remapped below, once out_index is
+        // complete. GENIE gives a first and an optional second mother, which
+        // it uses as two distinct parents rather than as the endpoints of a
+        // range, so both are kept verbatim.
+        auto const fm = first_mother_[static_cast<std::size_t>(i)];
+        auto const lm = last_mother_[static_cast<std::size_t>(i)];
+        if (fm >= 0) {
+          mc.mothers.push_back(fm);
+        }
+        if (lm >= 0 && lm != fm) {
+          mc.mothers.push_back(lm);
+        }
+        particles.push_back(mc);
+      }
+    }
+
+    // Operates on local vectors only, so it needs no lock.
+    remap_mothers(particles, out_index, n);
+    return particles;
+  }
+
+  SHiP::EventHeader generate_header(phlex::data_cell_index const& id) {
+    auto const entry = first_entry_ + static_cast<long long>(id.number());
+    std::scoped_lock const lock{io_mutex_};
+    require_in_range(entry);
+    load_entry(entry);
+    // weight_/evt_num_ keep their defaults (1.0 / -1) when the optional
+    // EvtWght/EvtNum branches are absent from the file.
+    return SHiP::EventHeader{
+        .weight = weight_,
+        .original_event_id = static_cast<std::int64_t>(evt_num_)};
+  }
+
+  phlex::provider_bundles create_providers(
+      phlex::product_selector const& selector) override {
+    return SHiP::aegir::mc_particle_provider_bundles(
+        selector, stage_,
+        [this](phlex::data_cell_index const& id) { return generate(id); },
+        phlex::concurrency::serial,
+        [this](phlex::data_cell_index const& id) {
+          return generate_header(id);
+        });
+  }
+
+ private:
+  std::string stage_;
+
+  template <typename T>
+  void enable_branch(std::string const& name, T* address) {
+    if (!tree_->GetBranch(name.c_str())) {
+      throw std::runtime_error("genie_reader_source: branch '" + name +
+                               "' missing from '" + file_name_ +
+                               "' — is this a rootracker file (gntpc -f "
+                               "rootracker)?");
+    }
+    bind_branch(name.c_str(), address);
+  }
+
+  // Like enable_branch but tolerates a missing branch, leaving *address at its
+  // caller-supplied default. Used for the optional event-header provenance.
+  // Warns, so that a run reporting weight 1.0 because the file says so is
+  // distinguishable from one where the weight was simply not found.
+  template <typename T>
+  void enable_optional_branch(char const* name, T* address) {
+    if (!tree_->GetBranch(name)) {
+      spdlog::warn(
+          "genie_reader_source: '{}' has no '{}' branch — the EventHeader "
+          "keeps its default",
+          file_name_, name);
+      return;
+    }
+    bind_branch(name, address);
+  }
+
+  // Enable a branch and point it at our buffer. SetBranchAddress answers with
+  // an ESetBranchAddressStatus: negative means it could not bind the branch to
+  // this address (a type mismatch, typically), while every non-negative value
+  // is a match, possibly through a conversion. Left unchecked a mismatch binds
+  // nothing and the buffer keeps whatever it held, so a file whose columns have
+  // the wrong type would read as silent garbage rather than an error.
+  template <typename T>
+  void bind_branch(char const* name, T* address) {
+    tree_->SetBranchStatus(name, true);
+    if (tree_->SetBranchAddress(name, address) < 0) {
+      throw std::runtime_error("genie_reader_source: branch '" +
+                               std::string{name} + "' in '" + file_name_ +
+                               "' does not have the expected rootracker type");
+    }
+  }
+
+  // Load an entry into the shared branch buffers, skipping the read when it is
+  // already resident so the mc_particles and event_header providers do not each
+  // re-read the (large) StdHep arrays. Caller must hold io_mutex_.
+  void load_entry(long long entry) {
+    if (entry != loaded_entry_) {
+      tree_->GetEntry(entry);
+      loaded_entry_ = entry;
+    }
+  }
+
+  void require_in_range(long long entry) const {
+    if (entry < 0) {
+      throw std::runtime_error("genie_reader_source: negative entry " +
+                               std::to_string(entry) + " requested from '" +
+                               file_name_ + "'");
+    }
+    if (entry >= tree_->GetEntries()) {
       throw std::runtime_error(
           "genie_reader_source: input exhausted — the workflow requested "
           "entry " +
@@ -86,78 +331,7 @@ class GenieReaderSource : public phlex::source {
           std::to_string(tree_->GetEntries()) +
           " events. Reduce the driver's event count or provide a larger "
           "file.");
-    tree_->GetEntry(entry);
-
-    auto const n = n_particles_;
-    if (n < 0 || n > static_cast<int>(pdg_.size()))
-      throw std::runtime_error("genie_reader_source: corrupt entry " +
-                               std::to_string(entry) +
-                               ": StdHepN = " + std::to_string(n));
-
-    // The interaction vertex is per event (EvtVtx, SI units); the per-particle
-    // StdHepX4 positions are nuclear-scale offsets and irrelevant for
-    // tracking. GENIE's SI values acquire their unit here and convert to the
-    // canonical storage units (exact powers of ten).
-    std::array<double, 3> const vertex{
-        (vtx_[0] * su::m).numerical_value_in(su::mm),
-        (vtx_[1] * su::m).numerical_value_in(su::mm),
-        (vtx_[2] * su::m).numerical_value_in(su::mm)};
-    double const time = (vtx_[3] * su::s).numerical_value_in(su::ns);
-
-    std::vector<SHiP::MCParticle> particles;
-    particles.reserve(static_cast<std::size_t>(n));
-    // StdHep-record index -> output index for written (final-state) particles.
-    std::vector<int> out_index(static_cast<std::size_t>(n), -1);
-
-    for (int i = 0; i < n; ++i) {
-      if (status_[i] != kStableFinalState) continue;
-
-      out_index[static_cast<std::size_t>(i)] =
-          static_cast<int>(particles.size());
-
-      SHiP::MCParticle mc;
-      mc.pdgCode = pdg_[static_cast<std::size_t>(i)];
-      mc.vertex = vertex;
-      mc.momentum = {p4(i, 0), p4(i, 1), p4(i, 2)};  // GeV
-      mc.energy = p4(i, 3);                          // GeV
-      mc.time = time;
-      mc.motherId = first_mother_[static_cast<std::size_t>(i)];  // remapped
-      mc.status = 1;
-      particles.push_back(mc);
     }
-
-    // Remap motherId from the full StdHep record to the emitted collection, or
-    // -1 when the mother was not itself written out — the common case, since
-    // mothers of final-state particles (the neutrino, the struck nucleus,
-    // intermediate states) are generally not final state.
-    for (auto& mc : particles) {
-      int const m = mc.motherId;
-      mc.motherId =
-          (m >= 0 && m < n) ? out_index[static_cast<std::size_t>(m)] : -1;
-    }
-    return particles;
-  }
-
-  phlex::detail::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
-        selector,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
-  }
-
-  phlex::index_generator indices() override { co_return; }
-
- private:
-  template <typename T>
-  void enable_branch(std::string const& name, T* address) {
-    if (!tree_->GetBranch(name.c_str()))
-      throw std::runtime_error("genie_reader_source: branch '" + name +
-                               "' missing from '" + file_name_ +
-                               "' — is this a rootracker file (gntpc -f "
-                               "rootracker)?");
-    tree_->SetBranchStatus(name.c_str(), true);
-    tree_->SetBranchAddress(name.c_str(), address);
   }
 
   double p4(int i, int k) const {
@@ -166,6 +340,7 @@ class GenieReaderSource : public phlex::source {
 
   std::string file_name_;
   long long first_entry_;
+  SHiP::aegir::record_mode record_;
   // Declaration order matters: the TTree stays attached to the underlying
   // file for lazy basket reads, so it must be destroyed before file_.
   std::unique_ptr<RFile> file_;
@@ -176,18 +351,36 @@ class GenieReaderSource : public phlex::source {
   std::vector<int> pdg_;
   std::vector<int> status_;
   std::vector<int> first_mother_;
+  std::vector<int> last_mother_;
   std::vector<double> p4_;  // [n][4]: px, py, pz, E (GeV)
+
+  // Event-level provenance for the EventHeader; defaults survive when the
+  // optional EvtWght/EvtNum branches are absent.
+  double weight_ = 1.0;
+  int evt_num_ = -1;
+
+  // Serialises TTree access across the concurrent mc_particles and event_header
+  // provider nodes; loaded_entry_ tracks which entry is resident in the shared
+  // buffers to avoid a redundant re-read by the second provider.
+  std::mutex io_mutex_;
+  long long loaded_entry_ = -1;
 };
 
 }  // namespace
 
 PHLEX_REGISTER_SOURCE(s, config) {
-  auto file = config.get<std::string>("file");
-  auto tree = config.get<std::string>("tree", std::string{"gRooTracker"});
-  auto first_entry = config.get<long>("first_entry", 0L);
-  if (first_entry < 0)
+  auto const file = config.get<std::string>("file");
+  auto const tree = config.get<std::string>("tree", std::string{"gRooTracker"});
+  auto const first_entry = config.get<long>("first_entry", 0L);
+  if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
+  }
+  auto const record = SHiP::aegir::parse_record_mode(
+      config.get<std::string>("record", std::string{"final_state"}),
+      "genie_reader_source");
 
-  s.add_source<GenieReaderSource>("genie_reader", file, tree,
-                                  static_cast<long long>(first_entry));
+  auto stage = SHiP::aegir::source_stage(config, "genie_reader_source");
+
+  s.add_source<GenieReaderSource>("genie_reader", std::move(stage), file, tree,
+                                  static_cast<long long>(first_entry), record);
 }

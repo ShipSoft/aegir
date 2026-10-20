@@ -6,14 +6,16 @@
 // Geant4 must NOT call GetFieldValue while stepping outside the target.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.builtin_geometry,
-    field: lib.covfie_field([
+    field: lib.field_map([
       {
         name: 'TargetField',
         volume_pattern: 'Target',
-        cvf_file: 'target_2T_y.cvf',
+        file: 'target_2T_y.root',
+        map: 'target_2T_y',
       },
     ]),
     gun: lib.pencil_gun,  // on axis, into target

@@ -8,7 +8,9 @@
 #   - count_entries.py reports the written event count (the read-all helper),
 #   - reading the whole file processes every event,
 #   - the `skip` offset starts at the requested entry and processes exactly the
-#     requested number of events, serving the correct entries.
+#     requested number of events, serving the correct entries,
+#   - a `product` naming a field the file does not have, or one that does not
+#     hold MCParticles, fails clearly.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -28,10 +30,12 @@ nread=5   # events processed in the offset read (n - skip)
 cat >"$workdir/read.jsonnet" <<'EOF'
 local n_events = std.parseInt(std.extVar('events'));
 {
+  stage: 'simulation',
   driver: { cpp: 'generate_layers', layers: { event: { total: n_events } } },
   sources: {
     input: {
       cpp: 'file_source',
+      stage: 'simulation',
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: std.parseInt(std.extVar('skip')),
@@ -76,7 +80,7 @@ def signatures(path, lo, hi):
     for i in range(lo, hi):
         events.append(
             tuple(
-                (int(p.pdgCode), p.momentum[0], p.momentum[1], p.momentum[2])
+                (int(p.pdg_code), p.momentum[0], p.momentum[1], p.momentum[2])
                 for p in view(i)
             )
         )
@@ -160,26 +164,33 @@ got=$(python3 "$here/count_entries.py" "$workdir/g4_mc.root")
 [ "$got" = "$n" ] || { echo "geant4 mc read: expected $n events, got $got"; exit 1; }
 python3 "$workdir/check_nonempty.py" "$workdir/g4_mc.root" sim_particles SimParticle
 
-# 7. SimParticle path: produce a sim_particles file (gun -> Geant4 -> full), then
-#    read it back with the SimParticle->MCParticle projection and re-simulate.
-phlex -c <(jsonnet \
-  --ext-str events="$n" \
-  --ext-str outfile="$workdir/sim_input.root" \
-  --ext-str histofile="$workdir/sim_input_hist.root" \
-  "$workflows/file_write_sim.jsonnet")
-sn=$(python3 "$here/count_entries.py" "$workdir/sim_input.root")
-[ "$sn" = "$n" ] || { echo "sim write: expected $n events, got $sn"; exit 1; }
-python3 "$workdir/check_nonempty.py" "$workdir/sim_input.root" sim_particles SimParticle
+# 7. A product the input does not have, or one that does not hold
+#    MCParticles, stops the job with a clear message instead of ROOT's own
+#    error. sim_particles is simulation output; plane_particles replaces
+#    replaying it (see docs/geant4_integration.md).
+expect_bad_product() {
+  local product=$1 infile=$2 message=$3 out
+  sed "s/product: 'mc_particles'/product: '$product'/" "$workdir/read.jsonnet" \
+    >"$workdir/read_$product.jsonnet"
+  if out=$(phlex -c <(jsonnet \
+    --ext-str events=1 --ext-str skip=0 \
+    --ext-str infile="$infile" \
+    --ext-str simout="$workdir/bad_$product.root" \
+    --ext-str histo="$workdir/bad_${product}_valid.root" \
+    "$workdir/read_$product.jsonnet") 2>&1); then
+    echo "product '$product': the job should have failed"
+    exit 1
+  fi
+  grep -qF "$message" <<<"$out" || {
+    echo "product '$product': unexpected error"
+    echo "$out"
+    exit 1
+  }
+}
+expect_bad_product no_such_field "$workdir/input.root" \
+  "has no field 'no_such_field'"
+expect_bad_product sim_particles "$workdir/g4_mc.root" \
+  "field 'sim_particles' of '$workdir/g4_mc.root' is not a std::vector<SHiP::MCParticle>"
 
-phlex -c <(jsonnet \
-  --ext-str events="$sn" \
-  --ext-str infile="$workdir/sim_input.root" \
-  --ext-str simout="$workdir/g4_sim.root" \
-  --ext-str histo="$workdir/g4_sim_valid.root" \
-  "$workflows/file_read_sim.jsonnet")
-got=$(python3 "$here/count_entries.py" "$workdir/g4_sim.root")
-[ "$got" = "$sn" ] || { echo "geant4 sim read: expected $sn events, got $got"; exit 1; }
-python3 "$workdir/check_nonempty.py" "$workdir/g4_sim.root" sim_particles SimParticle
-
-echo "file_source round-trip passed: count helper, read-all, skip offset, and"
-echo "Geant4 re-simulation (MCParticle and SimParticle inputs) all correct"
+echo "file_source round-trip passed: count helper, read-all, skip offset,"
+echo "Geant4 re-simulation and the bad product errors all correct"

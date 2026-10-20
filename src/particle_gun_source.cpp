@@ -9,30 +9,32 @@
 
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/QuantityView.hpp>
+#include <SHiP/random/philox_rng.hpp>
 #include <cmath>
 #include <cstdint>
 #include <numbers>
 #include <vector>
 
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
-#include "philox_rng.hpp"
 #include "seed_config.hpp"
 #include "units/config_units.hpp"
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 class ParticleGun : public phlex::source {
  public:
-  ParticleGun(int pdg, ship::Momentum p_min, ship::Momentum p_max,
-              ship::Angle max_theta, ship::Vec3<ship::Length> vertex,
-              std::uint32_t seed)
-      : pdg_{pdg},
+  ParticleGun(std::string stage, int pdg, SHiP::Momentum p_min,
+              SHiP::Momentum p_max, SHiP::Angle max_theta,
+              SHiP::Vec3<SHiP::Length> vertex, std::uint32_t seed)
+      : stage_{std::move(stage)},
+        pdg_{pdg},
         p_min_{p_min},
         p_max_{p_max},
         max_theta_{max_theta},
-        vertex_{ship::raw(vertex)},
+        vertex_{vertex},
         seed_{seed} {}
 
   std::vector<SHiP::MCParticle> generate(phlex::data_cell_index const& id) {
@@ -40,44 +42,46 @@ class ParticleGun : public phlex::source {
     // 0xBEEFCAFE: the gun's stream, independent of fixed_target (0xF14ED0A7)
     // and geant4 (0x47345EED); the event number selects the counter
     // sub-stream so events stay decorrelated for any base seed.
-    aegir::PhiloxRng rng{seed_, 0xBEEFCAFE, event_number};
+    SHiP::random::PhiloxRng rng{seed_, 0xBEEFCAFE, event_number};
 
     // Sampling stays on raw numbers so the Philox stream is bit-identical;
     // the bounds are unwrapped in the canonical units on the same lines.
-    double p = rng.uniform(p_min_.numerical_value_in(su::GeV_per_c),
-                           p_max_.numerical_value_in(su::GeV_per_c));
-    double theta = rng.uniform(0.0, max_theta_.numerical_value_in(su::rad));
-    double phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
+    double const p = rng.uniform(p_min_.numerical_value_in(su::GeV_per_c),
+                                 p_max_.numerical_value_in(su::GeV_per_c));
+    double const theta =
+        rng.uniform(0.0, max_theta_.numerical_value_in(su::rad));
+    double const phi = rng.uniform(0.0, 2.0 * std::numbers::pi);
 
     SHiP::MCParticle mc;
-    mc.pdgCode = pdg_;
-    mc.vertex = vertex_;
-    mc.momentum = {p * std::sin(theta) * std::cos(phi),
-                   p * std::sin(theta) * std::sin(phi), p * std::cos(theta)};
-    // Assume massless for energy (good enough for muons at high p)
-    mc.energy = p;
-    mc.time = 0.0;
-    mc.motherId = -1;
-    mc.status = 1;
+    mc.pdg_code = pdg_;
+    SHiP::view::set_vertex(mc, vertex_);
+    SHiP::view::set_momentum(
+        mc, SHiP::vec_of<SHiP::Momentum>({p * std::sin(theta) * std::cos(phi),
+                                          p * std::sin(theta) * std::sin(phi),
+                                          p * std::cos(theta)}));
+    // Assume massless, E = |p|c (good enough for muons at high p).
+    SHiP::view::set_energy(mc, (p * su::GeV_per_c * su::c).in(su::GeV));
+    SHiP::view::set_time(mc, SHiP::Time::zero());
+    mc.mother_id = -1;
+    mc.status = SHiP::aegir::hepmc::final_state;
 
     return {mc};
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
-    return aegir::mc_particle_provider_bundles(
-        selector,
+    return SHiP::aegir::mc_particle_provider_bundles(
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::unlimited);
   }
 
-  phlex::index_generator indices() override { co_return; }
-
  private:
+  std::string stage_;
   int pdg_;
-  ship::Momentum p_min_, p_max_;
-  ship::Angle max_theta_;
-  std::array<double, 3> vertex_;  // canonical mm
+  SHiP::Momentum p_min_, p_max_;
+  SHiP::Angle max_theta_;
+  SHiP::Vec3<SHiP::Length> vertex_;
   std::uint32_t seed_;
 };
 
@@ -86,16 +90,22 @@ class ParticleGun : public phlex::source {
 PHLEX_REGISTER_SOURCE(s, config) {
   using namespace phlex;
 
-  auto pdg = config.get<int>("pdg", 13);  // muon
-  auto p_min = aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
-  auto p_max = aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
-  auto max_theta = aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
-  auto vx = aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
-  auto vy = aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
+  auto const pdg = config.get<int>("pdg", 13);  // muon
+  auto const p_min =
+      SHiP::aegir::get_quantity(config, "p_min", 10.0 * su::GeV_per_c);
+  auto const p_max =
+      SHiP::aegir::get_quantity(config, "p_max", 100.0 * su::GeV_per_c);
+  auto const max_theta =
+      SHiP::aegir::get_quantity(config, "max_theta", 0.1 * su::rad);
+  auto const vx = SHiP::aegir::get_quantity(config, "vertex_x", 0.0 * su::mm);
+  auto const vy = SHiP::aegir::get_quantity(config, "vertex_y", 0.0 * su::mm);
   // Default: upstream of the target.
-  auto vz = aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
-  auto seed = aegir::resolve_seed(config, "particle_gun");
+  auto const vz =
+      SHiP::aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
+  auto seed = SHiP::aegir::resolve_seed(config, "particle_gun");
+  auto stage = SHiP::aegir::source_stage(config, "particle_gun");
 
-  s.add_source<ParticleGun>("particle_gun", pdg, p_min, p_max, max_theta,
-                            ship::Vec3<ship::Length>{vx, vy, vz}, seed);
+  s.add_source<ParticleGun>("particle_gun", std::move(stage), pdg, p_min, p_max,
+                            max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz},
+                            seed);
 }

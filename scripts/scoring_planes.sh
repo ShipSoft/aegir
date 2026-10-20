@@ -10,11 +10,11 @@
 # target records like any other (the planes live in a parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
 # 'hit_ancestry' writes exactly the hit tracks and their ancestors. Check that
-# the recording plane's plane_particles hold the tracks it recorded, from
-# their origin, with their full ancestry, and that a replay of them tracks
-# exactly those again. Then check
-# that bad configurations fail with a clear error instead of running, and that
-# the fixed-target production workflow evaluates to the intended settings.
+# the recording plane's plane_particles hold the tracks it recorded, as
+# they entered the plane, with their full ancestry, and that a replay of them
+# starts exactly those tracks again, from the plane. Then check that bad
+# configurations fail with a clear error instead of running, and that the
+# fixed-target production workflow evaluates to the intended settings.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
 
@@ -135,9 +135,11 @@ os._exit(0 if ok else 1)  # dodge a PyROOT RNTuple teardown crash
 EOF
 
 # plane_particles: one status-1 entry per track plane 3 recorded going
-# forward, in crossing order, at the track's origin (as in sim_particles, when
-# it is there); everything else is ancestry with another status, and every
-# chain of mothers ends at an entry without any.
+# forward, in crossing order, at its hit on the plane, unless the track
+# descends from another recorded track. Its mother is the same track at its
+# origin (as in sim_particles, when it is there); everything else is ancestry
+# with another status, and every chain of mothers ends at an entry without
+# any.
 cat >"$workdir/check_plane_particles.py" <<'EOF'
 import math
 import os
@@ -166,12 +168,21 @@ for i in range(n):
         if not cond:
             errors.append(f"entry {i}: {what}")
 
-    recorded = []
+    hits = {}  # first forward hit of each recorded track, in crossing order
     for h in hits_view(i):
         if (h.detector_id == SCORING_PLANE and h.geometry_node_id == RECORDING
-                and h.momentum[2] > 0 and h.track_id not in recorded):
-            recorded.append(h.track_id)
+                and h.momentum[2] > 0 and h.track_id not in hits):
+            hits[h.track_id] = (tuple(h.position), tuple(h.momentum), h.time)
     tracks = {p.track_id: p for p in parts_view(i)}
+
+    def has_recorded_ancestor(t):
+        while t in tracks and tracks[t].parent_id != 0:
+            t = tracks[t].parent_id
+            if t in hits:
+                return True
+        return False
+
+    recorded = [t for t in hits if not has_recorded_ancestor(t)]
     written = {(p.pdg_code, tuple(p.vertex)) for p in tracks.values()}
     out = list(plane_view(i))
     finals = [p for p in out if p.status == 1]
@@ -194,18 +205,25 @@ for i in range(n):
                 below_cut += 1
             chain = tracks[chain].parent_id
         expect(chain in tracks, f"track {track_id}: ancestor {chain} not written")
-        if sp is not None:
-            expect(p.pdg_code == sp.pdg_code
-                   and close(p.vertex, sp.vertex)
-                   and close(p.momentum, sp.momentum),
-                   f"track {track_id} is not at its origin")
+        position, momentum, time = hits[track_id]
+        expect(close(p.vertex, position) and close(p.momentum, momentum)
+               and close([p.time], [time]),
+               f"track {track_id} is not at its hit on the plane")
+        origin = out[p.mother_id] if p.mother_id >= 0 else None
+        expect(origin is not None and origin.status != 1,
+               f"track {track_id}: no history entry for its origin")
+        if sp is not None and origin is not None:
+            expect(origin.pdg_code == sp.pdg_code == p.pdg_code
+                   and close(origin.vertex, sp.vertex)
+                   and close(origin.momentum, sp.momentum),
+                   f"track {track_id}: its mother is not the track at its origin")
         pmag = math.sqrt(sum(c * c for c in p.momentum))
         expect(p.energy >= pmag * (1 - 1e-12), f"track {track_id}: E < |p|")
     size = len(out)
-    # Every Geant4 track in the record is written; primaries (no mothers
+    # Every Geant4 track in the history is written; primaries (no mothers
     # here) are the generator's copy, so they are matched above instead.
     expect(all((p.pdg_code, tuple(p.vertex)) in written
-               for p in out if p.mother_id >= 0),
+               for p in out[len(finals):] if p.mother_id >= 0),
            "an ancestor is missing from sim_particles")
     for k, p in enumerate(out):
         mothers = list(p.mothers)
@@ -338,8 +356,8 @@ mv "$workdir/gun_st_scoring_planes.root" "$workdir/pions.root"
 rm -f "$workdir"/gun_st_scoring_planes*.root
 
 # Replay the pions' plane_particles through Geant4 without the planes: each
-# event must start from exactly its recorded tracks, at their origins, and
-# point back to the event it came from.
+# event must start from exactly its recorded tracks, where they entered the
+# plane, and point back to the event it came from.
 cat >"$workdir/replay.jsonnet" <<EOF
 local lib = import '$here/../workflows/lib.libsonnet';
 {

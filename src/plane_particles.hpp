@@ -7,9 +7,10 @@
 //
 // A scoring plane with record_particles marks the tracks crossing it. At the
 // end of the event these become the `plane_particles` product: one
-// MCParticle per marked track, at the track's origin and with HepMC status 1,
-// so that a later stage replays it from where it was produced, plus the
-// track's full ancestry. Ancestors are Geant4 tracks (status
+// MCParticle per marked track, with HepMC status 1 and the track's state where
+// it entered the plane, so that a later stage replays it from the plane, plus
+// the track's full ancestry. The first ancestor is the same track at its
+// origin, then come the Geant4 tracks it descends from (all with status
 // simulation_history) up to the primary, then the primary's generator mothers
 // with their own status. A marked track descended from another marked track
 // (e.g. a delta ray made before its parent reached the plane) is left out:
@@ -36,8 +37,15 @@
 
 namespace SHiP::aegir {
 
-/// Build the replay record of `recorded` (Geant4 track ids, in crossing
-/// order; duplicates, and tracks descended from another recorded track, are
+/// A track a recording plane marked. `particle` holds the track's PDG code,
+/// position, momentum, total energy and time where it entered the plane.
+struct PlaneCrossing {
+  int track_id = 0;
+  SHiP::MCParticle particle;
+};
+
+/// Build the replay record of `recorded` (in crossing order; later crossings
+/// of a track, and tracks descended from another recorded track, are
 /// ignored).
 ///
 /// `find_track(id)` returns the SimParticle recorded for a track id, or
@@ -49,7 +57,7 @@ namespace SHiP::aegir {
 /// otherwise end silently in the middle of a chain.
 template <typename FindTrack>
 std::vector<SHiP::MCParticle> build_plane_particles(
-    std::vector<int> const& recorded, FindTrack const& find_track,
+    std::vector<PlaneCrossing> const& recorded, FindTrack const& find_track,
     std::unordered_map<int, std::size_t> const& primary_source,
     std::vector<SHiP::MCParticle> const& generator) {
   std::vector<SHiP::MCParticle> out;
@@ -58,8 +66,13 @@ std::vector<SHiP::MCParticle> build_plane_particles(
   }
 
   // What each output entry stands for, to resolve its mothers afterwards.
+  enum class Kind : std::uint8_t {
+    crossing,   // a recorded track where it entered the plane
+    track,      // a Geant4 track at its origin
+    generator,  // a generator entry
+  };
   struct Origin {
-    bool is_track;    // a Geant4 track, else a generator entry
+    Kind kind;
     std::size_t key;  // track id, or generator index
   };
   std::vector<Origin> origins;
@@ -75,7 +88,7 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     mc.mother_id = -1;
     mc.mothers.clear();
     generator_index.emplace(g, out.size());
-    origins.push_back({.is_track = false, .key = g});
+    origins.push_back({.kind = Kind::generator, .key = g});
     out.push_back(std::move(mc));
     return out.size() - 1;
   };
@@ -99,14 +112,18 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     auto mc = to_mc_particle(*sp);
     mc.status = status;
     track_index.emplace(id, out.size());
-    origins.push_back({.is_track = true, .key = static_cast<std::size_t>(id)});
+    origins.push_back(
+        {.kind = Kind::track, .key = static_cast<std::size_t>(id)});
     out.push_back(std::move(mc));
     return out.size() - 1;
   };
 
   // Whether a recorded track descends from another recorded track. A missing
   // ancestor is left for add_track to report.
-  std::unordered_set<int> const marked(recorded.begin(), recorded.end());
+  std::unordered_set<int> marked;
+  for (auto const& crossing : recorded) {
+    marked.insert(crossing.track_id);
+  }
   auto const has_marked_ancestor = [&](int id) {
     while (!primary_source.contains(id)) {
       auto const* sp = find_track(id);
@@ -121,10 +138,18 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     return false;
   };
 
-  for (auto const id : recorded) {
-    if (!has_marked_ancestor(id)) {
-      add_track(id, hepmc::final_state);
+  std::unordered_set<int> added;
+  for (auto const& crossing : recorded) {
+    auto const id = crossing.track_id;
+    if (added.contains(id) || has_marked_ancestor(id)) {
+      continue;
     }
+    added.insert(id);
+    auto mc = crossing.particle;
+    mc.status = hepmc::final_state;
+    origins.push_back(
+        {.kind = Kind::crossing, .key = static_cast<std::size_t>(id)});
+    out.push_back(std::move(mc));
   }
 
   // Resolve mothers; entries appended on the way are resolved in turn. A
@@ -136,7 +161,11 @@ std::vector<SHiP::MCParticle> build_plane_particles(
   for (std::size_t i = 0; i < out.size(); ++i) {
     auto const origin = origins[i];
     std::vector<std::int32_t> mothers;
-    if (origin.is_track) {
+    if (origin.kind == Kind::crossing) {
+      // The track at the plane descends from the same track at its origin.
+      mothers.push_back(static_cast<std::int32_t>(
+          add_track(static_cast<int>(origin.key), hepmc::simulation_history)));
+    } else if (origin.kind == Kind::track) {
       auto const* sp = find_track(static_cast<int>(origin.key));
       mothers.push_back(static_cast<std::int32_t>(
           add_track(sp->parent_id, hepmc::simulation_history)));

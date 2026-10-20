@@ -4,11 +4,10 @@
 //
 // plane_particles holds every track the plane recorded (except those
 // descended from another recorded track, which replaying their ancestor
-// produces again), as it was when it was produced (HepMC status 1), plus its
-// ancestry (other statuses, which
-// Geant4 does not track), so the tracks are simulated again from their
-// origin, not from the plane. The geometry must therefore not contain the
-// killing plane, or it would stop them again; this workflow has no scoring
+// produces again), as it entered the plane (HepMC status 1), plus its
+// ancestry (other statuses, which Geant4 does not track), so the tracks are
+// simulated from the plane on. The geometry must therefore not contain the
+// killing plane, or it would stop them at once; this workflow has no scoring
 // planes. The input's event header is passed on, with original_event_id set
 // to the earlier run's event number.
 //

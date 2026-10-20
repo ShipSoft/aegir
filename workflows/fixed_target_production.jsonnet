@@ -7,9 +7,9 @@
 // wherever they are, as in FairShip; events without a plane hit are not
 // written. Of the tracked particles, only those reaching the plane and their
 // ancestors are written, as FairShip's stack keeps them, so every parent id
-// in the output resolves. The plane's tracks are also written, from where
-// they were produced and with their full ancestry, as plane_particles;
-// workflows/plane_replay.jsonnet simulates them again from there.
+// in the output resolves. The plane's tracks are also written, as they
+// entered the plane and with their full ancestry, as plane_particles;
+// workflows/plane_replay.jsonnet simulates them onwards from there.
 //
 // As with FairShip's default (no --AddMuonShieldField), the absorber is not
 // magnetised; merge a lib.field_map in as `field` to add its field.

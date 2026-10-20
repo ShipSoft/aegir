@@ -56,6 +56,17 @@ SHiP::SimParticle track(int id, int parent, int pdg) {
   return p;
 }
 
+// Track `id` entering a plane at z, with |p| = 2 GeV along z.
+SHiP::aegir::PlaneCrossing crossing(int id, int pdg, double z = 1000) {
+  SHiP::MCParticle p;
+  p.pdg_code = pdg;
+  p.vertex = {1, 2, z};
+  p.momentum = {0, 0, 2};
+  p.energy = 2.5;
+  p.time = 3;
+  return {.track_id = id, .particle = p};
+}
+
 // Whether no status-1 entry has a status-1 entry among its ancestors.
 bool final_state_has_no_final_state_ancestor(
     std::vector<SHiP::MCParticle> const& out) {
@@ -121,25 +132,35 @@ int main() {
         "nothing recorded gives an empty record");
 
   auto const out = SHiP::aegir::build_plane_particles(
-      {5, 1, 6, 5, 7}, find_track, primary_source, generator);
+      {crossing(5, 13), crossing(1, -13), crossing(6, 22),
+       crossing(5, 13, 2000), crossing(7, 211)},
+      find_track, primary_source, generator);
 
   check(SHiP::mothers_are_populated(out), "mother links are consistent");
-  // 4 recorded; tracks 4 and primaries 2 and 3 as history; generator 0, 1, 2.
-  check(out.size() == 10, "every ancestor appears exactly once");
+  // 4 recorded at the plane; tracks 5, 6, 7, 4 at their origin, primaries 1,
+  // 2 and 3 as history; generator 0, 1, 2.
+  check(out.size() == 14, "every ancestor appears exactly once");
   check(std::ranges::count(out, final_state, &SHiP::MCParticle::status) == 4,
         "only the recorded tracks have status 1");
   for (std::size_t i = 0; i < 4; ++i) {
     check(out[i].status == final_state, "recorded tracks come first");
   }
 
-  // The recorded muon is at its origin, with its total energy.
-  check(out[0].pdg_code == 13 && out[0].vertex[2] == 500, "muon at its origin");
-  check(std::abs(out[0].energy - std::sqrt(1 + (m_mu * m_mu))) < 1e-12,
-        "muon total energy");
+  // The recorded muon is at its first crossing, as the plane saw it.
+  check(out[0].pdg_code == 13 && out[0].vertex[2] == 1000 &&
+            out[0].momentum[2] == 2 && out[0].energy == 2.5 && out[0].time == 3,
+        "muon at the plane");
+  // Its mother is the same muon at its origin, with its total energy.
+  auto const& muon = out[out[0].mother_id];
+  check(muon.pdg_code == 13 && muon.status == simulation_history &&
+            muon.vertex[2] == 500,
+        "muon's mother is the muon at its origin");
+  check(std::abs(muon.energy - std::sqrt(1 + (m_mu * m_mu))) < 1e-12,
+        "muon total energy at its origin");
 
-  auto const& pion = out[out[0].mother_id];
+  auto const& pion = out[muon.mother_id];
   check(pion.pdg_code == 211 && pion.status == simulation_history,
-        "muon's mother is the Geant4 pion");
+        "the muon comes from the Geant4 pion");
   auto const& proton = out[pion.mother_id];
   check(proton.pdg_code == 2212 && proton.status == simulation_history,
         "the primary proton becomes history");
@@ -147,34 +168,40 @@ int main() {
             out[proton.mothers[0]].status == SHiP::aegir::hepmc::beam &&
             out[proton.mothers[1]].status == SHiP::aegir::hepmc::beam,
         "the proton keeps its generator beams");
-  check(out[2].mother_id == out[0].mother_id,
+  check(out[out[2].mother_id].mother_id == muon.mother_id,
         "the photon shares the muon's pion");
 
-  // A recorded primary keeps status 1 and its generator mothers.
-  check(out[1].pdg_code == -13 && out[1].mothers.size() == 1,
-        "recorded primary");
-  auto const& decayed = out[out[1].mother_id];
+  // A recorded primary: at the plane, then its generator entry as history,
+  // which keeps its generator mothers.
+  check(out[1].pdg_code == -13 && out[1].vertex[2] == 1000, "recorded primary");
+  auto const& primary = out[out[1].mother_id];
+  check(primary.pdg_code == -13 && primary.status == simulation_history &&
+            primary.mothers.size() == 1,
+        "the recorded primary's generator entry is history");
+  auto const& decayed = out[primary.mother_id];
   check(
       decayed.pdg_code == 211 && decayed.status == SHiP::aegir::hepmc::decayed,
       "the generator pion keeps its status");
 
   // Track 7 goes through the kaon primary, whose only mother link is the
   // pre-v0.5 mother_id, to the same generator pion.
-  auto const& kaon = out[out[3].mother_id];
+  auto const& kaon = out[out[out[3].mother_id].mother_id];
   check(kaon.pdg_code == 321 && kaon.status == simulation_history,
         "kaon primary as history");
-  check(kaon.mother_id == out[1].mother_id, "kaon's mother_id is followed");
+  check(kaon.mother_id == primary.mother_id, "kaon's mother_id is followed");
   check(final_state_has_no_final_state_ancestor(out),
         "no status-1 entry has a status-1 ancestor");
 
   // Electron 9 descends from the recorded photon 6, so replaying the photon
   // makes it again: it is left out, whatever the crossing order.
-  auto const nested = SHiP::aegir::build_plane_particles(
-      {9, 6}, find_track, primary_source, generator);
+  auto const nested =
+      SHiP::aegir::build_plane_particles({crossing(9, 11), crossing(6, 22)},
+                                         find_track, primary_source, generator);
   check(SHiP::mothers_are_populated(nested),
         "nested: mother links are consistent");
-  // Photon 6; pion 4, primary 2 and generator 0, 1 as history.
-  check(nested.size() == 5, "nested: the descendant is left out");
+  // Photon 6 at the plane; photon 6 at its origin, pion 4, primary 2 and
+  // generator 0, 1 as history.
+  check(nested.size() == 6, "nested: the descendant is left out");
   check(
       std::ranges::count(nested, final_state, &SHiP::MCParticle::status) == 1 &&
           nested[0].pdg_code == 22 && nested[0].status == final_state,
@@ -186,8 +213,8 @@ int main() {
 
   bool threw = false;
   try {
-    SHiP::aegir::build_plane_particles({8}, find_track, primary_source,
-                                       generator);
+    SHiP::aegir::build_plane_particles({crossing(8, 13)}, find_track,
+                                       primary_source, generator);
   } catch (std::logic_error const&) {
     threw = true;
   }

@@ -96,10 +96,11 @@ struct ScoringPlaneConfig {
   /// Stop and kill every track that steps into the plane, recorded or not
   /// (FairShip's StopTrack()).
   bool kill = false;
-  /// Write the tracks recorded here, from their origin and with their full
-  /// ancestry, as the `plane_particles` product for a later stage to replay.
-  /// Only forward crossings (pz > 0) count. At most one plane may set it, and
-  /// it must also kill, so that no recorded track has a recorded descendant.
+  /// Write the tracks recorded here, as they entered the plane and with their
+  /// full ancestry, as the `plane_particles` product for a later stage to
+  /// replay from the plane. Only forward crossings (pz > 0) count. At most
+  /// one plane may set it, and it must also kill, so that nothing a recorded
+  /// track produces after crossing is recorded too.
   bool record_particles = false;
 };
 
@@ -597,9 +598,18 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
         hit, SHiP::aegir::clhep::length(track->GetTrackLength()));
     tl_hits.push_back(hit);
     // Forward along global z, the beam direction: backsplash entering from
-    // downstream is recorded as a hit but not replayed.
+    // downstream is recorded as a hit but not replayed. The replay starts
+    // from where the track entered the plane.
     if (plane.record_particles && pre->GetMomentum().z() > 0) {
-      tl_recorded_tracks.push_back(track->GetTrackID());
+      SHiP::MCParticle at_plane;
+      at_plane.pdg_code = hit.pdg_code;
+      at_plane.vertex = hit.position;
+      at_plane.momentum = hit.momentum;
+      SHiP::view::set_energy(at_plane,
+                             SHiP::aegir::clhep::energy(pre->GetTotalEnergy()));
+      at_plane.time = hit.time;
+      tl_recorded_tracks.push_back(
+          {.track_id = track->GetTrackID(), .particle = std::move(at_plane)});
     }
     return true;
   }

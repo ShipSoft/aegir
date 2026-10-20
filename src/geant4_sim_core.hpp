@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "plane_particles.hpp"
 #include "units/clhep_bridge.hpp"
 
 namespace SHiP::aegir::g4 {
@@ -31,8 +32,9 @@ namespace SHiP::aegir::g4 {
 inline thread_local std::vector<SimHit> tl_hits;
 inline thread_local std::vector<SimParticle> tl_particles;
 inline thread_local std::unordered_map<int, std::size_t> tl_track_map;
-// Tracks a record_particles scoring plane marked for replay, in crossing order.
-inline thread_local std::vector<int> tl_recorded_tracks;
+// Tracks a record_particles scoring plane marked for replay, with their state
+// at the crossing, in crossing order.
+inline thread_local std::vector<PlaneCrossing> tl_recorded_tracks;
 // Tracks below particle_ke_cut, kept only while a plane records particles so
 // that a recorded track's ancestry never breaks. Those in that ancestry are
 // moved to tl_particles by persist_ancestry(); the rest are dropped.
@@ -51,15 +53,16 @@ inline SimParticle const* find_track(int track_id) {
   return nullptr;
 }
 
-// Write the whole ancestry of `track_ids`, the tracks themselves included:
-// append each one found only in tl_lineage (below particle_ke_cut) to
-// tl_particles, so that sim_particles holds the full history of every
-// recorded track and every parent_id along it resolves. A track above the
-// cut can have a parent below it, so the walk continues through tracks
-// that are already written.
-inline void persist_ancestry(std::vector<int> const& track_ids) {
+// Write the whole ancestry of the `recorded` tracks, the tracks themselves
+// included: append each one found only in tl_lineage (below
+// particle_ke_cut) to tl_particles, so that sim_particles holds the full
+// history of every recorded track and every parent_id along it resolves. A
+// track above the cut can have a parent below it, so the walk continues
+// through tracks that are already written.
+inline void persist_ancestry(std::vector<PlaneCrossing> const& recorded) {
   std::unordered_set<int> seen;
-  for (auto id : track_ids) {
+  for (auto const& crossing : recorded) {
+    auto id = crossing.track_id;
     while (id != 0 && seen.insert(id).second) {
       if (auto const it = tl_track_map.find(id); it != tl_track_map.end()) {
         id = tl_particles[it->second].parent_id;

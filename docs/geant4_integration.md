@@ -118,8 +118,8 @@ own HepMC example uses the same `status == 1` test.
 
 Skipped primaries are counted and reported once per event in an aggregated
 warning; they remain in the output `mc_particles` product, so the record is
-not lost. Entries with status above 200 are left out of the warning, since a
-replayed event always carries them.
+not lost. Entries with status 201, the history aegir writes, are left out of
+the warning, since a replayed event always carries them.
 
 This filter is a no-op for a generator running in the default
 `record: 'final_state'` mode, where every emitted entry is status 1. It

@@ -345,7 +345,7 @@ class Geant4Sim {
       }
       if (history > 0) {
         spdlog::debug(
-            "geant4_module: event {}: {} history entries (HepMC status > 200) "
+            "geant4_module: event {}: {} history entries (HepMC status 201) "
             "not tracked",
             event->GetEventID(), history);
       }

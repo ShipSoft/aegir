@@ -4,9 +4,9 @@ local lib = import 'lib.libsonnet';
 // draws its own random seed. With parallel: true (PythiaParallel), events
 // arrive in arbitrary order, so only aggregates reproduce; drop it for
 // event-by-event reproducibility.
-function(seed=null) {
+function(seed=null, events=100) {
   stage: lib.stage,
-  driver: lib.driver(100),
+  driver: lib.driver(events),
   sources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
@@ -22,6 +22,6 @@ function(seed=null) {
       concurrency: 4,
       [if seed != null then 'seed']: seed,
     },
-    output: lib.full_output('pythia8_mt_output.root', 'pythia8_mt_validation.root'),
+    output: lib.full_output('pythia8_mt_output.root', 'pythia8_mt_validation.root', events),
   },
 }

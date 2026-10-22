@@ -29,6 +29,8 @@
 #include <SHiP/SimParticle.hpp>
 #include <SHiP/SimResult.hpp>
 #include <algorithm>
+#include <atomic>
+#include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -41,6 +43,7 @@
 #include <vector>
 
 #include "TH1D.h"
+#include "TObjString.h"
 #include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/core/product_selector.hpp"
@@ -145,6 +148,82 @@ std::shared_ptr<HistD> make_hist(int nbins, double low, double high) {
                                  std::make_pair(low, high));
 }
 
+// Per-file bookkeeping written as a JSON "file_summary" object next to the
+// "events" RNTuple, so downstream stages can read the event counts without
+// knowing which mode produced the file. Shared by both RNTuple writers.
+class FileSummary {
+ public:
+  // n_requested is the event total the job was configured to run, if the
+  // workflow passed it on; n_events_processed falling short of it marks a
+  // file whose job stopped early.
+  FileSummary(std::string filename, std::string mode, bool filter_empty,
+              std::optional<std::uint64_t> n_requested)
+      : filename_{std::move(filename)},
+        mode_{std::move(mode)},
+        filter_empty_{filter_empty},
+        n_requested_{n_requested} {}
+
+  // Every event that reached the writer, before filter_empty drops any.
+  void count_processed() {
+    total_processed_.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  void count_written(std::uint64_t event_number) {
+    auto const number = static_cast<std::int64_t>(event_number);
+    auto seen = max_event_number_.load(std::memory_order_relaxed);
+    while (number > seen && !max_event_number_.compare_exchange_weak(
+                                seen, number, std::memory_order_relaxed)) {
+    }
+    total_written_.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  void mark_write_failed() {
+    write_failed_.store(true, std::memory_order_relaxed);
+  }
+
+  // Call only after the RNTuple writer has committed and closed the file.
+  void write() const noexcept {
+    if (write_failed_.load(std::memory_order_relaxed)) {
+      return;
+    }
+    try {
+      boost::json::object const summary{
+          {"schema_version", 1},
+          {"producer", "aegir"},
+          {"mode", mode_},
+          {"filter_empty", filter_empty_},
+          {"n_events_requested", n_requested_
+                                     ? boost::json::value(*n_requested_)
+                                     : boost::json::value(nullptr)},
+          {"n_events_processed", total_processed_.load()},
+          {"n_events_written", total_written_.load()},
+          {"max_event_number_saved", max_event_number_.load()},
+      };
+
+      auto file = RFile::Update(filename_);
+      TObjString const json{boost::json::serialize(summary).c_str()};
+      file->Put("file_summary", json);
+      spdlog::info("sim_output_module: wrote file_summary to '{}'", filename_);
+    } catch (std::exception const& e) {
+      try {
+        spdlog::error(
+            "sim_output_module: failed to write file_summary to '{}': {}",
+            filename_, e.what());
+      } catch (...) {
+      }
+    }
+  }
+
+ private:
+  std::string filename_;
+  std::string mode_;
+  bool filter_empty_;
+  std::optional<std::uint64_t> n_requested_;
+  std::atomic<std::uint64_t> total_processed_{0};
+  std::atomic<std::uint64_t> total_written_{0};
+  std::atomic<std::int64_t> max_event_number_{-1};
+  std::atomic<bool> write_failed_{false};
+};
 // The plane-hit PDG histogram covers |PDG| < 6000, which takes in the
 // hyperons and the charm and beauty baryons. Nuclei and ions (10LZZZAAAI) are
 // far outside that, so it fills them into one extra bin on each side, at
@@ -162,7 +241,9 @@ double pdg_bin(std::int32_t pdg) {
 class MCRNTupleWriter {
  public:
   MCRNTupleWriter(std::string filename, std::size_t cluster_mib,
-                  std::size_t n_contexts) {
+                  std::size_t n_contexts,
+                  std::optional<std::uint64_t> n_requested)
+      : summary_{filename, "mc_only", false, n_requested} {
     auto model = RNTupleModel::CreateBare();
     // The phlex event number: the multi-threaded writer stores events in the
     // order they finish, so entry order says nothing about which event it is.
@@ -182,8 +263,16 @@ class MCRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
+  ~MCRNTupleWriter() {
+    pool_.reset();
+    writer_.reset();
+    summary_.write();
+  }
+
   void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::EventHeader const& header) {
+    // mc_only never filters, so every event processed is also written.
+    summary_.count_processed();
     std::uint64_t event_number = particles.data_cell_index().number();
     auto const lease = pool_->acquire();
     auto& state = *lease;
@@ -195,7 +284,13 @@ class MCRNTupleWriter {
     state.entry->BindRawPtr(
         state.mc_particles,
         const_cast<std::vector<SHiP::MCParticle>*>(&*particles));
-    state.ctx->Fill(*state.entry);
+    try {
+      state.ctx->Fill(*state.entry);
+    } catch (...) {
+      summary_.mark_write_failed();
+      throw;
+    }
+    summary_.count_written(event_number);
   }
 
  private:
@@ -204,14 +299,17 @@ class MCRNTupleWriter {
   // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
   std::optional<FillStatePool> pool_;
+  FileSummary summary_;
 };
 
 // RNTuple writer for full simulation output (MC + G4 hits)
 class SimRNTupleWriter {
  public:
   SimRNTupleWriter(std::string filename, bool filter_empty,
-                   std::size_t cluster_mib, std::size_t n_contexts)
-      : filter_empty_{filter_empty} {
+                   std::size_t cluster_mib, std::size_t n_contexts,
+                   std::optional<std::uint64_t> n_requested)
+      : filter_empty_{filter_empty},
+        summary_{filename, "full", filter_empty, n_requested} {
     auto model = RNTupleModel::CreateBare();
     model->MakeField<std::uint64_t>("event_number");
     model->MakeField<SHiP::EventHeader>("event_header");
@@ -236,16 +334,23 @@ class SimRNTupleWriter {
         filename, n_contexts, cluster_mib);
   }
 
+  ~SimRNTupleWriter() {
+    pool_.reset();
+    writer_.reset();
+    summary_.write();
+  }
+
   void write(phlex::handle<std::vector<SHiP::MCParticle>> particles,
              SHiP::SimResult const& result,
              std::vector<SHiP::MCParticle> const& plane_particles,
              SHiP::EventHeader const& header) {
     // The header is dropped with the rest of the event, never on its own —
     // a header written without its particles would desynchronise the fields.
+    summary_.count_processed();
+
     if (filter_empty_ && result.hits.empty()) {
       return;
     }
-
     std::uint64_t event_number = particles.data_cell_index().number();
     auto const lease = pool_->acquire();
     auto& state = *lease;
@@ -262,10 +367,17 @@ class SimRNTupleWriter {
     state.entry->BindRawPtr(
         state.sim_particles,
         const_cast<std::vector<SHiP::SimParticle>*>(&result.particles));
+
     state.entry->BindRawPtr(
         state.plane_particles,
         const_cast<std::vector<SHiP::MCParticle>*>(&plane_particles));
-    state.ctx->Fill(*state.entry);
+    try {
+      state.ctx->Fill(*state.entry);
+    } catch (...) {
+      summary_.mark_write_failed();
+      throw;
+    }
+    summary_.count_written(event_number);
   }
 
  private:
@@ -275,6 +387,7 @@ class SimRNTupleWriter {
   // ("all fill contexts must be destroyed before CommitDataset() is called").
   std::unique_ptr<RNTupleParallelWriter> writer_;
   std::optional<FillStatePool> pool_;
+  FileSummary summary_;
 };
 
 // Validation histograms for MC particles (thread-safe via per-thread
@@ -566,14 +679,25 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         "sim_output_module: cluster_size_mib and fill_contexts must be "
         "positive");
   }
+  // The driver's event total, recorded in the file_summary so readers can
+  // tell a complete file from one whose job stopped early. phlex gives a
+  // module only its own block, so the workflow passes the total on here.
+  std::optional<std::uint64_t> n_requested;
+  if (auto const n = config.get_if_present<int>("n_events_requested")) {
+    if (*n <= 0) {
+      throw std::runtime_error(
+          "sim_output_module: n_events_requested must be positive");
+    }
+    n_requested = static_cast<std::uint64_t>(*n);
+  }
 
   if (mode == "noop") {
-    auto noop = m.make<MCNoop>();
+    auto const noop = m.make<MCNoop>();
     noop.observe("noop", &MCNoop::observe, concurrency::unlimited)
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
   } else if (mode == "noop_full") {
-    auto noop = m.make<SimNoop>();
+    auto const noop = m.make<SimNoop>();
     noop.observe("noop", &SimNoop::observe, concurrency::unlimited)
         .input_family(
             product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
@@ -581,9 +705,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                              .layer = "event"_id,
                              .suffix = "sim_result"_id});
   } else if (mode == "mc_only") {
-    auto writer = m.make<MCRNTupleWriter>(rntuple_file,
-                                          static_cast<std::size_t>(cluster_mib),
-                                          static_cast<std::size_t>(n_contexts));
+    auto const writer = m.make<MCRNTupleWriter>(
+        rntuple_file, static_cast<std::size_t>(cluster_mib),
+        static_cast<std::size_t>(n_contexts), n_requested);
     // Unlimited on purpose: excess write() calls block on the pool lease,
     // which throttles the framework when the writer is the bottleneck. phlex
     // has no in-flight-event limit, so a concurrency-limited node would let
@@ -597,7 +721,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 
-    auto histogrammer = m.make<MCHistogrammer>(histo_file);
+    auto const histogrammer = m.make<MCHistogrammer>(histo_file);
     histogrammer
         .observe("validate", &MCHistogrammer::observe, concurrency::unlimited)
         .input_family(product_selector{.creator = "mc_particles"_id,
@@ -605,9 +729,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   } else {
     auto const filter_empty = config.get<bool>("filter_empty", false);
 
-    auto writer = m.make<SimRNTupleWriter>(
+    auto const writer = m.make<SimRNTupleWriter>(
         rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),
-        static_cast<std::size_t>(n_contexts));
+        static_cast<std::size_t>(n_contexts), n_requested);
     // Unlimited on purpose: excess write() calls block on the pool lease,
     // which throttles the framework when the writer is the bottleneck. phlex
     // has no in-flight-event limit, so a concurrency-limited node would let
@@ -627,7 +751,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 
-    auto histogrammer = m.make<SimHistogrammer>(histo_file);
+    auto const histogrammer = m.make<SimHistogrammer>(histo_file);
     histogrammer
         .observe("validate", &SimHistogrammer::observe, concurrency::unlimited)
         .input_family(

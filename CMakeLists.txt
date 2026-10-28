@@ -271,11 +271,14 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/physics_list_failure.sh
 )
 
-# Source stage: a generator source block without its own `stage` key, or with
-# the reserved 'CURRENT', must fail with a clear error.
+# Generator stage: the generator products carry the job's stage, including a
+# `phlex --stage` override. stage_probe is a test-only plugin (not installed)
+# that requires them from a given stage.
+add_library(stage_probe MODULE tests/stage_probe.cpp)
+target_link_libraries(stage_probe PRIVATE phlex::module SHiP::DataModel)
 add_test(
-    NAME source_stage
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/source_stage.sh
+    NAME generator_stage
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_stage.sh
 )
 
 # Writer pool: many threads share few fill contexts with tiny clusters; no

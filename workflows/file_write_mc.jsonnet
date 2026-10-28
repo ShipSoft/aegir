@@ -12,7 +12,6 @@ local lib = import 'lib.libsonnet';
   sources: {
     gun: {
       cpp: 'particle_gun_source',
-      stage: lib.stage,
       pdg: 13,
       p_min: 10.0,
       p_max: 100.0,

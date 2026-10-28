@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// particle_gun_source.cpp — Phlex source plugin
+// particle_gun_source.cpp — Phlex provider plugin
 //
 // Provides MCParticle vectors from a configurable particle gun.
 // Each event generates a single particle with fixed or randomised kinematics.
@@ -12,6 +12,7 @@
 #include <SHiP/random/philox_rng.hpp>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <numbers>
 #include <vector>
 
@@ -24,13 +25,12 @@ namespace {
 
 namespace su = SHiP::units;
 
-class ParticleGun : public phlex::source {
+class ParticleGun {
  public:
-  ParticleGun(std::string stage, int pdg, SHiP::Momentum p_min,
-              SHiP::Momentum p_max, SHiP::Angle max_theta,
-              SHiP::Vec3<SHiP::Length> vertex, std::uint32_t seed)
-      : stage_{std::move(stage)},
-        pdg_{pdg},
+  ParticleGun(int pdg, SHiP::Momentum p_min, SHiP::Momentum p_max,
+              SHiP::Angle max_theta, SHiP::Vec3<SHiP::Length> vertex,
+              std::uint32_t seed)
+      : pdg_{pdg},
         p_min_{p_min},
         p_max_{p_max},
         max_theta_{max_theta},
@@ -68,16 +68,7 @@ class ParticleGun : public phlex::source {
     return {mc};
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::unlimited);
-  }
-
  private:
-  std::string stage_;
   int pdg_;
   SHiP::Momentum p_min_, p_max_;
   SHiP::Angle max_theta_;
@@ -87,7 +78,7 @@ class ParticleGun : public phlex::source {
 
 }  // namespace
 
-PHLEX_REGISTER_SOURCE(s, config) {
+PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
   auto const pdg = config.get<int>("pdg", 13);  // muon
@@ -103,9 +94,10 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto const vz =
       SHiP::aegir::get_quantity(config, "vertex_z", -500.0 * su::mm);
   auto seed = SHiP::aegir::resolve_seed(config, "particle_gun");
-  auto stage = SHiP::aegir::source_stage(config, "particle_gun");
 
-  s.add_source<ParticleGun>("particle_gun", std::move(stage), pdg, p_min, p_max,
-                            max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz},
-                            seed);
+  auto const gun = std::make_shared<ParticleGun>(
+      pdg, p_min, p_max, max_theta, SHiP::Vec3<SHiP::Length>{vx, vy, vz}, seed);
+  SHiP::aegir::provide_mc_particles(
+      s, [gun](data_cell_index const& id) { return gun->generate(id); },
+      concurrency::unlimited);
 }

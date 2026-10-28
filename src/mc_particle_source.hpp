@@ -2,26 +2,30 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// mc_particle_source.hpp — shared helper for event-generator sources
+// mc_particle_source.hpp — shared helper for event-generator plugins
 //
-// A Phlex source registers its data-product providers implicitly: a
-// phlex::source implements create_providers(selector), returning the
-// provider bundles that satisfy the requested product. Every aegir event
-// generator publishes the same products — the "mc_particles" collection
-// (std::vector<SHiP::MCParticle>) and the "event_header" record
-// (SHiP::EventHeader), both on the "event" layer — so the bundle
-// construction is factored out here.
+// Every aegir event generator publishes the same products: the
+// "mc_particles" collection (std::vector<SHiP::MCParticle>) and the
+// "event_header" record (SHiP::EventHeader), both on the "event" layer.
+// provide_mc_particles registers both as explicit providers from a
+// PHLEX_REGISTER_PROVIDERS plugin. Phlex labels explicit providers with the
+// job's stage (a `phlex --stage` override included), so the generators need
+// no stage setting of their own.
 //
-// The header carries the per-event weight. Sources that sample uniformly
-// leave the generator empty and get the unweighted default (weight 1.0,
-// no originating id), which keeps the output schema identical across all
-// workflows; sources reading a weighted record (eventcalc_source) pass a
-// generator.
+// The header carries the per-event weight. Generators that sample uniformly
+// leave the header generator empty and get the unweighted default (weight
+// 1.0, no originating id), which keeps the output schema identical across all
+// workflows; generators reading a weighted record pass a header generator.
 //
-// Implicit providers must name the stage their products belong to, and
-// Phlex rejects the reserved "CURRENT". Phlex does not pass the job's stage
-// to sources, so each generator source reads it from a `stage` key in its
-// own configuration block; the workflows set it to the job's stage.
+// The two products are separate phlex nodes and may run concurrently for the
+// same event. A generator whose two functions share a non-thread-safe backend
+// (a file reader, say) must lock it.
+//
+// mc_particle_provider_bundles and source_stage remain for generators written
+// as phlex::source subclasses (PHLEX_REGISTER_SOURCE), such as plugins built
+// outside aegir. Phlex does not pass the job's stage to sources, so those
+// read it from a `stage` key in their own configuration block, and Phlex
+// rejects the reserved "CURRENT" there.
 
 #pragma once
 
@@ -51,7 +55,36 @@ using mc_particle_generator =
 using event_header_generator =
     std::function<SHiP::EventHeader(phlex::data_cell_index const&)>;
 
-// Read the required `stage` key of a generator source's configuration block.
+// Register the "mc_particles" and "event_header" providers on the "event"
+// layer. `s` is the proxy a PHLEX_REGISTER_PROVIDERS plugin receives. The
+// generators are invoked once per data cell.
+template <typename Registrar>
+void provide_mc_particles(Registrar& s, mc_particle_generator generate,
+                          phlex::concurrency max_concurrency,
+                          event_header_generator generate_header = {}) {
+  s.provide(
+       "generate_particles",
+       [generate = std::move(generate)](phlex::data_cell_index const& id)
+           -> std::vector<SHiP::MCParticle> { return generate(id); },
+       max_concurrency)
+      .output_product("mc_particles", "particles", "event");
+
+  s.provide(
+       "generate_header",
+       [generate_header = std::move(generate_header)](
+           phlex::data_cell_index const& id) -> SHiP::EventHeader {
+         // Unweighted default: every event counts once, no provenance.
+         if (!generate_header) {
+           return SHiP::EventHeader{};
+         }
+         return generate_header(id);
+       },
+       max_concurrency)
+      .output_product("event_header", "header", "event");
+}
+
+// For phlex::source generators: read the required `stage` key of the
+// source's configuration block.
 [[nodiscard]] inline std::string source_stage(
     phlex::configuration const& config, std::string const& component) {
   auto stage = config.get_if_present<std::string>("stage");

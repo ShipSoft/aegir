@@ -17,7 +17,6 @@ local lib = import 'lib.libsonnet';
     geometry: { cpp: 'geometry_builtin_provider' },
     input: {
       cpp: 'file_source',
-      stage: lib.stage,
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: 0,  // start reading at this entry

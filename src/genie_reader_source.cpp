@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// genie_reader_source.cpp — Phlex source plugin reading GENIE rootracker files
+// genie_reader_source.cpp — Phlex provider plugin reading GENIE rootracker
+// files
 //
 // Provides MCParticle vectors from a GENIE "rootracker" ntuple (produced with
 // `gntpc -f rootracker`), a plain-ROOT format that keeps the full particle
@@ -104,15 +105,11 @@ void remap_mothers(std::vector<SHiP::MCParticle>& particles,
 // cap.
 constexpr int kDefaultMaxParticles = 250;
 
-class GenieReaderSource : public phlex::source {
+class GenieReaderSource {
  public:
-  GenieReaderSource(std::string stage, std::string const& file,
-                    std::string const& tree_name, long long first_entry,
-                    SHiP::aegir::record_mode record)
-      : stage_{std::move(stage)},
-        file_name_{file},
-        first_entry_{first_entry},
-        record_{record} {
+  GenieReaderSource(std::string const& file, std::string const& tree_name,
+                    long long first_entry, SHiP::aegir::record_mode record)
+      : file_name_{file}, first_entry_{first_entry}, record_{record} {
     try {
       file_ = RFile::Open(file);
     } catch (ROOT::RException const& e) {
@@ -250,20 +247,7 @@ class GenieReaderSource : public phlex::source {
         .original_event_id = static_cast<std::int64_t>(evt_num_)};
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial,
-        [this](phlex::data_cell_index const& id) {
-          return generate_header(id);
-        });
-  }
-
  private:
-  std::string stage_;
-
   template <typename T>
   void enable_branch(std::string const& name, T* address) {
     if (!tree_->GetBranch(name.c_str())) {
@@ -368,7 +352,7 @@ class GenieReaderSource : public phlex::source {
 
 }  // namespace
 
-PHLEX_REGISTER_SOURCE(s, config) {
+PHLEX_REGISTER_PROVIDERS(s, config) {
   auto const file = config.get<std::string>("file");
   auto const tree = config.get<std::string>("tree", std::string{"gRooTracker"});
   auto const first_entry = config.get<long>("first_entry", 0L);
@@ -379,8 +363,15 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("record", std::string{"final_state"}),
       "genie_reader_source");
 
-  auto stage = SHiP::aegir::source_stage(config, "genie_reader_source");
-
-  s.add_source<GenieReaderSource>("genie_reader", std::move(stage), file, tree,
-                                  static_cast<long long>(first_entry), record);
+  auto const source = std::make_shared<GenieReaderSource>(
+      file, tree, static_cast<long long>(first_entry), record);
+  SHiP::aegir::provide_mc_particles(
+      s,
+      [source](phlex::data_cell_index const& id) {
+        return source->generate(id);
+      },
+      phlex::concurrency::serial,
+      [source](phlex::data_cell_index const& id) {
+        return source->generate_header(id);
+      });
 }

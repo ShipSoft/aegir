@@ -34,7 +34,6 @@ local n_events = std.parseInt(std.extVar('events'));
   sources: {
     input: {
       cpp: 'file_source',
-      stage: 'simulation',
       input_file: std.extVar('infile'),
       product: 'mc_particles',
       skip: 0,

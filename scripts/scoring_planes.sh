@@ -359,7 +359,6 @@ local lib = import '$here/../workflows/lib.libsonnet';
     geometry: lib.builtin_geometry,
     input: {
       cpp: 'file_source',
-      stage: lib.stage,
       input_file: '$workdir/pions.root',
       product: 'plane_particles',
     },

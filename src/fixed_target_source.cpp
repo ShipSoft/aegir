@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// fixed_target_source.cpp — Phlex source plugin for fixed-target collisions
+// fixed_target_source.cpp — Phlex provider plugin for fixed-target collisions
 //
 // Dual-target Pythia8 source matching FairShip's FixedTargetGenerator:
 // - Two Pythia instances (p-p and p-n) selected per-event by Z/A ratio
@@ -41,16 +41,14 @@ void configure_processes(Pythia8::Pythia& pythia) {
   pythia.readString("WeakSingleBoson:all = on");
 }
 
-class FixedTargetSource : public phlex::source {
+class FixedTargetSource {
  public:
-  FixedTargetSource(std::string stage, std::string const& xml_dir,
-                    SHiP::Energy beam_energy, int target_z, int target_a,
-                    SHiP::Length target_z_start, SHiP::Length target_z_end,
-                    SHiP::Length interaction_length,
+  FixedTargetSource(std::string const& xml_dir, SHiP::Energy beam_energy,
+                    int target_z, int target_a, SHiP::Length target_z_start,
+                    SHiP::Length target_z_end, SHiP::Length interaction_length,
                     SHiP::aegir::PythiaTime tau0_threshold,
                     SHiP::aegir::record_mode record, std::uint32_t seed)
-      : stage_{std::move(stage)},
-        target_z_{target_z},
+      : target_z_{target_z},
         target_a_{target_a},
         target_z_start_{target_z_start},
         target_z_end_{target_z_end},
@@ -119,16 +117,7 @@ class FixedTargetSource : public phlex::source {
         pythia.event, z_interaction, record_);
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
-  }
-
  private:
-  std::string stage_;
   int target_z_;
   int target_a_;
   SHiP::Length target_z_start_;
@@ -146,7 +135,7 @@ class FixedTargetSource : public phlex::source {
 
 }  // namespace
 
-PHLEX_REGISTER_SOURCE(s, config) {
+PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
   auto const xml_dir = config.get<std::string>("xml_dir", [] {
@@ -171,10 +160,11 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("record", std::string{"final_state"}),
       "fixed_target");
   auto seed = SHiP::aegir::resolve_seed(config, "fixed_target");
-  auto stage = SHiP::aegir::source_stage(config, "fixed_target");
 
-  s.add_source<FixedTargetSource>(
-      "fixed_target", std::move(stage), xml_dir, beam_energy, target_z,
-      target_a, target_z_start, target_z_end, interaction_length,
-      tau0_threshold, record, seed);
+  auto const source = std::make_shared<FixedTargetSource>(
+      xml_dir, beam_energy, target_z, target_a, target_z_start, target_z_end,
+      interaction_length, tau0_threshold, record, seed);
+  SHiP::aegir::provide_mc_particles(
+      s, [source](data_cell_index const& id) { return source->generate(id); },
+      concurrency::serial);
 }

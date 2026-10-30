@@ -41,6 +41,7 @@ local seed = std.parseInt(std.extVar('seed'));
       cpp: 'sim_output_module',
       mode: 'mc_only',
       rntuple_file: std.extVar('outfile'),
+      n_events_requested: n_events,
       histo_file: std.extVar('histofile'),
     },
   },

@@ -22,8 +22,9 @@
 // Needs the GeoModel geometry DB (pixi run build_geometry, see README).
 local lib = import 'lib.libsonnet';
 function(infile, events, skip=0, seed=null, ecut=0.5) {
+  local job = lib.events(events),
   stage: lib.stage,
-  driver: lib.driver(events),
+  driver: job.driver,
   sources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
@@ -40,6 +41,6 @@ function(infile, events, skip=0, seed=null, ecut=0.5) {
       ke_threshold: ecut,
       [if seed != null then 'seed']: seed,
     },
-    output: lib.full_output('plane_replay.root', 'plane_replay_validation.root'),
+    output: job.full_output('plane_replay.root', 'plane_replay_validation.root'),
   },
 }

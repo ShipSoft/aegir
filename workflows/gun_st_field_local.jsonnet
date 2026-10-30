@@ -5,9 +5,9 @@
 // stays inside the world. Verifies the per-magnet G4FieldManager wiring:
 // Geant4 must NOT call GetFieldValue while stepping outside the target.
 local lib = import 'lib.libsonnet';
-{
+function(events=100) {
   stage: lib.stage,
-  driver: lib.driver(100),
+  driver: lib.driver(events),
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.field_map([
@@ -22,6 +22,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4,
-    output: lib.full_output('gun_st_field_local.root', 'gun_st_field_local_validation.root'),
+    output: lib.full_output('gun_st_field_local.root', 'gun_st_field_local_validation.root', events),
   },
 }

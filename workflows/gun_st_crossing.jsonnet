@@ -1,7 +1,7 @@
 local lib = import 'lib.libsonnet';
-{
+function(events=1000) {
   stage: lib.stage,
-  driver: lib.driver(1000),
+  driver: lib.driver(events),
   sources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
@@ -13,6 +13,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4_crossing,
-    output: lib.full_output('gun_crossing_output.root', 'gun_crossing_validation.root'),
+    output: lib.full_output('gun_crossing_output.root', 'gun_crossing_validation.root', events),
   },
 }

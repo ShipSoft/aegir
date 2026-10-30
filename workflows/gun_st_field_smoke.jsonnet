@@ -4,9 +4,9 @@
 // Without a field hits are at x = 200 mm everywhere; with the field the hits
 // trace out a parabolic deflection in +x (μ−, By > 0).
 local lib = import 'lib.libsonnet';
-{
+function(events=100) {
   stage: lib.stage,
-  driver: lib.driver(100),
+  driver: lib.driver(events),
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.world_field_05T_y,
@@ -14,6 +14,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4 { seed: 20260703 },  // stable output for comparisons
-    output: lib.full_output('gun_st_field_smoke.root', 'gun_st_field_smoke_validation.root'),
+    output: lib.full_output('gun_st_field_smoke.root', 'gun_st_field_smoke_validation.root', events),
   },
 }

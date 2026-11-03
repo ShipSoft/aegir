@@ -227,6 +227,15 @@ A pattern aegir doesn't know, an unknown detector name, or an unknown key
 stops the job while the configuration is read, before Geant4 starts. The
 builtin geometry always uses `Scoring`, with id 99.
 
+The `geometry_node_id` of each hit is the Geant4 copy number of the volume
+the step started in. A GeoModel geometry sets it with the volume's
+`GeoIdentifierTag`, which the conversion to Geant4 turns into the copy
+number, so a geometry that encodes each volume's identity in its tag gets
+that identity back on every hit. Its meaning belongs to the detector named
+by `detector_id`: a detector whose geometry defines no numbering gets
+whatever copy numbers its volumes have, which identify nothing. The
+builtin geometry numbers its five test planes 0-4 from upstream.
+
 ## Scoring planes
 
 A scoring plane is a thin box or cylindrical shell that records the

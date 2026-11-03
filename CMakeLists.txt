@@ -339,3 +339,17 @@ target_include_directories(
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME sensitive_volumes COMMAND sensitive_volumes_test)
+
+# GeoModel copy numbers: what a hit's touchable reads at each depth after the
+# GeoModel->Geant4 conversion, for the identifier patterns the SHiP geometry
+# uses, converted from the tree and through a .db file.
+add_executable(geomodel_copy_number_test tests/geomodel_copy_number_test.cpp)
+target_link_libraries(
+    geomodel_copy_number_test
+    PRIVATE
+        SHiP::GeometryService
+        GeoModelIO::GeoModelDBManager
+        GeoModelIO::GeoModelWrite
+        ${Geant4_LIBRARIES}
+)
+add_test(NAME geomodel_copy_numbers COMMAND geomodel_copy_number_test)

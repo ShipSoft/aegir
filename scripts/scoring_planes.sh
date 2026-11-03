@@ -6,8 +6,10 @@
 # Scoring planes: run gun_st_scoring_planes with neutrinos and with muons and
 # check that every plane records exactly the tracks the geometry says cross
 # it, at its entry face, with the scoring-plane detector id; that neutrinos
-# are recorded although they deposit nothing; that a plane cutting through the
-# target records like any other (the planes live in a parallel world); and
+# are recorded although they deposit nothing; that the silicon test planes'
+# hits carry the plane's copy number as geometry_node_id; that a plane
+# cutting through the target records like any other (the planes live in a
+# parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
 # 'hit_ancestry' writes exactly the hit tracks and their ancestors. Check that
 # the recording plane's plane_particles hold the tracks it recorded, as
@@ -125,6 +127,13 @@ for i in range(n):
         z_si = [h.position[2] for h in detector if h.track_id == 1]
         expect(any(abs(z - 2000.0) < 1.0 for z in z_si), "no silicon hit at 2 m")
         expect(all(z < Z3 for z in z_si), f"silicon hit behind the kill plane {z_si}")
+        # Every silicon hit carries its plane's copy number as its
+        # geometry_node_id: 0-4 for the planes at z = 2, 4, ..., 10 m.
+        for h in detector:
+            want = round(h.position[2] / 2000.0) - 1
+            expect(h.geometry_node_id == want,
+                   f"silicon hit at z={h.position[2]} has geometry_node_id "
+                   f"{h.geometry_node_id}, not {want}")
 
 for e in errors[:20]:
     print(e)

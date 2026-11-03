@@ -81,7 +81,12 @@ inline void persist_ancestry(std::vector<PlaneCrossing> const& recorded) {
 
 using DetectorIdMap = std::unordered_map<G4LogicalVolume*, int>;
 
-// Track, particle and pre-step-point kinematics of a hit, under `detector_id`.
+// Track, particle and pre-step-point kinematics of a hit, under `detector_id`,
+// and the copy number of the pre-step volume as its geometry_node_id. The
+// GeoModel->Geant4 conversion makes a volume's GeoIdentifierTag its copy
+// number, so a geometry that encodes a volume's identity in that tag gets it
+// back on every hit. What the value means is up to the detector named by
+// `detector_id`.
 inline SimHit make_base_hit(G4Step const* step, int detector_id) {
   auto const* pre = step->GetPreStepPoint();
   auto const pos = pre->GetPosition();
@@ -89,6 +94,7 @@ inline SimHit make_base_hit(G4Step const* step, int detector_id) {
 
   SimHit hit;
   hit.detector_id = detector_id;
+  hit.geometry_node_id = pre->GetTouchable()->GetCopyNumber();
   hit.track_id = step->GetTrack()->GetTrackID();
   hit.pdg_code = step->GetTrack()->GetDefinition()->GetPDGEncoding();
   SHiP::view::set_position(hit, SHiP::aegir::clhep::position(pos));

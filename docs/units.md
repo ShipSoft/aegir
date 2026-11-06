@@ -12,17 +12,17 @@ structurally. The rules:
 ## Canonical units and types
 
 The framework-wide vocabulary lives in `SHiP/Units.hpp` (shipdatamodel,
-`SHiP::SHiPUnits` target), built on [mp-units](https://mpusz.github.io/mp-units/):
+`SHiP::Units` target), built on [mp-units](https://mpusz.github.io/mp-units/):
 
 | Quantity        | Type                  | Storage unit |
 |-----------------|-----------------------|--------------|
-| Length/position | `ship::Length`        | mm           |
-| Time            | `ship::Time`          | ns           |
-| Energy          | `ship::Energy`        | GeV          |
-| Momentum        | `ship::Momentum`      | GeV/c        |
-| Mass            | `ship::Mass`          | GeV/c²       |
-| Angle           | `ship::Angle`         | rad          |
-| Magnetic field  | `ship::MagneticField` | T            |
+| Length/position | `SHiP::Length`        | mm           |
+| Time            | `SHiP::Time`          | ns           |
+| Energy          | `SHiP::Energy`        | GeV          |
+| Momentum        | `SHiP::Momentum`      | GeV/c        |
+| Mass            | `SHiP::Mass`          | GeV/c²       |
+| Angle           | `SHiP::Angle`         | rad          |
+| Magnetic field  | `SHiP::MagneticField` | T            |
 
 `GeV/c` and `mm/c` are real derived units built from the exact SI
 definition of c, so `energy + momentum` is a compile error and
@@ -43,17 +43,17 @@ a quantity via an explicit conversion.**
 - Pythia8 (GeV, mm, mm/c), GENIE (SI): values are wrapped at the read
   site (`p.tProd() * su::mm_per_c`, `vtx[0] * su::m`).
 - Configuration: workflow files stay plain numbers; C++ reads them with
-  `aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV)`, making
+  `SHiP::aegir::get_quantity(config, "beam_energy", 400.0 * su::GeV)`, making
   the parameter definition the single source of truth for the unit.
 - Filling a persisted struct is a boundary too: write through the
-  `ship::view` setters when the concrete `SHiP::` type is known. In code
+  `SHiP::view` setters when the concrete `SHiP::` type is known. In code
   templated over the particle type (e.g. `extract_particles`), build the
-  quantity on the read line and unwrap with `ship::raw`. A `// GeV`-style
+  quantity on the read line and unwrap with `SHiP::raw`. A `// GeV`-style
   comment is not a fence. Copies between persisted structs that share the
   storage units (and diagnostics read straight off them, e.g. histogram
   fills) stay raw — no unit crosses a boundary there.
 
-Never `using namespace ship::units` in a translation unit that includes
+Never `using namespace SHiP::units` in a translation unit that includes
 CLHEP or Geant4 headers — always qualify.
 
 ## Enforcement

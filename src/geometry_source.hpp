@@ -12,10 +12,11 @@
 #pragma once
 
 #include <G4VPhysicalVolume.hh>
-#include <string>
 #include <vector>
 
-namespace SHiP {
+#include "sensitive_volumes.hpp"
+
+namespace SHiP::aegir {
 
 class IGeometrySource {
  public:
@@ -27,10 +28,11 @@ class IGeometrySource {
   /// Idempotent: subsequent calls return the same pointer.
   [[nodiscard]] virtual G4VPhysicalVolume* construct() const = 0;
 
-  /// Volume names to assign sensitive detectors to.
-  /// Matched as substrings against G4LogicalVolumeStore entries.
-  [[nodiscard]] virtual std::vector<std::string> const& sensitiveVolumes()
+  /// The volumes to assign sensitive detectors to, with the detector id of
+  /// their hits. Patterns are matched as substrings against
+  /// G4LogicalVolumeStore entries; the first matching entry wins.
+  [[nodiscard]] virtual std::vector<SensitiveVolume> const& sensitiveVolumes()
       const = 0;
 };
 
-}  // namespace SHiP
+}  // namespace SHiP::aegir

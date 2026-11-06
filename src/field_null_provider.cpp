@@ -10,17 +10,17 @@
 #include <memory>
 #include <vector>
 
-#include "FieldService/IFieldSource.h"
+#include "SHiP/FieldService/IFieldSource.h"
 #include "phlex/source.hpp"
 #include "provider_helpers.hpp"
 
 namespace {
 
-class NullFieldSource : public ship::IFieldSource {
-  std::vector<ship::FieldRegion> empty_;
+class NullFieldSource : public SHiP::IFieldSource {
+  std::vector<SHiP::FieldRegion> empty_;
 
  public:
-  [[nodiscard]] std::vector<ship::FieldRegion> const& regions() const override {
+  [[nodiscard]] std::vector<SHiP::FieldRegion> const& regions() const override {
     return empty_;
   }
 };
@@ -32,9 +32,10 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   (void)config;
 
   // Publish as the interface type: consumers request
-  // std::shared_ptr<ship::IFieldSource>.
-  std::shared_ptr<ship::IFieldSource> source =
+  // std::shared_ptr<SHiP::IFieldSource>.
+  std::shared_ptr<SHiP::IFieldSource> const source =
       std::make_shared<NullFieldSource>();
 
-  aegir::provide_constant(s, "create_field", source, "field", "map", "job");
+  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
+                                "job");
 }

@@ -5,6 +5,7 @@
 // trace out a parabolic deflection in +x (μ−, By > 0).
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.builtin_geometry,

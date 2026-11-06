@@ -19,30 +19,32 @@
 
 namespace {
 
-class GDMLGeometrySource : public SHiP::IGeometrySource {
+class GDMLGeometrySource : public SHiP::aegir::IGeometrySource {
   std::string gdml_path_;
-  std::vector<std::string> sensitive_vols_;
+  std::vector<SHiP::aegir::SensitiveVolume> sensitive_vols_;
   mutable std::once_flag init_flag_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
-  GDMLGeometrySource(std::string path, std::vector<std::string> sv)
+  GDMLGeometrySource(std::string path,
+                     std::vector<SHiP::aegir::SensitiveVolume> sv)
       : gdml_path_{std::move(path)}, sensitive_vols_{std::move(sv)} {}
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
-    std::call_once(init_flag_, [this]() {
+    std::call_once(init_flag_, [this] {
       G4GDMLParser parser;
       parser.Read(gdml_path_, /*validate=*/false);
       world_ = parser.GetWorldVolume();
-      if (!world_)
+      if (!world_) {
         throw std::runtime_error("GDMLGeometrySource: no world volume in " +
                                  gdml_path_);
+      }
     });
     return world_;
   }
 
-  [[nodiscard]] std::vector<std::string> const& sensitiveVolumes()
-      const override {
+  [[nodiscard]] std::vector<SHiP::aegir::SensitiveVolume> const&
+  sensitiveVolumes() const override {
     return sensitive_vols_;
   }
 };
@@ -52,14 +54,14 @@ class GDMLGeometrySource : public SHiP::IGeometrySource {
 PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
-  auto gdml_file = config.get<std::string>("gdml_file");
-  auto sv = config.get<std::vector<std::string>>("sensitive_volumes");
+  auto const gdml_file = config.get<std::string>("gdml_file");
+  auto sv = SHiP::aegir::read_sensitive_volumes(config);
 
   // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IGeometrySource>.
-  std::shared_ptr<SHiP::IGeometrySource> source =
+  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
+  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
       std::make_shared<GDMLGeometrySource>(gdml_file, std::move(sv));
 
-  aegir::provide_constant(s, "create_geometry", source, "geometry", "detector",
-                          "job");
+  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
+                                "detector", "job");
 }

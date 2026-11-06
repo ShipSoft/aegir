@@ -5,7 +5,7 @@ Thank you for your interest in contributing to aegir! As part of the SHiP Collab
 ## Development Workflow
 
 1. **Fork and Clone**: Create a fork of the repository and clone it locally.
-2. **Environment**: Install [pixi](https://pixi.sh) — it provisions all build and runtime dependencies (ROOT, Geant4, Pythia8, Phlex, SHiPDataModel, SHiPGeometryService, …) from `conda-forge` and [`prefix.dev/ship`](https://prefix.dev/channels/ship). Then `pixi install` once to materialise the environment. Direct CMake builds against a hand-rolled dependency tree are also supported (see [README.md → Building manually](README.md#building-manually)).
+2. **Environment**: Install [pixi](https://pixi.sh) — it provisions all build and runtime dependencies (ROOT, Geant4, Pythia8, Phlex, SHiPDataModel, SHiPGeometryService, …) from `conda-forge` and [`prefix.dev/ship-experiment/stable`](https://prefix.dev/channels/@ship-experiment/stable). Then `pixi install` once to materialise the environment. Direct CMake builds against a hand-rolled dependency tree are also supported (see [README.md → Building manually](README.md#building-manually)).
 3. **Pre-commit Hooks**: We use [`prek`](https://github.com/j178/prek) (a drop-in `pre-commit` replacement) to enforce coding standards. The hook tools come from the pixi `lint` environment, so versions are tracked in `pixi.lock` and run identically everywhere. Install the hooks once:
    ```bash
    pixi run install-hooks
@@ -13,7 +13,22 @@ Thank you for your interest in contributing to aegir! As part of the SHiP Collab
    Run all hooks manually at any time with `pixi run lint`.
 4. **Branching**: Create a feature branch for your changes.
 5. **Coding Standards**:
-   - Follow the existing C++ style (enforced by `clang-format` and `cpplint`).
+   - Follow the existing C++ style (formatting is enforced by `clang-format`).
+   - C++ is checked against the [C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+     by `clang-tidy`, using the shared `.clang-tidy` synced from
+     [ShipSoft/.github](https://github.com/ShipSoft/.github/tree/main/sync). Only
+     findings on lines your patch changes are reported, so you are never asked to
+     clean up code you did not touch. Whether those findings fail the build or are
+     reported for information is set by `fail-on-new` in
+     `.github/workflows/clang-tidy.yml`. Check the sources you changed locally
+     with:
+     ```bash
+     pixi run clang-tidy-diff
+     ```
+     That task cannot see a header-only change, because headers have no compile
+     command of their own; CI reaches them through the sources that include them.
+     After touching a header, run the whole tree with `pixi run clang-tidy` or
+     leave it to CI.
    - Use `ruff` for Python script formatting.
    - Ensure all files have the correct SPDX license headers (REUSE compliant).
 6. **Commits**: We follow [Conventional Commits](https://www.conventionalcommits.org/). This helps in automated changelog generation.

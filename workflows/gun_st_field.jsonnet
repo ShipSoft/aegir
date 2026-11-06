@@ -1,20 +1,15 @@
+// Particle gun through the SHiP geometry with the muon shield and spectrometer
+// field maps. The maps and their placements come from the ship-field-maps
+// package: field_placements() reads its placements.json from
+// $SHIPFIELD_ROOT/share/field/, which records the shipgeometry version the
+// translations match.
 local lib = import 'lib.libsonnet';
 {
+  stage: lib.stage,
   driver: lib.driver(100),
   sources: {
     geometry: lib.geomodel_geometry,
-    field: lib.covfie_field([
-      {
-        name: 'MuonShield',
-        volume_pattern: 'MuonShield',
-        cvf_file: 'muon_shield.cvf',
-      },
-      {
-        name: 'Spectrometer',
-        volume_pattern: 'SpectrometerDipole',
-        cvf_file: 'spectrometer_dipole.cvf',
-      },
-    ]),
+    field: lib.field_placements(),
     gun: lib.gun,
   },
   modules: {

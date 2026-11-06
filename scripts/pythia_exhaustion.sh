@@ -15,6 +15,7 @@ trap 'rm -rf "$workdir"' EXIT
 
 cat >"$workdir/exhaust.jsonnet" <<'EOF'
 {
+  stage: 'simulation',
   driver: {
     cpp: 'generate_layers',
     // Request more events than the source can produce.
@@ -23,6 +24,7 @@ cat >"$workdir/exhaust.jsonnet" <<'EOF'
   sources: {
     pythia8: {
       cpp: 'pythia8_source',
+      stage: 'simulation',
       beam_energy: 400.0,
       process: 'SoftQCD:inelastic',
       parallel: true,

@@ -22,6 +22,7 @@ trap 'rm -rf "$workdir"' EXIT
 
 cat >"$workdir/bad_physics.jsonnet" <<'EOF'
 {
+  stage: 'simulation',
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: 8 } },
@@ -31,6 +32,7 @@ cat >"$workdir/bad_physics.jsonnet" <<'EOF'
     field: { cpp: 'field_null_provider' },
     gun: {
       cpp: 'particle_gun_source',
+      stage: 'simulation',
       pdg: 13,
       p_min: 20.0,
       p_max: 20.0,

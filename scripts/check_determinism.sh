@@ -46,7 +46,7 @@ def summarize(path):
     df = (df.Define("n_mc", "mc_particles.size()")
             .Define("n_hits", "sim_hits.size()")
             .Define("n_parts", "sim_particles.size()")
-            .Define("edep", "double s=0; for (auto const& h : sim_hits) s += h.energyDeposit; return s;")
+            .Define("edep", "double s=0; for (auto const& h : sim_hits) s += h.energy_deposit; return s;")
             .Define("zsum", "double s=0; for (auto const& h : sim_hits) s += h.position[2]; return s;"))
     return (int(df.Count().GetValue()), int(df.Sum("n_mc").GetValue()),
             int(df.Sum("n_hits").GetValue()), int(df.Sum("n_parts").GetValue()),

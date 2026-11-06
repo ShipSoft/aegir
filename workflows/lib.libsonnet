@@ -123,6 +123,7 @@
   // see docs/eventcalc.md.
   eventcalc:: {
     cpp: 'eventcalc_source',
+    stage: $.stage,
     file: 'eventcalc_events.dat',
   },
 

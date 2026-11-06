@@ -12,7 +12,7 @@
 // here that is the parse line, so the structs below carry the canonical
 // quantity types. EventCalc's "GeV" momentum and mass columns are natural
 // units, i.e. GeV/c and GeV/c²; the decay vertex is written in metres with
-// the origin at the centre of the SHiP target and is stored as ship::Length
+// the origin at the centre of the SHiP target and is stored as SHiP::Length
 // (mm, a ×1000 rescale).
 
 #pragma once
@@ -33,9 +33,9 @@
 
 #include "math_utils.hpp"
 
-namespace aegir::eventcalc {
+namespace SHiP::aegir::eventcalc {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 // Normalisation numbers from the first line of the file. The expected number
 // of decay events in the volume is
@@ -57,10 +57,10 @@ struct FileSummary {
 // (Explicit zero() initialisers: a default-constructed mp-units quantity
 // leaves its double representation uninitialised.)
 struct Particle {
-  ship::Vec3<ship::Momentum> momentum = {
-      ship::Momentum::zero(), ship::Momentum::zero(), ship::Momentum::zero()};
-  ship::Energy energy = ship::Energy::zero();  // total energy
-  ship::Mass mass = ship::Mass::zero();
+  SHiP::Vec3<SHiP::Momentum> momentum = {
+      SHiP::Momentum::zero(), SHiP::Momentum::zero(), SHiP::Momentum::zero()};
+  SHiP::Energy energy = SHiP::Energy::zero();  // total energy
+  SHiP::Mass mass = SHiP::Mass::zero();
   std::int32_t pdg = 0;
 };
 
@@ -68,8 +68,8 @@ struct Particle {
 struct DecayEvent {
   Particle llp;
   // Decay vertex, from the centre of the SHiP target.
-  ship::Vec3<ship::Length> vertex = {ship::Length::zero(), ship::Length::zero(),
-                                     ship::Length::zero()};
+  SHiP::Vec3<SHiP::Length> vertex = {SHiP::Length::zero(), SHiP::Length::zero(),
+                                     SHiP::Length::zero()};
   double decay_probability = 0;     // P_decay,LLP — per-event weight
   std::uint32_t process_id = 0;     // index into Reader::processes()
   std::vector<Particle> daughters;  // padding groups stripped
@@ -85,14 +85,15 @@ struct DecayEvent {
 // Rounding in the input can leave E a hair below |p|c for a light, fast LLP,
 // which would put beta above 1 and the arrival ahead of light. beta is capped
 // at 1 instead: such an LLP is ultra-relativistic, so s/c is the right time.
-[[nodiscard]] inline ship::Time flight_time(
-    ship::Vec3<ship::Length> const& vertex_from_target, Particle const& llp) {
-  auto const p = aegir::magnitude(llp.momentum);
-  if (p <= ship::Momentum::zero() || llp.energy <= ship::Energy::zero())
-    return ship::Time::zero();
+[[nodiscard]] inline SHiP::Time flight_time(
+    SHiP::Vec3<SHiP::Length> const& vertex_from_target, Particle const& llp) {
+  auto const p = SHiP::aegir::magnitude(llp.momentum);
+  if (p <= SHiP::Momentum::zero() || llp.energy <= SHiP::Energy::zero())
+    return SHiP::Time::zero();
   auto const beta = std::min((p * su::c / llp.energy).in(mp_units::one),
                              1.0 * mp_units::one);  // v/c
-  return (aegir::magnitude(vertex_from_target) / (beta * su::c)).in(su::ns);
+  return (SHiP::aegir::magnitude(vertex_from_target) / (beta * su::c))
+      .in(su::ns);
 }
 
 namespace detail {
@@ -286,4 +287,4 @@ class Reader {
   double sum_of_weights_ = 0;
 };
 
-}  // namespace aegir::eventcalc
+}  // namespace SHiP::aegir::eventcalc

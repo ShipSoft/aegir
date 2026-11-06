@@ -25,7 +25,7 @@
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 int failures = 0;
 
@@ -51,9 +51,9 @@ void check_close(std::string const& what, double got, double expected,
 // Indexed access guarded by the daughter count: a regression that shortened
 // the list would otherwise be undefined behaviour rather than a reported
 // failure.
-void check_daughter(std::string const& what, aegir::eventcalc::Reader const& r,
-                    std::size_t event, std::size_t daughter,
-                    std::int32_t expected) {
+void check_daughter(std::string const& what,
+                    SHiP::aegir::eventcalc::Reader const& r, std::size_t event,
+                    std::size_t daughter, std::int32_t expected) {
   auto const& daughters = r.at(event).daughters;
   if (daughter >= daughters.size()) {
     ++failures;
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: " << argv[0] << " <eventcalc_sample.dat>\n";
     return 2;
   }
-  aegir::eventcalc::Reader const reader{argv[1]};
+  SHiP::aegir::eventcalc::Reader const reader{argv[1]};
 
   // Summary: every value is followed by a full stop in the source line, which
   // an istream-based parse would not reliably reject.
@@ -132,41 +132,41 @@ int main(int argc, char** argv) {
   // flight_time at a known kinematic point: p = 0.6 GeV/c, E = 1 GeV gives
   // beta = 0.6, and a straight 50 m path then takes 277.97008 ns. The code
   // never hand-types c; the expected value is computed independently.
-  aegir::eventcalc::Particle llp;
-  llp.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+  SHiP::aegir::eventcalc::Particle llp;
+  llp.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
                   0.6 * su::GeV_per_c};
   llp.energy = 1.0 * su::GeV;
-  auto const t = aegir::eventcalc::flight_time(
-      {ship::Length::zero(), ship::Length::zero(), 50.0 * su::m}, llp);
+  auto const t = SHiP::aegir::eventcalc::flight_time(
+      {SHiP::Length::zero(), SHiP::Length::zero(), 50.0 * su::m}, llp);
   check_close("flight time at beta = 0.6 [ns]", t.numerical_value_in(su::ns),
               277.97008, 1e-6);
 
   // E below |p|c (input rounding) would give beta > 1; it is capped at 1, so
   // the time is s/c: 50 m takes 166.782048 ns, computed independently.
-  aegir::eventcalc::Particle superluminal;
-  superluminal.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+  SHiP::aegir::eventcalc::Particle superluminal;
+  superluminal.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
                            1.0 * su::GeV_per_c};
   superluminal.energy = 0.5 * su::GeV;
-  auto const t_capped = aegir::eventcalc::flight_time(
-      {ship::Length::zero(), ship::Length::zero(), 50.0 * su::m}, superluminal);
+  auto const t_capped = SHiP::aegir::eventcalc::flight_time(
+      {SHiP::Length::zero(), SHiP::Length::zero(), 50.0 * su::m}, superluminal);
   check_close("flight time at beta capped to 1 [ns]",
               t_capped.numerical_value_in(su::ns), 166.782048, 1e-6);
 
   // Unphysical kinematics fall back to t = 0: zero momentum, and separately
   // zero energy with non-zero momentum, so each guard condition is exercised.
-  aegir::eventcalc::Particle const stopped;
+  SHiP::aegir::eventcalc::Particle const stopped;
   check("flight time guard, p = 0 [ns]",
-        aegir::eventcalc::flight_time(
-            {ship::Length::zero(), ship::Length::zero(), 1.0 * su::m}, stopped)
+        SHiP::aegir::eventcalc::flight_time(
+            {SHiP::Length::zero(), SHiP::Length::zero(), 1.0 * su::m}, stopped)
             .numerical_value_in(su::ns),
         0.0);
-  aegir::eventcalc::Particle no_energy;
-  no_energy.momentum = {ship::Momentum::zero(), ship::Momentum::zero(),
+  SHiP::aegir::eventcalc::Particle no_energy;
+  no_energy.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
                         1.0 * su::GeV_per_c};
   check(
       "flight time guard, E = 0 [ns]",
-      aegir::eventcalc::flight_time(
-          {ship::Length::zero(), ship::Length::zero(), 1.0 * su::m}, no_energy)
+      SHiP::aegir::eventcalc::flight_time(
+          {SHiP::Length::zero(), SHiP::Length::zero(), 1.0 * su::m}, no_energy)
           .numerical_value_in(su::ns),
       0.0);
 

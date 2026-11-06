@@ -11,9 +11,9 @@
 // decoupled from the aegir build; see docs/eventcalc.md for how to produce
 // the input files.
 //
-// The LLP itself is not emitted by default: Geant4 has no particle definition
-// for an HNL or a dark scalar, and the decay has already happened upstream.
-// What is tracked are the daughters, all originating at the decay vertex.
+// The LLP itself is not emitted: Geant4 has no particle definition for an HNL
+// or a dark scalar, and the decay has already happened upstream. What is
+// tracked are the daughters, all originating at the decay vertex.
 //
 // EventCalc rows are not equally probable — each carries the probability that
 // its LLP decays inside the volume — so the source also publishes an
@@ -24,20 +24,21 @@
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/QuantityView.hpp>
 #include <SHiP/Units.hpp>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "eventcalc_reader.hpp"
+#include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
 #include "units/config_units.hpp"
 
 namespace {
 
-namespace su = ship::units;
+namespace su = SHiP::units;
 
 bool is_neutrino(std::int32_t pdg) {
   auto const a = std::abs(pdg);
@@ -46,10 +47,12 @@ bool is_neutrino(std::int32_t pdg) {
 
 class EventCalcSource : public phlex::source {
  public:
-  EventCalcSource(std::string const& file, long long first_entry,
-                  bool skip_neutrinos, ship::Length offset_x,
-                  ship::Length offset_y, ship::Length offset_z)
-      : reader_{file},
+  EventCalcSource(std::string stage, std::string const& file,
+                  long long first_entry, bool skip_neutrinos,
+                  SHiP::Length offset_x, SHiP::Length offset_y,
+                  SHiP::Length offset_z)
+      : stage_{std::move(stage)},
+        reader_{file},
         first_entry_{first_entry},
         skip_neutrinos_{skip_neutrinos},
         offset_{offset_x, offset_y, offset_z} {}
@@ -60,27 +63,33 @@ class EventCalcSource : public phlex::source {
     // The LLP is produced at the target, which is the EventCalc origin, so
     // the flight path is measured from there — before the geometry offset
     // is applied, or a non-zero offset would corrupt the timing.
-    auto const time = aegir::eventcalc::flight_time(event.vertex, event.llp);
+    auto const time =
+        SHiP::aegir::eventcalc::flight_time(event.vertex, event.llp);
 
     // The offset shifts into the frame of the configured geometry provider,
     // should the two origins differ.
-    ship::Vec3<ship::Length> const vertex{event.vertex[0] + offset_[0],
+    SHiP::Vec3<SHiP::Length> const vertex{event.vertex[0] + offset_[0],
                                           event.vertex[1] + offset_[1],
                                           event.vertex[2] + offset_[2]};
 
+    // An event may come out empty: every daughter a neutrino with
+    // skip_neutrinos set (e.g. N -> nu nu nu), or a row whose product groups
+    // are all padding. It is still emitted, never skipped: events must stay
+    // one-to-one with input rows for original_event_id to hold, and the
+    // weight of an invisible decay still belongs in the normalisation.
     std::vector<SHiP::MCParticle> particles;
     particles.reserve(event.daughters.size());
 
     for (auto const& d : event.daughters) {
       if (skip_neutrinos_ && is_neutrino(d.pdg)) continue;
       SHiP::MCParticle mc;
-      mc.pdgCode = d.pdg;
-      ship::view::setMomentum(mc, d.momentum);
-      ship::view::setEnergy(mc, d.energy);
-      ship::view::setVertex(mc, vertex);
-      ship::view::setTime(mc, time);
-      mc.motherId = -1;
-      mc.status = 1;
+      mc.pdg_code = d.pdg;
+      SHiP::view::set_momentum(mc, d.momentum);
+      SHiP::view::set_energy(mc, d.energy);
+      SHiP::view::set_vertex(mc, vertex);
+      SHiP::view::set_time(mc, time);
+      mc.mother_id = -1;
+      mc.status = SHiP::aegir::hepmc::final_state;
       particles.push_back(mc);
     }
     return particles;
@@ -97,12 +106,12 @@ class EventCalcSource : public phlex::source {
                              static_cast<std::int64_t>(entry)};
   }
 
-  phlex::detail::provider_bundles create_providers(
+  phlex::provider_bundles create_providers(
       phlex::product_selector const& selector) override {
     // The reader is immutable after construction, so unlike the GENIE source
     // (whose TTree forces serial access) events can be served concurrently.
-    return aegir::mc_particle_provider_bundles(
-        selector,
+    return SHiP::aegir::mc_particle_provider_bundles(
+        selector, stage_,
         [this](phlex::data_cell_index const& id) { return generate(id); },
         phlex::concurrency::unlimited,
         [this](phlex::data_cell_index const& id) { return header(id); });
@@ -123,10 +132,11 @@ class EventCalcSource : public phlex::source {
     return static_cast<std::size_t>(entry);
   }
 
-  aegir::eventcalc::Reader reader_;
+  std::string stage_;
+  SHiP::aegir::eventcalc::Reader reader_;
   long long first_entry_;
   bool skip_neutrinos_;
-  ship::Vec3<ship::Length> offset_;
+  SHiP::Vec3<SHiP::Length> offset_;
 };
 
 }  // namespace
@@ -141,11 +151,12 @@ PHLEX_REGISTER_SOURCE(s, config) {
   // tracking them costs time and yields nothing.
   auto skip_neutrinos = config.get<bool>("skip_neutrinos", true);
 
-  auto offset_x = aegir::get_quantity(config, "offset_x", 0.0 * su::mm);
-  auto offset_y = aegir::get_quantity(config, "offset_y", 0.0 * su::mm);
-  auto offset_z = aegir::get_quantity(config, "offset_z", 0.0 * su::mm);
+  auto offset_x = SHiP::aegir::get_quantity(config, "offset_x", 0.0 * su::mm);
+  auto offset_y = SHiP::aegir::get_quantity(config, "offset_y", 0.0 * su::mm);
+  auto offset_z = SHiP::aegir::get_quantity(config, "offset_z", 0.0 * su::mm);
+  auto stage = SHiP::aegir::source_stage(config, "eventcalc");
 
-  s.add_source<EventCalcSource>("eventcalc", file,
+  s.add_source<EventCalcSource>("eventcalc", std::move(stage), file,
                                 static_cast<long long>(first_entry),
                                 skip_neutrinos, offset_x, offset_y, offset_z);
 }

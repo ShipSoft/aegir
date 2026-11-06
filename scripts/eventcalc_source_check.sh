@@ -29,6 +29,7 @@ run_eventcalc() {
   local events=$1 first_entry=$2
   cat >"$workdir/config.jsonnet" <<EOF
 {
+  stage: 'simulation',
   driver: {
     cpp: 'generate_layers',
     layers: { event: { total: ${events} } },
@@ -36,6 +37,7 @@ run_eventcalc() {
   sources: {
     eventcalc: {
       cpp: 'eventcalc_source',
+      stage: 'simulation',
       file: '${fixture}',
       first_entry: ${first_entry},
     },

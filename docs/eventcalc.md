@@ -122,6 +122,32 @@ canonical quantity types (`ship::Momentum`, `ship::Energy`, `ship::Mass`,
 `ship::Length`), per [units.md](units.md). If the configured geometry provider
 puts its origin elsewhere, correct for it with the `offset_*` keys.
 
+### Geometry origin
+
+EventCalc writes decay vertices relative to the centre of the SHiP target. The
+SHiP GeoModel geometry (`shipgeometry`, loaded by `lib.geomodel_geometry`) puts
+its origin at the front face of the first target slab, so the vertices must be
+shifted downstream by half the target length:
+
+| shipgeometry                      | target span in z           | `offset_z` |
+|-----------------------------------|----------------------------|------------|
+| 0.2.1 (19 Ta-clad W slabs)        | 0 – 1586.4 mm              | 793.2      |
+| Geometry main (33 W disks)        | 0 – 1460 mm                | 730.0      |
+
+`workflows/eventcalc_st.jsonnet` sets the value for the pinned version; re-derive
+it whenever the `shipgeometry` version changes. The flight time is computed from
+the EventCalc origin before the offset is applied, so it is unaffected.
+
+The two descriptions of the decay volume do not coincide exactly. EventCalc
+samples vertices from z = 32.0 m measured from the target centre, while the
+GeoModel decay-volume container (0.2.1) starts at z = 32.92 m from the front
+face, i.e. 32.13 m from the target centre. Decays in the first ~13 cm of the
+EventCalc range therefore start just upstream of the decay vessel, near the
+Upstream Tagger. In an HNL sample (`HNL_1.000e+00_…`, 6767 rows) this was 0.58 %
+of the rows and 0.38 % of the summed weight. These events are kept rather than
+cut, since dropping them would change the normalisation; apply a fiducial cut
+downstream if needed.
+
 ## What is read
 
 The decay products are emitted as Geant4 primaries, all sharing the decay

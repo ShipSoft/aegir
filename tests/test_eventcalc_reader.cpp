@@ -1,0 +1,175 @@
+// SPDX-FileCopyrightText: 2026 CERN for the benefit of the SHiP Collaboration
+//
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+// test_eventcalc_reader.cpp — unit test for the EventCalc .dat parser
+//
+// The parser links only the header-only unit vocabulary (SHiP::SHiPUnits):
+// no Phlex, ROOT or Geant4. Run with the fixture as the single argument:
+//   ./test_eventcalc_reader tests/data/eventcalc_sample.dat
+//
+// The fixture deliberately covers the cases that have bitten this parser:
+// a summary line whose values are followed by full stops, process names
+// containing the decay arrow, block headers with and without sample_points,
+// CRLF line endings, channels of differing multiplicity, rows padded with one
+// and with two `0. 0. 0. 0. 0. -999.` groups, an anti-proton daughter whose
+// PDG code sits far below the padding sentinel, and a final row that ends
+// mid-group — truncated on purpose, so do not "repair" it.
+
+#include <cmath>
+#include <cstddef>
+#include <iostream>
+#include <string>
+
+#include "eventcalc_reader.hpp"
+
+namespace {
+
+namespace su = SHiP::units;
+
+int failures = 0;
+
+template <typename A, typename B>
+void check(std::string const& what, A const& got, B const& expected) {
+  bool const ok = (got == expected);
+  if (!ok) {
+    ++failures;
+    std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
+              << "\n";
+  }
+}
+
+void check_close(std::string const& what, double got, double expected,
+                 double rel_tol) {
+  if (std::abs(got - expected) > rel_tol * std::abs(expected)) {
+    ++failures;
+    std::cerr << "FAIL: " << what << " = " << got << ", expected " << expected
+              << " (rel_tol " << rel_tol << ")\n";
+  }
+}
+
+// Indexed access guarded by the daughter count: a regression that shortened
+// the list would otherwise be undefined behaviour rather than a reported
+// failure.
+void check_daughter(std::string const& what,
+                    SHiP::aegir::eventcalc::Reader const& r, std::size_t event,
+                    std::size_t daughter, std::int32_t expected) {
+  auto const& daughters = r.at(event).daughters;
+  if (daughter >= daughters.size()) {
+    ++failures;
+    std::cerr << "FAIL: " << what << " — event " << event << " has only "
+              << daughters.size() << " daughters\n";
+    return;
+  }
+  check(what, daughters[daughter].pdg, expected);
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  if (argc != 2) {
+    std::cerr << "usage: " << argv[0] << " <eventcalc_sample.dat>\n";
+    return 2;
+  }
+  SHiP::aegir::eventcalc::Reader const reader{argv[1]};
+
+  // Summary: every value is followed by a full stop in the source line, which
+  // an istream-based parse would not reliably reject.
+  auto const& s = reader.summary();
+  check("sampled_events", s.sampled_events, 4.0);
+  check("coupling_squared", s.coupling_squared, 1e-10);
+  check("total_llps_produced", s.total_llps_produced, 1.5e12);
+  check("polar_acceptance", s.polar_acceptance, 0.25);
+  check("azimuthal_acceptance", s.azimuthal_acceptance, 0.5);
+  check("mean_decay_probability", s.mean_decay_probability, 2e-05);
+  check("visible_branching_ratio", s.visible_branching_ratio, 0.8);
+  check("total_events", s.total_events, 12.3);
+
+  check("event count", reader.size(), std::size_t{6});
+
+  // Process names contain "->", so the name must terminate at the semicolon,
+  // not at the first '>'. The last block header omits sample_points, leaving
+  // the closing bracket as the only terminator.
+  check("process of event 0", reader.process_name(reader.at(0)),
+        std::string("N2 -> e- pi+"));
+  check("process of event 2", reader.process_name(reader.at(2)),
+        std::string("N2 -> mu- mu+"));
+  check("process of event 4", reader.process_name(reader.at(4)),
+        std::string("N2 -> nu nubar"));
+
+  // Padding groups must be dropped whole. Testing the sentinel value instead
+  // of the group leaves five zeros behind and shifts every later group.
+  check("daughters of event 0", reader.at(0).daughters.size(), std::size_t{3});
+  check("daughters of event 2", reader.at(2).daughters.size(), std::size_t{2});
+  check("daughters of event 3", reader.at(3).daughters.size(), std::size_t{1});
+  check("daughters of event 4", reader.at(4).daughters.size(), std::size_t{1});
+  // A trailing group with fewer than six columns is dropped, but the event is
+  // kept and its weight still counts: aborting a run over one malformed line
+  // would be worse than losing the incomplete particle.
+  check("daughters of event 5 (partial group dropped)",
+        reader.at(5).daughters.size(), std::size_t{1});
+
+  check("event 0 LLP PDG", reader.at(0).llp.pdg, 9900015);
+  check("event 0 weight", reader.at(0).decay_probability, 0.001);
+  // The file writes 45 m, which converts to the canonical mm exactly because
+  // 45 and 45000 are both representable. That is why this can be an equality
+  // check; don't copy the pattern for arbitrary values, where m -> mm can land
+  // an ulp away.
+  check("event 0 vertex z [mm]",
+        reader.at(0).vertex[2].numerical_value_in(su::mm), 45000.0);
+  check("event 0 LLP energy [GeV]",
+        reader.at(0).llp.energy.numerical_value_in(su::GeV), 40.0);
+  check("event 0 LLP pz [GeV/c]",
+        reader.at(0).llp.momentum[2].numerical_value_in(su::GeV_per_c), 30.0);
+  // Anti-baryons sit far below the -999 padding sentinel, so a threshold test
+  // would truncate the daughter list here rather than keep this particle.
+  check_daughter("event 0 daughter 2 PDG (anti-proton)", reader, 0, 2, -2212);
+  check_daughter("event 2 daughter 1 PDG", reader, 2, 1, -13);
+  check("event 3 weight", reader.at(3).decay_probability, 0.004);
+  check("summed weight", reader.summed_decay_probability(),
+        0.001 + 0.002 + 0.003 + 0.004 + 0.005 + 0.006);
+
+  // flight_time at a known kinematic point: p = 0.6 GeV/c, E = 1 GeV gives
+  // beta = 0.6, and a straight 50 m path then takes 277.97008 ns. The code
+  // never hand-types c; the expected value is computed independently.
+  SHiP::aegir::eventcalc::Particle llp;
+  llp.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
+                  0.6 * su::GeV_per_c};
+  llp.energy = 1.0 * su::GeV;
+  auto const t = SHiP::aegir::eventcalc::flight_time(
+      {SHiP::Length::zero(), SHiP::Length::zero(), 50.0 * su::m}, llp);
+  check_close("flight time at beta = 0.6 [ns]", t.numerical_value_in(su::ns),
+              277.97008, 1e-6);
+
+  // E below |p|c (input rounding) would give beta > 1; it is capped at 1, so
+  // the time is s/c: 50 m takes 166.782048 ns, computed independently.
+  SHiP::aegir::eventcalc::Particle superluminal;
+  superluminal.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
+                           1.0 * su::GeV_per_c};
+  superluminal.energy = 0.5 * su::GeV;
+  auto const t_capped = SHiP::aegir::eventcalc::flight_time(
+      {SHiP::Length::zero(), SHiP::Length::zero(), 50.0 * su::m}, superluminal);
+  check_close("flight time at beta capped to 1 [ns]",
+              t_capped.numerical_value_in(su::ns), 166.782048, 1e-6);
+
+  // Unphysical kinematics fall back to t = 0: zero momentum, and separately
+  // zero energy with non-zero momentum, so each guard condition is exercised.
+  SHiP::aegir::eventcalc::Particle const stopped;
+  check("flight time guard, p = 0 [ns]",
+        SHiP::aegir::eventcalc::flight_time(
+            {SHiP::Length::zero(), SHiP::Length::zero(), 1.0 * su::m}, stopped)
+            .numerical_value_in(su::ns),
+        0.0);
+  SHiP::aegir::eventcalc::Particle no_energy;
+  no_energy.momentum = {SHiP::Momentum::zero(), SHiP::Momentum::zero(),
+                        1.0 * su::GeV_per_c};
+  check(
+      "flight time guard, E = 0 [ns]",
+      SHiP::aegir::eventcalc::flight_time(
+          {SHiP::Length::zero(), SHiP::Length::zero(), 1.0 * su::m}, no_energy)
+          .numerical_value_in(su::ns),
+      0.0);
+
+  if (failures == 0) std::cout << "test_eventcalc_reader: all checks passed\n";
+  return failures == 0 ? 0 : 1;
+}

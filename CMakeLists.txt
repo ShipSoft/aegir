@@ -67,6 +67,10 @@ find_package(SHiPRandom 0.4 REQUIRED)
 # aegir-genie's GENIE source), see aegir-genie issue #11. >=0.6:
 # geant4WorldLogical() returns a reference and the library requires C++23.
 find_package(SHiPGeometryService 0.6...<0.7 CONFIG REQUIRED)
+# GeoModelIO's GeoModelDBManager and GeoModelWrite, which the GeoModel
+# copy-number test writes its .db file with. Found here rather than relied on
+# through SHiPGeometryService's own find_dependency(GeoModelIO).
+find_package(GeoModelIO CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace

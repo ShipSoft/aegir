@@ -64,6 +64,7 @@
 #include <utility>
 #include <vector>
 
+#include "checker.hpp"
 #include "geometry_node_id.hpp"
 
 namespace {
@@ -76,18 +77,9 @@ constexpr int kStrawCopy = 2;     // the straw the probe point is in
 constexpr int kMixedBase = 2000;  // GeoSerialIdentifier of the mixed layer
 constexpr int kMixedCopy = 1;     // the cell the probe point is in
 
-// Counts and reports failed checks.
-struct Checker {
-  int failures = 0;
+using SHiP::aegir::test::Checker;
 
-  void operator()(bool ok, std::string const& what) {
-    if (!ok) {
-      std::println(stderr, "FAILED: {}", what);
-      ++failures;
-    }
-  }
-};
-
+// A box `name` of half-widths `hx`, `hy`, `hz` (mm) made of `material`.
 GeoPhysVol* box(std::string const& name, double hx, double hy, double hz,
                 GeoMaterial const* material) {
   return new GeoPhysVol(new GeoLogVol(name, new GeoBox(hx, hy, hz), material));
@@ -115,6 +107,7 @@ GeoSerialTransformer* row(GeoPhysVol const* unit, unsigned copies) {
   return new GeoSerialTransformer(unit, &xf, copies);
 }
 
+// The test world: one placement per case listed at the top of this file.
 PVConstLink buildWorld() {
   auto* nitrogen =
       new GeoElement("Nitrogen", "N", 7, 14.007 * GU::g / GU::mole);
@@ -185,8 +178,12 @@ std::unique_ptr<G4PVPlacement> place_world(SHiP::GeometryService& svc) {
                                          false, 0);
 }
 
-// Reads the touchable at every probe point of `world`.
-std::vector<std::vector<Level>> read_touchables(G4VPhysicalVolume* world) {
+// Reads the touchable at every probe point of `world`. A point the navigator
+// finds in no volume is a failed check, and gets no levels, so that the
+// results still line up with kProbes.
+std::vector<std::vector<Level>> read_touchables(Checker& ok,
+                                                std::string_view source,
+                                                G4VPhysicalVolume* world) {
   // Parameterised volumes are navigated through their voxels.
   G4GeometryManager::GetInstance()->CloseGeometry(true, false, world);
   G4Navigator navigator;
@@ -194,7 +191,13 @@ std::vector<std::vector<Level>> read_touchables(G4VPhysicalVolume* world) {
 
   std::vector<std::vector<Level>> result;
   for (auto const& probe : kProbes) {
-    navigator.LocateGlobalPointAndSetup(probe.point, nullptr, false, true);
+    if (navigator.LocateGlobalPointAndSetup(probe.point, nullptr, false,
+                                            true) == nullptr) {
+      ok(false, std::format("{}: the {} probe point is in no volume", source,
+                            probe.name));
+      result.emplace_back();
+      continue;
+    }
     std::unique_ptr<G4TouchableHistory> const touchable{
         navigator.CreateTouchableHistory()};
     std::vector<Level> levels;
@@ -211,6 +214,7 @@ std::vector<std::vector<Level>> read_touchables(G4VPhysicalVolume* world) {
   return result;
 }
 
+// Prints the levels read at every probe point, innermost first.
 void print(std::string_view source,
            std::vector<std::vector<Level>> const& touchables) {
   std::println("--- converted {} ---", source);
@@ -224,12 +228,15 @@ void print(std::string_view source,
   }
 }
 
+// The copy number `depth` levels up at probe point `probe`, or -1 if the
+// touchable there is not that deep.
 int copy_number(std::vector<std::vector<Level>> const& touchables,
                 std::size_t probe, std::size_t depth) {
   auto const& levels = touchables.at(probe);
   return depth < levels.size() ? levels[depth].copy_number : -1;
 }
 
+// Checks the copy numbers the SHiP numbering relies on, read from `source`.
 void check(Checker& ok, std::string_view source,
            std::vector<std::vector<Level>> const& t) {
   auto const at = [&](std::size_t probe, std::size_t depth) {
@@ -313,7 +320,7 @@ int main() {
 
   auto direct = SHiP::GeometryService::fromWorld(buildWorld());
   auto const tree_world = place_world(*direct);
-  auto const from_tree = read_touchables(tree_world.get());
+  auto const from_tree = read_touchables(ok, "tree", tree_world.get());
   print("from the GeoModel tree", from_tree);
   check(ok, "tree", from_tree);
   check_depths(ok, "tree", tree_world.get());
@@ -323,14 +330,21 @@ int main() {
   std::filesystem::remove(db_path);
   {
     GMDBManager db{db_path.string()};
-    ok(db.checkIsDBOpen(), "the .db file opens for writing");
+    // Writing to, then reading from, a file that did not open ends in a
+    // GeoModel exception or a crash, so stop here with a clean failure.
+    if (!db.checkIsDBOpen()) {
+      ok(false, "the .db file opens for writing");
+      std::filesystem::remove(db_path);
+      std::println("{} problem(s)", ok.failures);
+      return 1;
+    }
     GeoModelIO::WriteGeoModel writer{db};
     buildWorld()->exec(&writer);
     writer.saveToDB();
   }
   auto from_file = SHiP::GeometryService::fromFile(db_path);
   auto const db_world = place_world(*from_file);
-  auto const from_db = read_touchables(db_world.get());
+  auto const from_db = read_touchables(ok, "db", db_world.get());
   print("through a .db file", from_db);
   check(ok, "db", from_db);
   check_depths(ok, "db", db_world.get());

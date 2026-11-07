@@ -236,8 +236,9 @@ with its `GeoIdentifierTag`s, which the conversion to Geant4 turns into
 copy numbers, so `id_depth` names the level whose tag carries the id. In
 the example above, every straw's gas has the same tag and the straw's id
 sits on its wall, one level up, hence `id_depth: 1`. A volume without a
-tag gets GeoModel2G4's default copy number (16969 in GeoModel 6.32), which
-identifies nothing, so its hits carry `-1` instead
+tag gets GeoModel2G4's default copy number
+(`SHiP::aegir::g4::kGeoModelUntaggedCopyNumber`, set by GeoModel, not
+aegir), which identifies nothing, so its hits carry `-1` instead
 (`SHiP::aegir::g4::kNoGeometryNodeId`). What the id means otherwise
 belongs to the detector named by `detector_id`. The builtin geometry
 numbers its five test planes 0-4 from upstream.

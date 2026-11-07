@@ -13,29 +13,21 @@
 #include <format>
 #include <print>
 #include <stdexcept>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "checker.hpp"
 #include "phlex/configuration.hpp"
 
 namespace {
 
-// Counts and reports failed checks.
-struct Checker {
-  int failures = 0;
+using SHiP::aegir::test::Checker;
 
-  void operator()(bool ok, std::string const& what) {
-    if (!ok) {
-      std::println(stderr, "FAILED: {}", what);
-      ++failures;
-    }
-  }
-};
-
+// The SimHit::detector_id of `d`.
 std::int32_t id(SHiP::detector_id d) { return static_cast<std::int32_t>(d); }
 
+// A configuration read from `json`.
 phlex::configuration config(std::string_view json) {
   return phlex::configuration{boost::json::parse(json).as_object()};
 }

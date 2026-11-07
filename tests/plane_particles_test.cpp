@@ -17,21 +17,12 @@
 #include <unordered_map>
 #include <vector>
 
+#include "checker.hpp"
 #include "hepmc_status.hpp"
 
 namespace {
 
-// Counts and reports failed checks.
-struct Checker {
-  int failures = 0;
-
-  void operator()(bool ok, char const* what) {
-    if (!ok) {
-      std::println(stderr, "FAILED: {}", what);
-      ++failures;
-    }
-  }
-};
+using SHiP::aegir::test::Checker;
 
 SHiP::MCParticle generator_particle(int pdg, int status,
                                     std::vector<std::int32_t> mothers) {

@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <spdlog/spdlog.h>
+
 #include <G4FieldManager.hh>
 #include <G4LogicalVolumeStore.hh>
 #include <G4ProductionCuts.hh>
@@ -20,14 +22,18 @@
 #include <G4SDManager.hh>
 #include <G4String.hh>
 #include <G4VUserDetectorConstruction.hh>
+#include <format>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "SHiP/FieldService/G4MagFieldAdapter.h"
 #include "SHiP/FieldService/IFieldSource.h"
 #include "geant4_sim_core.hpp"
+#include "geometry_node_id.hpp"
 #include "geometry_source.hpp"
 #include "scoring_planes.hpp"
 
@@ -59,6 +65,55 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
       }
     }
     return volumes;
+  }
+
+  // The `sensitive_volumes` entry of `lv`: the first one whose pattern its
+  // name contains, or null.
+  [[nodiscard]] SensitiveVolume const* sensitive_entry(
+      G4LogicalVolume const* lv) const {
+    for (auto const& sv : source_->sensitiveVolumes()) {
+      if (G4StrUtil::contains(lv->GetName(), std::string_view{sv.pattern})) {
+        return &sv;
+      }
+    }
+    return nullptr;
+  }
+
+  // Fails if a sensitive volume's id_depth reaches above the world in some
+  // placement, and warns when all placements of a sensitive volume get the
+  // same geometry_node_id, so that a wrong id_depth shows before the run
+  // rather than in the output.
+  void check_sensitive_ids(G4VPhysicalVolume const* world) const {
+    std::unordered_map<G4LogicalVolume const*, int> id_depths;
+    std::unordered_map<G4LogicalVolume const*, SensitiveVolume const*> entries;
+    for (auto* lv : detector_volumes()) {
+      if (auto const* sv = sensitive_entry(lv)) {
+        id_depths.emplace(lv, sv->id_depth);
+        entries.emplace(lv, sv);
+      }
+    }
+    std::string too_deep;
+    for (auto const& f : check_id_depths(world, id_depths)) {
+      std::string const name = f.volume->GetName();
+      auto const& pattern = entries.at(f.volume)->pattern;
+      if (f.kind == IdDepthFinding::Kind::too_deep) {
+        too_deep += std::format("\n  '{}' (pattern '{}'): id_depth {}", name,
+                                pattern, f.id_depth);
+        continue;
+      }
+      spdlog::warn(
+          "geant4: all {} placements of sensitive volume '{}' (pattern '{}') "
+          "get geometry_node_id {} at id_depth {}, so their hits cannot be "
+          "told apart; set id_depth to the level whose copy number "
+          "identifies them",
+          f.placements, name, pattern, f.id, f.id_depth);
+    }
+    if (!too_deep.empty()) {
+      throw std::runtime_error(
+          "sensitive_volumes: id_depth reaches above the world volume for "
+          "some placements of" +
+          too_deep);
+    }
   }
 
  public:
@@ -114,34 +169,36 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
       }
     }
 
+    // Here rather than in ConstructSDandField, which runs once per worker
+    // thread: the geometry is the same for all of them, so check it once.
+    check_sensitive_ids(world);
+
     return world;
   }
 
   void ConstructSDandField() override {
     // The detector ids were resolved when the geometry provider read its
-    // configuration (read_sensitive_volumes), so nothing here can fail.
-    auto const& sensitive_volumes = source_->sensitiveVolumes();
-    DetectorIdMap detector_ids;
+    // configuration (read_sensitive_volumes), and Construct() checked the
+    // id_depths, so nothing here can fail.
+    SensitiveVolumeMap sensitive;
 
     auto const volumes = detector_volumes();
     for (auto* lv : volumes) {
-      for (auto const& sv : sensitive_volumes) {
-        if (G4StrUtil::contains(lv->GetName(), std::string_view{sv.pattern})) {
-          detector_ids.emplace(lv, sv.detector_id);
-          break;
-        }
+      if (auto const* sv = sensitive_entry(lv)) {
+        sensitive.emplace(lv, SensitiveIds{.detector_id = sv->detector_id,
+                                           .id_depth = sv->id_depth});
       }
     }
 
     G4VSensitiveDetector* sd = nullptr;
     if (sd_mode_ == SDMode::crossing) {
-      sd = new CrossingSD("CrossingSD", detector_ids, ke_threshold_);
+      sd = new CrossingSD("CrossingSD", sensitive, ke_threshold_);
     } else {
-      sd = new ScoringSD("ScoringSD", detector_ids);
+      sd = new ScoringSD("ScoringSD", sensitive);
     }
     G4SDManager::GetSDMpointer()->AddNewDetector(sd);
 
-    for (auto [lv, _] : detector_ids) {
+    for (auto [lv, _] : sensitive) {
       lv->SetSensitiveDetector(sd);
     }
 

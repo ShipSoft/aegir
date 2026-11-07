@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// sensitive_volumes_test.cpp — detector ids of sensitive_volumes entries
+// sensitive_volumes_test.cpp — detector ids and id_depths of
+// sensitive_volumes entries
 
 #include "sensitive_volumes.hpp"
 
@@ -113,6 +114,16 @@ int main() {
             mixed[2].detector_id == id(TimingDetector),
         "mixed: explicit entry");
 
+  auto const depths = read_sensitive_volumes(config(R"({"sensitive_volumes": [
+      "trackers",
+      {"pattern": "straw_gas", "detector": "StrawTubes", "id_depth": 1}]})"));
+  check(depths.size() == 2 && depths[0].id_depth == 0,
+        "id_depth: 0 for a bare pattern");
+  check(depths.size() == 2 && depths[1].id_depth == 1,
+        "id_depth: read from an entry");
+  check(mixed.size() == 3 && mixed[1].id_depth == 0,
+        "id_depth: 0 when an entry leaves it out");
+
   check(read_sensitive_volumes(config(R"({"sensitive_volumes": []})")).empty(),
         "an empty list");
 
@@ -137,6 +148,12 @@ int main() {
                     "detector": "StrawTubes", "name": "straws"}]})"),
         "an unknown key");
   check(rejects(R"({"sensitive_volumes": [42]})"), "a number entry");
+  check(rejects(R"({"sensitive_volumes": [{"pattern": "straw_gas",
+                    "detector": "StrawTubes", "id_depth": -1}]})"),
+        "a negative id_depth");
+  check(rejects(R"({"sensitive_volumes": [{"pattern": "straw_gas",
+                    "detector": "StrawTubes", "id_depth": "wall"}]})"),
+        "an id_depth that is not a number");
 
   if (check.failures == 0) {
     std::println("sensitive_volumes: all checks passed");

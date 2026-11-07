@@ -217,24 +217,42 @@ geometry: {
   db_file: 'ship_geometry.db',
   sensitive_volumes: [
     'upstream_tagger',
-    { pattern: 'straw_gas', detector: 'StrawTubes' },
+    { pattern: 'straw_gas', detector: 'StrawTubes', id_depth: 1 },
     { pattern: 'timing_detector/bar', detector: 'TimingDetector' },
   ],
 },
 ```
 
-A pattern aegir doesn't know, an unknown detector name, or an unknown key
-stops the job while the configuration is read, before Geant4 starts. The
-builtin geometry always uses `Scoring`, with id 99.
+A pattern aegir doesn't know, an unknown detector name, an unknown key, or
+an `id_depth` that is not a whole number of 0 or more stops the job while
+the configuration is read, before Geant4 starts. The builtin geometry
+always uses `Scoring`, with id 99.
 
-The `geometry_node_id` of each hit is the Geant4 copy number of the volume
-the step started in. A GeoModel geometry sets it with the volume's
-`GeoIdentifierTag`, which the conversion to Geant4 turns into the copy
-number, so a geometry that encodes each volume's identity in its tag gets
-that identity back on every hit. Its meaning belongs to the detector named
-by `detector_id`: a detector whose geometry defines no numbering gets
-whatever copy numbers its volumes have, which identify nothing. The
-builtin geometry numbers its five test planes 0-4 from upstream.
+A detector hit's `geometry_node_id` says which volume of its detector it
+came from. It is the Geant4 copy number `id_depth` levels above the volume
+the step started in: `0`, the default, is that volume itself, `1` the
+volume it is placed in, and so on. A GeoModel geometry sets copy numbers
+with its `GeoIdentifierTag`s, which the conversion to Geant4 turns into
+copy numbers, so `id_depth` names the level whose tag carries the id. In
+the example above, every straw's gas has the same tag and the straw's id
+sits on its wall, one level up, hence `id_depth: 1`. A volume without a
+tag gets GeoModel2G4's default copy number (16969 in GeoModel 6.32), which
+identifies nothing, so its hits carry `-1` instead
+(`SHiP::aegir::g4::kNoGeometryNodeId`). What the id means otherwise
+belongs to the detector named by `detector_id`. The builtin geometry
+numbers its five test planes 0-4 from upstream.
+
+The geometry is checked before the run. If, in some placement of a
+sensitive volume, `id_depth` reaches above the world volume, the job
+stops. If a sensitive volume is placed more than once and all its
+placements get the same id, aegir logs a warning, since its hits cannot be
+told apart: usually `id_depth` should point one level further up. A
+replica or parameterised volume at the `id_depth` level is not checked,
+because its copy numbers exist only while Geant4 navigates.
+
+Scoring-plane hits are the exception: their `geometry_node_id` is the
+plane's configured `id`, not a copy number (see
+[Scoring planes](#scoring-planes)).
 
 ## Scoring planes
 

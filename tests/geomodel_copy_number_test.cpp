@@ -23,7 +23,9 @@
 // Every case prints what it reads and checks what the SHiP numbering relies
 // on. GeoModel 6.32 gives the k-th copy of a serial transformer the copy
 // number base + k, also when the transformer is alone in its parent, so a
-// straw's id is its wall's copy number, one level above the gas.
+// straw's id is its wall's copy number, one level above the gas: the straw
+// gas needs id_depth 1. check_id_depths() is run on the converted world to
+// show that it catches id_depth 0 there, and one reaching above the world.
 
 #include <GeoGenericFunctions/Variable.h>
 #include <GeoModelDBManager/GMDBManager.h>
@@ -62,12 +64,12 @@
 #include <utility>
 #include <vector>
 
+#include "geometry_node_id.hpp"
+
 namespace {
 
 namespace GU = GeoModelKernelUnits;
-
-/// Copy number GeoModel2G4 gives a placement without an identifier tag.
-constexpr int kUntaggedCopyNumber = 16969;
+namespace g4 = SHiP::aegir::g4;
 
 constexpr int kStrawBase = 1000;  // GeoSerialIdentifier of the straw layer
 constexpr int kStrawCopy = 2;     // the straw the probe point is in
@@ -174,12 +176,17 @@ std::array<Probe, 5> const kProbes{{
     {"fibre", {0, 0, 600}},
 }};
 
-// Converts `svc`'s tree and reads the touchable at every probe point.
-std::vector<std::vector<Level>> read_touchables(SHiP::GeometryService& svc) {
+// Converts `svc`'s tree and places its world, as the run manager would. The
+// placement must go before `svc`, which owns the world's logical volume.
+std::unique_ptr<G4PVPlacement> place_world(SHiP::GeometryService& svc) {
   G4LogicalVolume& world_lv = svc.geant4WorldLogical();
-  auto* world =
-      new G4PVPlacement(nullptr, G4ThreeVector(), &world_lv,
-                        world_lv.GetName() + "_probe", nullptr, false, 0);
+  return std::make_unique<G4PVPlacement>(nullptr, G4ThreeVector(), &world_lv,
+                                         world_lv.GetName() + "_probe", nullptr,
+                                         false, 0);
+}
+
+// Reads the touchable at every probe point of `world`.
+std::vector<std::vector<Level>> read_touchables(G4VPhysicalVolume* world) {
   // Parameterised volumes are navigated through their voxels.
   G4GeometryManager::GetInstance()->CloseGeometry(true, false, world);
   G4Navigator navigator;
@@ -232,8 +239,10 @@ void check(Checker& ok, std::string_view source,
     return std::format("{}: {}", source, s);
   };
   ok(at(0, 0) == 42, what("a tagged leaf has its tag as copy number"));
-  ok(at(1, 0) == kUntaggedCopyNumber,
-     what("an untagged placement has copy number 16969"));
+  ok(at(1, 0) == g4::kGeoModelUntaggedCopyNumber,
+     what("an untagged placement has GeoModel2G4's default copy number"));
+  ok(g4::node_id_from_copy_number(at(1, 0)) == g4::kNoGeometryNodeId,
+     what("an untagged placement gets no geometry_node_id"));
   ok(at(2, 0) == 0, what("the straw gas has the tag 0 of its placement"));
   ok(at(2, 1) == kStrawBase + kStrawCopy,
      what("the straw wall is numbered base + copy, one level above the gas"));
@@ -244,15 +253,70 @@ void check(Checker& ok, std::string_view source,
      what("a tagged core inside a tagged cladding keeps both tags"));
 }
 
+// The logical volume `name` placed somewhere under `pv`, or null.
+G4LogicalVolume const* find_volume(G4VPhysicalVolume const* pv,
+                                   std::string_view name) {
+  std::vector<G4VPhysicalVolume const*> pending{pv};
+  while (!pending.empty()) {
+    auto const* lv = pending.back()->GetLogicalVolume();
+    pending.pop_back();
+    if (std::string_view{lv->GetName()} == name) {
+      return lv;
+    }
+    for (std::size_t i = 0; i < lv->GetNoDaughters(); ++i) {
+      pending.push_back(lv->GetDaughter(i));
+    }
+  }
+  return nullptr;
+}
+
+// What check_id_depths() reports for the straw gas, sensitive with
+// `gas_depth`, next to the mixed layer's cells at id_depth 0, which are told
+// apart and must never be reported.
+void check_depths(Checker& ok, std::string_view source,
+                  G4VPhysicalVolume const* world) {
+  auto const what = [&](std::string_view s) {
+    return std::format("{}: {}", source, s);
+  };
+  auto const* gas = find_volume(world, "StrawGas");
+  auto const* cell = find_volume(world, "MixedCell");
+  ok(gas != nullptr && cell != nullptr,
+     what("the straw gas and the mixed cells are in the converted world"));
+  if (gas == nullptr || cell == nullptr) {
+    return;
+  }
+  auto const findings = [&](int gas_depth) {
+    return g4::check_id_depths(world, {{gas, gas_depth}, {cell, 0}});
+  };
+  using Kind = g4::IdDepthFinding::Kind;
+
+  auto const at_gas = findings(0);
+  ok(at_gas.size() == 1 && at_gas[0].kind == Kind::shared &&
+         at_gas[0].volume == gas && at_gas[0].placements == 5 &&
+         at_gas[0].id == 0,
+     what("id_depth 0 on the straw gas: all 5 straws share id 0"));
+  ok(findings(1).empty(),
+     what("id_depth 1 on the straw gas tells the straws apart"));
+  // world > sub-layer > wall > gas: depth 3 is the world, 4 is above it.
+  ok(findings(3).size() == 1 && findings(3)[0].kind == Kind::shared,
+     what("id_depth 3 on the straw gas reads the world, the same for all"));
+  auto const above = findings(4);
+  ok(above.size() == 1 && above[0].kind == Kind::too_deep &&
+         above[0].volume == gas,
+     what("id_depth 4 on the straw gas reaches above the world"));
+}
+
 }  // namespace
 
 int main() {
   Checker ok;
 
   auto direct = SHiP::GeometryService::fromWorld(buildWorld());
-  auto const from_tree = read_touchables(*direct);
+  auto const tree_world = place_world(*direct);
+  auto const from_tree = read_touchables(tree_world.get());
   print("from the GeoModel tree", from_tree);
   check(ok, "tree", from_tree);
+  check_depths(ok, "tree", tree_world.get());
 
   auto const db_path = std::filesystem::temp_directory_path() /
                        std::format("aegir_copy_numbers_{}.db", getpid());
@@ -265,9 +329,11 @@ int main() {
     writer.saveToDB();
   }
   auto from_file = SHiP::GeometryService::fromFile(db_path);
-  auto const from_db = read_touchables(*from_file);
+  auto const db_world = place_world(*from_file);
+  auto const from_db = read_touchables(db_world.get());
   print("through a .db file", from_db);
   check(ok, "db", from_db);
+  check_depths(ok, "db", db_world.get());
   std::filesystem::remove(db_path);
 
   // Whatever the converter does, the .db must not change it.

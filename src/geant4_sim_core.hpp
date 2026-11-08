@@ -81,15 +81,6 @@ inline void persist_ancestry(std::vector<PlaneCrossing> const& recorded) {
   }
 }
 
-// What a sensitive volume's hits carry: the detector they belong to, and the
-// touchable depth whose copy number is their geometry_node_id.
-struct SensitiveIds {
-  std::int32_t detector_id;
-  int id_depth;
-};
-
-using SensitiveVolumeMap = std::unordered_map<G4LogicalVolume*, SensitiveIds>;
-
 // Track, particle and pre-step-point kinematics of a hit, under `detector_id`
 // and `geometry_node_id`. What the node id means is up to the detector named
 // by `detector_id`; the caller chooses it, so that no hit carries a copy
@@ -116,20 +107,21 @@ inline SimHit make_base_hit(G4Step const* step, std::int32_t detector_id,
 // not in `sensitive` gets detector id -1 and the copy number of the volume
 // itself.
 inline SimHit make_base_hit(G4Step const* step,
-                            SensitiveVolumeMap const& sensitive) {
+                            SensitiveVolumeIds const& sensitive) {
   auto const* touchable = step->GetPreStepPoint()->GetTouchable();
   auto* lv = touchable->GetVolume()->GetLogicalVolume();
-  auto const it = sensitive.find(lv);
-  auto const ids = it != sensitive.end()
+  auto const it = sensitive.volumes.find(lv);
+  auto const ids = it != sensitive.volumes.end()
                        ? it->second
                        : SensitiveIds{.detector_id = -1, .id_depth = 0};
   return make_base_hit(step, ids.detector_id,
-                       geometry_node_id(*touchable, ids.id_depth));
+                       geometry_node_id(*touchable, ids.id_depth,
+                                        sensitive.untagged_copy_number));
 }
 
 class ScoringSD : public G4VSensitiveDetector {
  public:
-  ScoringSD(G4String const& name, SensitiveVolumeMap sensitive)
+  ScoringSD(G4String const& name, SensitiveVolumeIds sensitive)
       : G4VSensitiveDetector(name), sensitive_{std::move(sensitive)} {}
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
@@ -147,7 +139,7 @@ class ScoringSD : public G4VSensitiveDetector {
   }
 
  private:
-  SensitiveVolumeMap sensitive_;
+  SensitiveVolumeIds sensitive_;
 };
 
 // Records a SimHit when a track first enters the volume, regardless of
@@ -155,7 +147,7 @@ class ScoringSD : public G4VSensitiveDetector {
 // Matches FairShip's exitHadronAbsorber scoring behaviour.
 class CrossingSD : public G4VSensitiveDetector {
  public:
-  CrossingSD(G4String const& name, SensitiveVolumeMap sensitive,
+  CrossingSD(G4String const& name, SensitiveVolumeIds sensitive,
              SHiP::Energy ke_threshold = SHiP::Energy::zero())
       : G4VSensitiveDetector(name),
         sensitive_{std::move(sensitive)},
@@ -180,7 +172,7 @@ class CrossingSD : public G4VSensitiveDetector {
   }
 
  private:
-  SensitiveVolumeMap sensitive_;
+  SensitiveVolumeIds sensitive_;
   double ke_threshold_;  // Geant4 internal units
 };
 

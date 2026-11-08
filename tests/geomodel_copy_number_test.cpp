@@ -58,6 +58,7 @@
 #include <filesystem>
 #include <format>
 #include <memory>
+#include <optional>
 #include <print>
 #include <string>
 #include <string_view>
@@ -200,13 +201,24 @@ std::vector<std::vector<Level>> read_touchables(Checker& ok,
     }
     std::unique_ptr<G4TouchableHistory> const touchable{
         navigator.CreateTouchableHistory()};
+    // Depths 0 to GetHistoryDepth(), the world, as GetCopyNumber() takes
+    // them and as check_id_depths() bounds id_depth.
+    auto const top = touchable->GetHistoryDepth();
     std::vector<Level> levels;
-    for (int depth = 0; depth < touchable->GetHistoryDepth(); ++depth) {
+    for (int depth = 0; depth <= top; ++depth) {
       auto const* pv = touchable->GetVolume(depth);
       levels.push_back({.volume = pv->GetLogicalVolume()->GetName(),
                         .copy_number = touchable->GetCopyNumber(depth),
                         .parameterised = pv->IsParameterised()});
     }
+    ok(g4::geometry_node_id(*touchable, top, std::nullopt) ==
+           touchable->GetCopyNumber(top),
+       std::format("{}: {}: geometry_node_id reads the world at depth {}",
+                   source, probe.name, top));
+    ok(g4::geometry_node_id(*touchable, top + 1, std::nullopt) ==
+           g4::kNoGeometryNodeId,
+       std::format("{}: {}: geometry_node_id has no id above the world", source,
+                   probe.name));
     result.push_back(std::move(levels));
   }
 
@@ -248,8 +260,13 @@ void check(Checker& ok, std::string_view source,
   ok(at(0, 0) == 42, what("a tagged leaf has its tag as copy number"));
   ok(at(1, 0) == g4::kGeoModelUntaggedCopyNumber,
      what("an untagged placement has GeoModel2G4's default copy number"));
-  ok(g4::node_id_from_copy_number(at(1, 0)) == g4::kNoGeometryNodeId,
+  ok(g4::node_id_from_copy_number(at(1, 0), g4::kGeoModelUntaggedCopyNumber) ==
+         g4::kNoGeometryNodeId,
      what("an untagged placement gets no geometry_node_id"));
+  ok(g4::node_id_from_copy_number(at(1, 0), std::nullopt) == at(1, 0),
+     what("outside GeoModel the same copy number is an ordinary id"));
+  ok(t.at(2).size() == 4,
+     what("the straw gas's touchable reaches the world at depth 3"));
   ok(at(2, 0) == 0, what("the straw gas has the tag 0 of its placement"));
   ok(at(2, 1) == kStrawBase + kStrawCopy,
      what("the straw wall is numbered base + copy, one level above the gas"));
@@ -261,11 +278,11 @@ void check(Checker& ok, std::string_view source,
 }
 
 // The logical volume `name` placed somewhere under `pv`, or null.
-G4LogicalVolume const* find_volume(G4VPhysicalVolume const* pv,
-                                   std::string_view name) {
+G4LogicalVolume* find_volume(G4VPhysicalVolume const* pv,
+                             std::string_view name) {
   std::vector<G4VPhysicalVolume const*> pending{pv};
   while (!pending.empty()) {
-    auto const* lv = pending.back()->GetLogicalVolume();
+    auto* lv = pending.back()->GetLogicalVolume();
     pending.pop_back();
     if (std::string_view{lv->GetName()} == name) {
       return lv;
@@ -285,15 +302,19 @@ void check_depths(Checker& ok, std::string_view source,
   auto const what = [&](std::string_view s) {
     return std::format("{}: {}", source, s);
   };
-  auto const* gas = find_volume(world, "StrawGas");
-  auto const* cell = find_volume(world, "MixedCell");
+  auto* gas = find_volume(world, "StrawGas");
+  auto* cell = find_volume(world, "MixedCell");
   ok(gas != nullptr && cell != nullptr,
      what("the straw gas and the mixed cells are in the converted world"));
   if (gas == nullptr || cell == nullptr) {
     return;
   }
   auto const findings = [&](int gas_depth) {
-    return g4::check_id_depths(world, {{gas, gas_depth}, {cell, 0}});
+    g4::SensitiveVolumeIds const sensitive{
+        .volumes = {{gas, {.detector_id = 0, .id_depth = gas_depth}},
+                    {cell, {.detector_id = 0, .id_depth = 0}}},
+        .untagged_copy_number = g4::kGeoModelUntaggedCopyNumber};
+    return g4::check_id_depths(world, sensitive);
   };
   using Kind = g4::IdDepthFinding::Kind;
 

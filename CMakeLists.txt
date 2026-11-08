@@ -362,3 +362,14 @@ target_include_directories(
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME geomodel_copy_numbers COMMAND geomodel_copy_number_test)
+
+# check_id_depths() on Geant4 replicas, which a GeoModel conversion may or
+# may not produce: copies of a replica above or below the id level read the
+# same id, and a replica at the id level is left unchecked.
+add_executable(geometry_node_id_test tests/geometry_node_id_test.cpp)
+target_link_libraries(geometry_node_id_test PRIVATE ${Geant4_LIBRARIES})
+target_include_directories(
+    geometry_node_id_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME geometry_node_ids COMMAND geometry_node_id_test)

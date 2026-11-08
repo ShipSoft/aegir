@@ -34,6 +34,7 @@ import ROOT
 
 path, pdg = sys.argv[1], int(sys.argv[2])
 SCORING_PLANE = 100  # SHiP::aegir::g4::kScoringPlaneDetectorId
+TEST_FIXTURE = 99  # SHiP::aegir::kTestFixtureDetectorId: the silicon planes
 TOL = 1e-3  # mm
 # Plane 1: upstream face 10 mm behind the target's end at z = 500 mm.
 # Plane 2: tube r = 80-81 mm, |z| <= 500 mm. Plane 3: upstream face at 2999 mm.
@@ -128,8 +129,12 @@ for i in range(n):
         expect(any(abs(z - 2000.0) < 1.0 for z in z_si), "no silicon hit at 2 m")
         expect(all(z < Z3 for z in z_si), f"silicon hit behind the kill plane {z_si}")
         # Every silicon hit carries its plane's copy number as its
-        # geometry_node_id: 0-4 for the planes at z = 2, 4, ..., 10 m.
+        # geometry_node_id: 0-4 for the planes at z = 2, 4, ..., 10 m. Only
+        # the silicon planes' hits: another sensitive volume's would not
+        # follow this numbering.
         for h in detector:
+            if h.detector_id != TEST_FIXTURE:
+                continue
             want = round(h.position[2] / 2000.0) - 1
             expect(h.geometry_node_id == want,
                    f"silicon hit at z={h.position[2]} has geometry_node_id "

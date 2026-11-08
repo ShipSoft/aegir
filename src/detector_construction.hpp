@@ -26,7 +26,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -49,6 +48,12 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
   SHiP::Energy ke_threshold_;  // used by CrossingSD
   std::vector<std::pair<std::string, SHiP::Length>>
       regions_;  // pattern -> production cut
+  // strict_node_ids: placements sharing a geometry_node_id stop the job
+  // instead of logging a warning.
+  bool strict_node_ids_;
+  // The sensitive volumes and their ids, matched once in Construct() and
+  // read by every thread's ConstructSDandField.
+  SensitiveVolumeIds sensitive_;
   // The scoring planes' parallel world, or null without planes. Owned by
   // G4VUserDetectorConstruction once registered (leaked with it, like the
   // rest of the Geant4 setup).
@@ -79,40 +84,59 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     return nullptr;
   }
 
-  // Fails if a sensitive volume's id_depth reaches above the world in some
-  // placement, and warns when all placements of a sensitive volume get the
-  // same geometry_node_id, so that a wrong id_depth shows before the run
-  // rather than in the output.
-  void check_sensitive_ids(G4VPhysicalVolume const* world) const {
-    std::unordered_map<G4LogicalVolume const*, int> id_depths;
-    std::unordered_map<G4LogicalVolume const*, SensitiveVolume const*> entries;
+  // Matches the sensitive_volumes patterns against the detector volumes.
+  // The detector ids were resolved when the geometry provider read its
+  // configuration (read_sensitive_volumes), so nothing here can fail.
+  void match_sensitive_volumes() {
+    sensitive_.volumes.clear();
+    sensitive_.untagged_copy_number = source_->untaggedCopyNumber();
     for (auto* lv : detector_volumes()) {
       if (auto const* sv = sensitive_entry(lv)) {
-        id_depths.emplace(lv, sv->id_depth);
-        entries.emplace(lv, sv);
+        sensitive_.volumes.emplace(lv,
+                                   SensitiveIds{.detector_id = sv->detector_id,
+                                                .id_depth = sv->id_depth});
       }
     }
-    std::string too_deep;
-    for (auto const& f : check_id_depths(world, id_depths)) {
+  }
+
+  // Fails if a sensitive volume's id_depth reaches above the world in some
+  // placement. Placements that share a geometry_node_id get a warning, or,
+  // with strict_node_ids, fail too, so that a wrong id_depth shows before
+  // the run rather than in the output.
+  void check_sensitive_ids(G4VPhysicalVolume const* world) const {
+    std::string fatal;
+    for (auto const& f : check_id_depths(world, sensitive_)) {
       std::string const name = f.volume->GetName();
-      auto const& pattern = entries.at(f.volume)->pattern;
+      // Only for the message: the findings are few, so match again.
+      auto const* sv = sensitive_entry(f.volume);
+      auto const pattern = sv != nullptr ? sv->pattern : std::string{};
       if (f.kind == IdDepthFinding::Kind::too_deep) {
-        too_deep += std::format("\n  '{}' (pattern '{}'): id_depth {}", name,
-                                pattern, f.id_depth);
+        fatal += std::format(
+            "\n  '{}' (pattern '{}'): id_depth {} reaches above the world",
+            name, pattern, f.id_depth);
         continue;
       }
-      spdlog::warn(
-          "geant4: all {} placements of sensitive volume '{}' (pattern '{}') "
-          "get geometry_node_id {} at id_depth {}, so their hits cannot be "
-          "told apart; set id_depth to the level whose copy number "
-          "identifies them",
-          f.placements, name, pattern, f.id, f.id_depth);
+      auto const id =
+          f.id ? std::format("geometry_node_id {}", *f.id)
+               : std::string{"the same replica number as geometry_node_id"};
+      auto const message = std::format(
+          "'{}' (pattern '{}'): {} placements share {} at id_depth {}", name,
+          pattern, f.placements, id, f.id_depth);
+      if (strict_node_ids_) {
+        fatal += "\n  " + message;
+      } else {
+        spdlog::warn(
+            "geant4: sensitive volume {}, so their hits cannot be told "
+            "apart; set id_depth to the level whose copy number identifies "
+            "them (strict_node_ids makes this an error)",
+            message);
+      }
     }
-    if (!too_deep.empty()) {
+    if (!fatal.empty()) {
       throw std::runtime_error(
-          "sensitive_volumes: id_depth reaches above the world volume for "
-          "some placements of" +
-          too_deep);
+          "sensitive_volumes: geometry_node_id cannot identify the "
+          "placements of" +
+          fatal);
     }
   }
 
@@ -122,12 +146,14 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
       SDMode sd_mode = SDMode::scoring,
       SHiP::Energy ke_threshold = SHiP::Energy::zero(),
       std::vector<std::pair<std::string, SHiP::Length>> regions = {},
-      std::vector<ScoringPlaneConfig> scoring_planes = {})
+      std::vector<ScoringPlaneConfig> scoring_planes = {},
+      bool strict_node_ids = false)
       : source_{&source},
         field_source_{&field_source},
         sd_mode_{sd_mode},
         ke_threshold_{ke_threshold},
-        regions_{std::move(regions)} {
+        regions_{std::move(regions)},
+        strict_node_ids_{strict_node_ids} {
     if (!scoring_planes.empty()) {
       scoring_world_ = new ScoringParallelWorld(std::move(scoring_planes));
       RegisterParallelWorld(scoring_world_);
@@ -170,37 +196,30 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     }
 
     // Here rather than in ConstructSDandField, which runs once per worker
-    // thread: the geometry is the same for all of them, so check it once.
+    // thread: the geometry is the same for all of them, so match and check
+    // it once.
+    match_sensitive_volumes();
     check_sensitive_ids(world);
 
     return world;
   }
 
   void ConstructSDandField() override {
-    // The detector ids were resolved when the geometry provider read its
-    // configuration (read_sensitive_volumes), and Construct() checked the
-    // id_depths, so nothing here can fail.
-    SensitiveVolumeMap sensitive;
-
-    auto const volumes = detector_volumes();
-    for (auto* lv : volumes) {
-      if (auto const* sv = sensitive_entry(lv)) {
-        sensitive.emplace(lv, SensitiveIds{.detector_id = sv->detector_id,
-                                           .id_depth = sv->id_depth});
-      }
-    }
-
+    // Construct() matched and checked the sensitive volumes, before any
+    // worker thread runs this; nothing here can fail.
     G4VSensitiveDetector* sd = nullptr;
     if (sd_mode_ == SDMode::crossing) {
-      sd = new CrossingSD("CrossingSD", sensitive, ke_threshold_);
+      sd = new CrossingSD("CrossingSD", sensitive_, ke_threshold_);
     } else {
-      sd = new ScoringSD("ScoringSD", sensitive);
+      sd = new ScoringSD("ScoringSD", sensitive_);
     }
     G4SDManager::GetSDMpointer()->AddNewDetector(sd);
 
-    for (auto [lv, _] : sensitive) {
+    for (auto const& [lv, _] : sensitive_.volumes) {
       lv->SetSensitiveDetector(sd);
     }
+
+    auto const volumes = detector_volumes();
 
     // Install per-magnet G4FieldManagers on every logical volume whose name
     // contains the configured pattern. Outside these volumes Geant4 never

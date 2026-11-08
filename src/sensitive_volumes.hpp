@@ -15,6 +15,7 @@
 #include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <initializer_list>
 #include <stdexcept>
@@ -28,10 +29,13 @@
 namespace SHiP::aegir {
 
 /// One `sensitive_volumes` entry: the logical volumes whose names contain
-/// `pattern` get a sensitive detector, and their hits carry `detector_id`.
+/// `pattern` get a sensitive detector, and their hits carry `detector_id` and,
+/// as geometry_node_id, the copy number `id_depth` levels above the hit's
+/// volume (0: the volume itself; see geometry_node_id.hpp).
 struct SensitiveVolume {
   std::string pattern;
   std::int32_t detector_id;
+  int id_depth = 0;
 };
 
 /// SimHit::detector_id of hits in the toy geometries' "Scoring" planes (the
@@ -73,6 +77,15 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
       "'");
 }
 
+/// The id_depth of a pattern detector_id_for_pattern() knows: the level its
+/// detector's geometry puts the id on, so that a bare pattern needs no
+/// per-workflow depth. The straw tracker's id is on the straw's wall, one
+/// level above the gas; every other known pattern has it on the volume
+/// itself, until its geometry says otherwise.
+[[nodiscard]] inline int id_depth_for_pattern(std::string_view pattern) {
+  return pattern == "StrawTubes" || pattern == "trackers" ? 1 : 0;
+}
+
 /// The detector id of a `detector` name in a `sensitive_volumes` entry: one
 /// of the SHiP::detector_id enumerators, or `test_fixture` for
 /// kTestFixtureDetectorId.
@@ -105,8 +118,9 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
 
 /// Read the `sensitive_volumes` list of a geometry provider's configuration.
 /// Each entry is either a volume-name pattern, whose detector id comes from
-/// detector_id_for_pattern(), or `{pattern: ..., detector: ...}`, which names
-/// the detector itself. The two forms can be mixed.
+/// detector_id_for_pattern() and whose id_depth from id_depth_for_pattern(),
+/// or `{pattern: ..., detector: ...}`, which names the detector itself and
+/// may add `id_depth` (default 0). The two forms can be mixed.
 [[nodiscard]] inline std::vector<SensitiveVolume> read_sensitive_volumes(
     phlex::configuration const& config) {
   // phlex::configuration only reads lists of one kind, so read the entries
@@ -121,8 +135,10 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
       std::string pattern{entry.as_string()};
       try {
         auto const detector_id = detector_id_for_pattern(pattern);
-        volumes.push_back(
-            {.pattern = std::move(pattern), .detector_id = detector_id});
+        auto const id_depth = id_depth_for_pattern(pattern);
+        volumes.push_back({.pattern = std::move(pattern),
+                           .detector_id = detector_id,
+                           .id_depth = id_depth});
       } catch (std::invalid_argument const&) {
         sensitive_volume_error(
             i, std::format("no detector id is known for pattern '{0}'; write "
@@ -138,7 +154,7 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
     }
     auto const object = boost::json::value_to<phlex::configuration>(entry);
     for (auto const& key : object.keys()) {
-      if (key != "pattern" && key != "detector") {
+      if (key != "pattern" && key != "detector" && key != "id_depth") {
         sensitive_volume_error(i, "unknown key '" + key + "'");
       }
     }
@@ -156,8 +172,19 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
     } catch (std::invalid_argument const& e) {
       sensitive_volume_error(i, e.what());
     }
-    volumes.push_back(
-        {.pattern = std::move(*pattern), .detector_id = detector_id});
+    int id_depth = 0;
+    try {
+      id_depth = object.get_if_present<int>("id_depth").value_or(0);
+    } catch (std::exception const&) {
+      sensitive_volume_error(i, "'id_depth' must be an integer");
+    }
+    if (id_depth < 0) {
+      sensitive_volume_error(
+          i, "'id_depth' must be 0 or more, not " + std::to_string(id_depth));
+    }
+    volumes.push_back({.pattern = std::move(*pattern),
+                       .detector_id = detector_id,
+                       .id_depth = id_depth});
   }
   return volumes;
 }

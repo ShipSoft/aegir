@@ -77,6 +77,15 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
       "'");
 }
 
+/// The id_depth of a pattern detector_id_for_pattern() knows: the level its
+/// detector's geometry puts the id on, so that a bare pattern needs no
+/// per-workflow depth. The straw tracker's id is on the straw's wall, one
+/// level above the gas; every other known pattern has it on the volume
+/// itself, until its geometry says otherwise.
+[[nodiscard]] inline int id_depth_for_pattern(std::string_view pattern) {
+  return pattern == "StrawTubes" || pattern == "trackers" ? 1 : 0;
+}
+
 /// The detector id of a `detector` name in a `sensitive_volumes` entry: one
 /// of the SHiP::detector_id enumerators, or `test_fixture` for
 /// kTestFixtureDetectorId.
@@ -109,9 +118,9 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
 
 /// Read the `sensitive_volumes` list of a geometry provider's configuration.
 /// Each entry is either a volume-name pattern, whose detector id comes from
-/// detector_id_for_pattern(), or `{pattern: ..., detector: ...}`, which names
-/// the detector itself and may add `id_depth` (default 0). The two forms can
-/// be mixed.
+/// detector_id_for_pattern() and whose id_depth from id_depth_for_pattern(),
+/// or `{pattern: ..., detector: ...}`, which names the detector itself and
+/// may add `id_depth` (default 0). The two forms can be mixed.
 [[nodiscard]] inline std::vector<SensitiveVolume> read_sensitive_volumes(
     phlex::configuration const& config) {
   // phlex::configuration only reads lists of one kind, so read the entries
@@ -126,8 +135,10 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
       std::string pattern{entry.as_string()};
       try {
         auto const detector_id = detector_id_for_pattern(pattern);
-        volumes.push_back(
-            {.pattern = std::move(pattern), .detector_id = detector_id});
+        auto const id_depth = id_depth_for_pattern(pattern);
+        volumes.push_back({.pattern = std::move(pattern),
+                           .detector_id = detector_id,
+                           .id_depth = id_depth});
       } catch (std::invalid_argument const&) {
         sensitive_volume_error(
             i, std::format("no detector id is known for pattern '{0}'; write "

@@ -108,10 +108,15 @@ int main() {
 
   auto const depths = read_sensitive_volumes(config(R"({"sensitive_volumes": [
       "trackers",
-      {"pattern": "straw_gas", "detector": "StrawTubes", "id_depth": 1}]})"));
-  check(depths.size() == 2 && depths[0].id_depth == 0,
-        "id_depth: 0 for a bare pattern");
-  check(depths.size() == 2 && depths[1].id_depth == 1,
+      "StrawTubes",
+      "upstream_tagger",
+      {"pattern": "straw_gas", "detector": "StrawTubes", "id_depth": 2}]})"));
+  check(
+      depths.size() == 4 && depths[0].id_depth == 1 && depths[1].id_depth == 1,
+      "id_depth: 1 for the straw patterns, whose id is on the wall");
+  check(depths.size() == 4 && depths[2].id_depth == 0,
+        "id_depth: 0 for another known pattern");
+  check(depths.size() == 4 && depths[3].id_depth == 2,
         "id_depth: read from an entry");
   check(mixed.size() == 3 && mixed[1].id_depth == 0,
         "id_depth: 0 when an entry leaves it out");

@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// geometry_builtin_provider.cpp — Phlex provider plugin for the builtin test
+// geometry_builtin_provider.cpp — Phlex resource plugin for the builtin test
 // geometry
 //
-// Provides the tungsten target + scoring planes geometry as a Job-layer
-// product.
+// Registers the tungsten target + scoring planes geometry as the
+// GeometryResource.
 
 #include <G4Box.hh>
 #include <G4LogicalVolume.hh>
@@ -20,8 +20,7 @@
 #include <vector>
 
 #include "geometry_source.hpp"
-#include "phlex/source.hpp"
-#include "provider_helpers.hpp"
+#include "phlex/resource.hpp"
 #include "units/clhep_bridge.hpp"
 
 namespace {
@@ -81,16 +80,7 @@ class BuiltinGeometrySource : public SHiP::aegir::IGeometrySource {
 
 }  // namespace
 
-PHLEX_REGISTER_PROVIDERS(s) {
-  using namespace phlex;
-
-  // Shared instance: geometry is constant across all events.
-  // The provider returns a shared_ptr copy for each data cell.
-  // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
-  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
-      std::make_shared<BuiltinGeometrySource>();
-
-  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
-                                "detector", "job");
+PHLEX_REGISTER_RESOURCES(r) {
+  r.add_unlimited_resource<SHiP::aegir::GeometryResource>(
+      std::make_unique<BuiltinGeometrySource>());
 }

@@ -2,9 +2,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(100),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
+  },
+  sources: {
     pythia8: lib.fixed_target,
   },
   modules: {

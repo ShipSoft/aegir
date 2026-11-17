@@ -2,9 +2,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(std.parseInt(std.extVar('events'))),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
+  },
+  sources: {
     gun: lib.gun,
   },
   modules: {

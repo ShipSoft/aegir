@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// geometry_gdml_provider.cpp — Phlex provider plugin for GDML geometry
+// geometry_gdml_provider.cpp — Phlex resource plugin for GDML geometry
 //
-// Reads a GDML file and provides the parsed geometry as a Job-layer product.
+// Reads a GDML file and registers the parsed geometry as the GeometryResource.
 
 #include <G4GDMLParser.hh>
 #include <memory>
@@ -14,8 +14,8 @@
 #include <vector>
 
 #include "geometry_source.hpp"
-#include "phlex/source.hpp"
-#include "provider_helpers.hpp"
+#include "phlex/configuration.hpp"
+#include "phlex/resource.hpp"
 
 namespace {
 
@@ -51,17 +51,10 @@ class GDMLGeometrySource : public SHiP::aegir::IGeometrySource {
 
 }  // namespace
 
-PHLEX_REGISTER_PROVIDERS(s, config) {
-  using namespace phlex;
-
+PHLEX_REGISTER_RESOURCES(r, config) {
   auto const gdml_file = config.get<std::string>("gdml_file");
   auto sv = SHiP::aegir::read_sensitive_volumes(config);
 
-  // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
-  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
-      std::make_shared<GDMLGeometrySource>(gdml_file, std::move(sv));
-
-  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
-                                "detector", "job");
+  r.add_unlimited_resource<SHiP::aegir::GeometryResource>(
+      std::make_unique<GDMLGeometrySource>(gdml_file, std::move(sv)));
 }

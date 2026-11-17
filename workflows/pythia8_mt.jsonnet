@@ -7,9 +7,11 @@ local lib = import 'lib.libsonnet';
 function(seed=null) {
   stage: lib.stage,
   driver: lib.driver(100),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     pythia8: lib.pythia8 {
       parallel: true,
       num_threads: 4,

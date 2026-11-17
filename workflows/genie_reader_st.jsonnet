@@ -2,9 +2,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(100),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     genie_reader: lib.genie_reader,
   },
   modules: {

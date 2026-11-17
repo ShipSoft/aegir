@@ -7,9 +7,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(100),
-  sources: {
+  resources: {
     geometry: lib.geomodel_geometry,
     field: lib.field_placements(),
+  },
+  sources: {
     gun: lib.gun,
   },
   modules: {

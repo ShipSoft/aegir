@@ -104,6 +104,16 @@ the default search path.
 common ones. `ls workflows/` shows the full set (multi-threaded variants, no-op
 sinks, GeoModel-based geometry, etc.).
 
+If you are new to aegir, start with
+[`workflows/tutorial_muon_beam.jsonnet`](workflows/tutorial_muon_beam.jsonnet).
+It fires muons of a single momentum straight down the z axis, slightly off
+the beam axis, through Geant4. Every setting is written out and explained in
+comments, and the file ends with suggestions for things to change:
+
+```bash
+pixi run phlex -c workflows/tutorial_muon_beam.jsonnet
+```
+
 Phlex requires every job to name its processing stage, and labels the
 products the job creates with that name. The aegir workflows set `stage:
 'simulation'` at the top level (`lib.stage` in

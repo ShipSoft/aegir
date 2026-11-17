@@ -116,12 +116,14 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
             name, pattern, f.id_depth);
         continue;
       }
-      auto const id =
-          f.id ? std::format("geometry_node_id {}", *f.id)
-               : std::string{"the same replica number as geometry_node_id"};
+      auto const example =
+          f.id ? std::format(", e.g. {} get geometry_node_id {}",
+                             f.id_placements, *f.id)
+               : std::string{", copies of a replica reading the same copy"};
       auto const message = std::format(
-          "'{}' (pattern '{}'): {} placements share {} at id_depth {}", name,
-          pattern, f.placements, id, f.id_depth);
+          "'{}' (pattern '{}'): {} of its {} placements share an id at "
+          "id_depth {}{}",
+          name, pattern, f.sharing, f.placements, f.id_depth, example);
       if (strict_node_ids_) {
         fatal += "\n  " + message;
       } else {

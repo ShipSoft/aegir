@@ -195,17 +195,23 @@ entry, the first one wins. The `detector_id` of each hit says which SHiP
 subsystem it belongs to, using the `SHiP::detector_id` values of the data
 model.
 
-An entry can be a bare pattern, and aegir then looks up its detector and
-its `id_depth` (see below):
+An entry can be a bare pattern, and aegir then looks up its detector; its
+`id_depth` is `0` (see below):
 
-| Pattern | `detector_id` | `id_depth` |
-|:---|:---|:---|
-| `UpstreamTagger`, `upstream_tagger` | `0` (UpstreamTagger) | `0` |
-| `SurroundTagger` | `1` (SurroundTagger) | `0` |
-| `StrawTubes`, `trackers` | `2` (StrawTubes) | `1`: the straw's id is on its wall, one level above the gas |
-| `Calorimeter`, `calorimeter` | `3` (Calorimeter) | `0` |
-| `TimingDetector`, `timing_detector` | `4` (TimingDetector) | `0` |
-| `Scoring`, `ScoringPlane` | `99`, the toy geometries' test planes, which belong to no subsystem | `0` |
+| Pattern | `detector_id` |
+|:---|:---|
+| `UpstreamTagger`, `upstream_tagger` | `0` (UpstreamTagger) |
+| `SurroundTagger` | `1` (SurroundTagger) |
+| `StrawTubes`, `trackers` | `2` (StrawTubes) |
+| `Calorimeter`, `calorimeter` | `3` (Calorimeter) |
+| `TimingDetector`, `timing_detector` | `4` (TimingDetector) |
+| `Scoring`, `ScoringPlane` | `99`, the toy geometries' test planes, which belong to no subsystem |
+
+Patterns match by substring, so a bare pattern can catch volumes at
+several levels: `trackers` matches the stations, envelopes, frames and
+straw walls as well as the straw gas. To get one id per straw, list the
+gas with its depth, `{ pattern: 'straw_gas', detector: 'StrawTubes',
+id_depth: 1 }`, as in the example below.
 
 For any other pattern, name the detector yourself with
 `{ pattern: ..., detector: ... }`, and add `id_depth` if the id is not on
@@ -252,13 +258,18 @@ sensitive volume, `id_depth` reaches above the world volume, the job
 stops. If placements of a sensitive volume share an id, so that their hits
 cannot be told apart, aegir logs a warning; with `strict_node_ids: true`
 in the `geant4` module's configuration, the job stops instead. Usually
-`id_depth` should then point one level further up. Placements share an id
-when a volume is placed more than once and all its placements get the same
-id, or when a replica or parameterised volume lies between the sensitive
-volume and its `id_depth` level, or above that level: its copies all read
-the same id. When the `id_depth` level is itself a replica or
-parameterised volume, its copy numbers exist only while Geant4 navigates,
-so those ids are not compared.
+`id_depth` should then point one level further up. Any id given to more
+than one placement counts: a level whose numbering restarts in every
+parent (0 to N in each sublayer) shares every id, and so do several
+untagged placements among tagged ones (they all get `-1`). Copies of a
+replica or parameterised volume between the sensitive volume and its
+`id_depth` level, or above that level, all read the same id as well. When
+the `id_depth` level is itself a replica or parameterised volume, its copy
+numbers exist only while Geant4 navigates, so the placements under it are
+left out of the comparison.
+
+GeoModel2G4 doesn't export its untagged default, so aegir names it once.
+A tag that happens to equal it would be read as untagged and get `-1`.
 
 Scoring-plane hits are the exception: their `geometry_node_id` is the
 plane's configured `id`, not a copy number (see

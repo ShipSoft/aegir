@@ -79,17 +79,21 @@ struct SensitiveVolumeIds {
 
 /// What check_id_depths() found for one sensitive logical volume.
 struct IdDepthFinding {
-  enum class Kind {
+  enum class Kind : std::uint8_t {
     too_deep,  ///< in some placement, id_depth reaches above the world
-    shared,    ///< several placements get the same id
+    shared,    ///< some placements get an id that another placement gets too
   };
   Kind kind;
   G4LogicalVolume const* volume;
   int id_depth;
   std::size_t placements;  ///< placements of the volume, replica copies too
-  /// For `shared`: the id they get, unless it is a replica number, which is
-  /// known only while navigating.
+  /// For `shared`: how many placements get an id that another one gets too.
+  std::size_t sharing;
+  /// For `shared`: the id the most placements share (the lowest on a tie),
+  /// and how many get it. Unset when the only sharing is between copies of a
+  /// replica whose copy numbers are known only while navigating.
   std::optional<std::int32_t> id;
+  std::size_t id_placements;
 };
 
 namespace detail {
@@ -100,17 +104,13 @@ class IdDepthWalk {
  public:
   struct State {
     std::size_t placements = 0;
-    std::optional<std::int32_t> first_id;
-    bool varies = false;
     bool too_deep = false;
-    // The level carrying the id is a replica or parameterised volume, whose
-    // copy numbers exist only while navigating, so ids cannot be compared
-    // across the walked paths.
-    bool replicated = false;
-    // Copies of a replica or parameterised volume, on the path but not the
-    // level carrying the id, read the same id: that is sharing on its own.
-    bool shared_by_copies = false;
-    std::optional<std::int32_t> shared_id;
+    // Placements per id, for the paths whose id level is a placement.
+    std::unordered_map<std::int32_t, std::size_t> per_id;
+    // Placements that read the same copy of a replica or parameterised id
+    // level as another placement: sharing, though the id itself is known only
+    // while navigating.
+    std::size_t sharing_unknown_id = 0;
   };
 
   explicit IdDepthWalk(SensitiveVolumeIds const& sensitive)
@@ -173,31 +173,28 @@ class IdDepthWalk {
         path_.size() - 1 - static_cast<std::size_t>(id_depth);
     auto const* carrier = path_[carrier_index];
 
-    // Placements this path stands for that read the same carrier copy.
-    std::size_t sharing = 1;
+    // Placements this path stands for that read the same carrier copy: the
+    // copies of every replica or parameterised volume on it but the carrier.
+    std::size_t same_copy = 1;
     for (std::size_t k = 0; k < path_.size(); ++k) {
       if (k != carrier_index) {
-        sharing *= copies_of(path_[k]);
+        same_copy *= copies_of(path_[k]);
       }
     }
-    state.placements += sharing * copies_of(carrier);
+    auto const carrier_copies = copies_of(carrier);
+    state.placements += same_copy * carrier_copies;
 
-    std::optional<std::int32_t> id;
     if (carrier->IsReplicated()) {
-      state.replicated = true;
-    } else {
-      id = node_id_from_copy_number(carrier->GetCopyNo(),
-                                    sensitive_->untagged_copy_number);
-      if (!state.first_id) {
-        state.first_id = id;
-      } else if (*state.first_id != *id) {
-        state.varies = true;
+      // Its copy numbers exist only while navigating, so this path's ids
+      // cannot be compared with the others'; within it, copies reading the
+      // same carrier copy still share.
+      if (same_copy > 1) {
+        state.sharing_unknown_id += same_copy * carrier_copies;
       }
+      return;
     }
-    if (sharing > 1 && !state.shared_by_copies) {
-      state.shared_by_copies = true;
-      state.shared_id = id;
-    }
+    state.per_id[node_id_from_copy_number(
+        carrier->GetCopyNo(), sensitive_->untagged_copy_number)] += same_copy;
   }
 
   // Whether `root` or anything placed inside it is a sensitive volume, so
@@ -240,12 +237,14 @@ class IdDepthWalk {
 
 /// Walks every placement under `world` of the volumes in `sensitive` and
 /// reports a volume whose id_depth reaches above the world in some placement
-/// (`too_deep`), or whose placements share an id (`shared`): all of several
-/// placements get the same id, or the copies of a replica or parameterised
-/// volume on the way to the id level all read the same id. Their hits could
-/// not be told apart. When the id level is itself a replica or parameterised
-/// volume, its copy numbers exist only while navigating, so ids are not
-/// compared across placements. Findings are ordered by volume name.
+/// (`too_deep`), or any of whose ids is given to more than one placement
+/// (`shared`), whose hits then cannot be told apart. That covers an id level
+/// whose numbering restarts in every parent, untagged placements among tagged
+/// ones, and copies of a replica or parameterised volume on the way to the
+/// id level, which all read the same id. Where the id level is itself a
+/// replica or parameterised volume, its copy numbers exist only while
+/// navigating, so the placements under it are left out of the comparison.
+/// Findings are ordered by volume name.
 [[nodiscard]] inline std::vector<IdDepthFinding> check_id_depths(
     G4VPhysicalVolume const* world, SensitiveVolumeIds const& sensitive) {
   detail::IdDepthWalk walk{sensitive};
@@ -253,28 +252,43 @@ class IdDepthWalk {
 
   std::vector<IdDepthFinding> findings;
   for (auto const& [lv, state] : walk.states()) {
-    auto const id_depth = sensitive.volumes.at(lv).id_depth;
     IdDepthFinding finding{.kind = IdDepthFinding::Kind::too_deep,
                            .volume = lv,
-                           .id_depth = id_depth,
+                           .id_depth = sensitive.volumes.at(lv).id_depth,
                            .placements = state.placements,
-                           .id = std::nullopt};
+                           .sharing = 0,
+                           .id = std::nullopt,
+                           .id_placements = 0};
     if (state.too_deep) {
       findings.push_back(finding);
-    } else if (state.shared_by_copies) {
+      continue;
+    }
+    finding.sharing = state.sharing_unknown_id;
+    std::int32_t most_shared = 0;
+    std::size_t most_count = 0;
+    for (auto const& [id, count] : state.per_id) {
+      if (count < 2) {
+        continue;
+      }
+      finding.sharing += count;
+      if (count > most_count || (count == most_count && id < most_shared)) {
+        most_shared = id;
+        most_count = count;
+      }
+    }
+    if (most_count > 0) {
+      finding.id = most_shared;
+      finding.id_placements = most_count;
+    }
+    if (finding.sharing > 0) {
       finding.kind = IdDepthFinding::Kind::shared;
-      finding.id = state.shared_id;
-      findings.push_back(finding);
-    } else if (state.placements > 1 && !state.varies && !state.replicated &&
-               state.first_id) {
-      finding.kind = IdDepthFinding::Kind::shared;
-      finding.id = state.first_id;
       findings.push_back(finding);
     }
   }
-  std::ranges::sort(findings, {}, [](IdDepthFinding const& f) {
-    return std::string{f.volume->GetName()};
-  });
+  std::ranges::sort(findings, {},
+                    [](IdDepthFinding const& f) -> std::string const& {
+                      return f.volume->GetName();
+                    });
   return findings;
 }
 

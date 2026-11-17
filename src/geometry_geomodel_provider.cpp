@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// geometry_geomodel_provider.cpp — Phlex provider plugin for GeoModel geometry
+// geometry_geomodel_provider.cpp — Phlex resource plugin for GeoModel geometry
 //
 // Loads a GeoModel .db file via SHiP::GeometryService and converts to Geant4.
 
@@ -20,8 +20,8 @@
 #include "SHiP/GeometryService/GeometryService.h"
 #include "geometry_node_id.hpp"
 #include "geometry_source.hpp"
-#include "phlex/source.hpp"
-#include "provider_helpers.hpp"
+#include "phlex/configuration.hpp"
+#include "phlex/resource.hpp"
 
 namespace {
 
@@ -78,9 +78,7 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
 
 }  // namespace
 
-PHLEX_REGISTER_PROVIDERS(s, config) {
-  using namespace phlex;
-
+PHLEX_REGISTER_RESOURCES(r, config) {
   auto db_file = config.get<std::string>("db_file");
 
   // Resolve relative/bare filenames via SHIPGEOMETRY_ROOT.
@@ -102,11 +100,6 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
 
   auto sv = SHiP::aegir::read_sensitive_volumes(config);
 
-  // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::aegir::IGeometrySource>.
-  std::shared_ptr<SHiP::aegir::IGeometrySource> const source =
-      std::make_shared<GeoModelGeometrySource>(db_file, std::move(sv));
-
-  SHiP::aegir::provide_constant(s, "create_geometry", source, "geometry",
-                                "detector", "job");
+  r.add_unlimited_resource<SHiP::aegir::GeometryResource>(
+      std::make_unique<GeoModelGeometrySource>(db_file, std::move(sv)));
 }

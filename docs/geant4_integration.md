@@ -189,7 +189,7 @@ Example workflow configuration:
 
 ### Sensitive volumes
 
-The GDML and GeoModel geometry providers take a `sensitive_volumes` list.
+The GDML and GeoModel geometry plugins take a `sensitive_volumes` list.
 Every logical volume whose name contains one of its patterns gets the
 sensitive detector chosen by `sd_mode`. If a volume matches more than one
 entry, the first one wins. The `detector_id` of each hit says which SHiP
@@ -304,7 +304,7 @@ particles crossing it. It is aegir's counterpart of FairShip's
 hadron absorber, the neutrinos coming out of the target, and so on.
 
 The planes live in a Geant4 *parallel world* (`aegir_scoring_planes`),
-overlaid on whatever geometry the provider built — builtin, GDML or GeoModel
+overlaid on whatever geometry the plugin built — builtin, GDML or GeoModel
 alike. Geant4 tracks every particle through both worlds at once
 (`G4ParallelWorldPhysics`, added to the physics list whenever planes are
 configured). A plane can therefore be any size, anywhere: it can cut through

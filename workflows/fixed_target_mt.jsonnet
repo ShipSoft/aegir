@@ -5,9 +5,11 @@ local lib = import 'lib.libsonnet';
 function(seed=null) {
   stage: lib.stage,
   driver: lib.driver(100000),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
+  },
+  sources: {
     pythia8: lib.fixed_target { [if seed != null then 'seed']: seed },
   },
   modules: {

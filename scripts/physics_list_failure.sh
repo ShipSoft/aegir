@@ -27,9 +27,11 @@ cat >"$workdir/bad_physics.jsonnet" <<'EOF'
     cpp: 'generate_layers',
     layers: { event: { total: 8 } },
   },
-  sources: {
+  resources: {
     geometry: { cpp: 'geometry_builtin_provider' },
     field: { cpp: 'field_null_provider' },
+  },
+  sources: {
     gun: {
       cpp: 'particle_gun_source',
       pdg: 13,

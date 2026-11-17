@@ -75,12 +75,14 @@
 #include "SHiP/GeometryService/GeometryThread.h"
 #include "chrome_trace.hpp"
 #include "detector_construction.hpp"
+#include "field_resource.hpp"
 #include "geant4_sim_core.hpp"
 #include "geometry_source.hpp"
 #include "hepmc_status.hpp"
 #include "math_utils.hpp"
 #include "phlex/configuration.hpp"
 #include "phlex/core/product_selector.hpp"
+#include "phlex/core/resource_api.hpp"
 #include "phlex/model/handle.hpp"
 #include "phlex/module.hpp"
 #include "phlex/utilities/max_allowed_parallelism.hpp"
@@ -276,11 +278,13 @@ class Geant4Sim {
   }
 
   // The simulation result, and the plane_particles replay record (empty
-  // unless a scoring plane records particles; see plane_particles.hpp).
+  // unless a scoring plane records particles; see plane_particles.hpp). The
+  // geometry and the field are phlex resources, which phlex keeps alive
+  // until after this module is destroyed.
   std::tuple<SHiP::SimResult, std::vector<SHiP::MCParticle>> simulate(
-      std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
-      std::shared_ptr<SHiP::IFieldSource> const& field,
-      phlex::handle<std::vector<SHiP::MCParticle>> particles) {
+      phlex::handle<std::vector<SHiP::MCParticle>> particles,
+      SHiP::aegir::GeometryResource const* geo,
+      SHiP::aegir::FieldResource const* field) {
     AEGIR_TRACE_EVENT("g4", "simulate");
 
     // A failed master init is sticky: retrying would construct a second
@@ -288,9 +292,9 @@ class Geant4Sim {
     // "constructed twice" abort, masking the original error. Store the
     // exception instead and rethrow it on this and every later call — phlex
     // logs it at shutdown and terminates the job cleanly.
-    std::call_once(init_flag_, [this, &geo, &field] {
+    std::call_once(init_flag_, [this, geo, field] {
       try {
-        init_master(geo, field);
+        init_master(*geo->source, *field->source);
       } catch (std::exception const& e) {
         spdlog::error("geant4_module: master initialisation failed: {}",
                       e.what());
@@ -477,8 +481,8 @@ class Geant4Sim {
     G4Random::getTheEngine()->setSeed(static_cast<long>(seed64), 0);
   }
 
-  void init_master(std::shared_ptr<SHiP::aegir::IGeometrySource> const& geo,
-                   std::shared_ptr<SHiP::IFieldSource> const& field) {
+  void init_master(SHiP::aegir::IGeometrySource const& geo,
+                   SHiP::IFieldSource const& field) {
     // Validate the export target up front, before anything is constructed:
     // G4GDMLParser::Write aborts via G4Exception on some write failures, so
     // pre-check the cases we can to fail with a catchable, clear error
@@ -512,9 +516,8 @@ class Geant4Sim {
       throw std::runtime_error("Unknown physics list: " + cfg_.physics_list);
     }
 
-    field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
-        *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions,
+        geo, field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions,
         cfg_.scoring_planes, cfg_.strict_node_ids);
 
     // Master initialisation runs on the process-wide geometry thread: only
@@ -651,7 +654,6 @@ class Geant4Sim {
   G4VPhysicalVolume* world_pv_ = nullptr;
   G4VUserPhysicsList* physics_list_ = nullptr;
   ConfigurableDetectorConstruction* detector_ = nullptr;  // owned by G4
-  std::shared_ptr<SHiP::IFieldSource> field_;             // outlives G4 run
   std::atomic<int> next_thread_id_{0};
   // Kernels that finished init_worker successfully (unlike next_thread_id_,
   // which counts allocated ids). Reported in the shutdown summary.
@@ -873,8 +875,8 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   g4.transform("simulate", &Geant4Sim::simulate,
                concurrency{static_cast<std::size_t>(num_threads)})
       .input_family(
-          product_selector{.creator = "geometry"_id, .layer = "job"_id},
-          product_selector{.creator = "field"_id, .layer = "job"_id},
-          product_selector{.creator = "mc_particles"_id, .layer = "event"_id})
+          product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
+          resource<SHiP::aegir::GeometryResource>{},
+          resource<SHiP::aegir::FieldResource>{})
       .output_product_suffixes("sim_result", "plane_particles");
 }

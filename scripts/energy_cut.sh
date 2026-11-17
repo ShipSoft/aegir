@@ -28,9 +28,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(std.parseInt(std.extVar('events'))),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     gun: lib.pencil_gun { pdg: 211, p_min: 50.0, p_max: 50.0, seed: 12345 },
   },
   modules: {

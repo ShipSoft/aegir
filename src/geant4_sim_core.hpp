@@ -104,19 +104,20 @@ inline SimHit make_base_hit(G4Step const* step, std::int32_t detector_id,
 }
 
 // A detector hit: the ids of the step's logical volume in `sensitive`, with
-// the geometry_node_id read at its id_depth (geometry_node_id.hpp). A volume
-// not in `sensitive` gets detector id -1 and the copy number of the volume
-// itself.
+// the geometry_node_id read at its id_depth (geometry_node_id.hpp). The
+// sensitive detector is attached only to volumes in `sensitive`, so the
+// fallback for any other volume, detector id -1 and kNoGeometryNodeId, should
+// never be used; it carries no copy number by accident either.
 inline SimHit make_base_hit(G4Step const* step,
                             SensitiveVolumeIds const& sensitive) {
   auto const* touchable = step->GetPreStepPoint()->GetTouchable();
   auto* lv = touchable->GetVolume()->GetLogicalVolume();
   auto const it = sensitive.volumes.find(lv);
-  auto const ids = it != sensitive.volumes.end()
-                       ? it->second
-                       : SensitiveIds{.detector_id = -1, .id_depth = 0};
-  return make_base_hit(step, ids.detector_id,
-                       geometry_node_id(*touchable, ids.id_depth,
+  if (it == sensitive.volumes.end()) {
+    return make_base_hit(step, -1, kNoGeometryNodeId);
+  }
+  return make_base_hit(step, it->second.detector_id,
+                       geometry_node_id(*touchable, it->second.id_depth,
                                         sensitive.untagged_copy_number));
 }
 

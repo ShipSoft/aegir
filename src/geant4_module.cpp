@@ -20,10 +20,13 @@
 #include <Random123/philox.h>
 #include <spdlog/spdlog.h>
 
+#include <G4BuilderType.hh>
+#include <G4EmExtraPhysics.hh>
 #include <G4Event.hh>
 #include <G4EventManager.hh>
 #include <G4GDMLParser.hh>
 #include <G4GeometryManager.hh>
+#include <G4HadronicInteractionRegistry.hh>
 #include <G4LogicalVolumeStore.hh>
 #include <G4MTRunManager.hh>
 #include <G4ParallelWorldPhysics.hh>
@@ -40,6 +43,7 @@
 #include <G4Threading.hh>
 #include <G4TransportationManager.hh>
 #include <G4UImanager.hh>
+#include <G4VModularPhysicsList.hh>
 #include <G4VUserActionInitialization.hh>
 #include <G4VUserPrimaryGeneratorAction.hh>
 #include <G4WorkerRunManagerKernel.hh>
@@ -157,8 +161,18 @@ std::vector<SHiP::MCParticle> record_plane_particles(
                                             primary_source, particles);
 }
 
+// FairShip's production physics list (gconfig/g4Config.C): FTFP_BERT with
+// high-precision neutron transport and the option-4 (most accurate) EM
+// physics.
+constexpr char const* kDefaultPhysicsList = "FTFP_BERT_HP_EMZ";
+
 struct Geant4SimConfig {
-  std::string physics_list = "FTFP_BERT";
+  std::string physics_list = kDefaultPhysicsList;
+  // Muon-pair production by photons (γ → μ⁺μ⁻) and by positron
+  // annihilation (e⁺e⁻ → μ⁺μ⁻), both on in FairShip (gconfig/g4config.in).
+  // Off in Geant4's reference lists, but a source of muon background.
+  bool gamma_to_mumu = true;
+  bool positron_to_mumu = true;
   int verbosity = 0;
   int concurrency = 1;
   std::uint32_t seed = 0;
@@ -183,6 +197,30 @@ struct Geant4SimConfig {
   // Log a progress line every this many simulated events (0 disables).
   int progress_interval = 100;
 };
+
+// Apply the muon-pair options to the list's G4EmExtraPhysics constructor (the
+// API behind FairShip's /physics_lists/em/GammaToMuons and PositronToMuons
+// commands). Runs on the master before initialisation; the workers share the
+// constructor objects, so the settings reach them too.
+void configure_em_extra(G4VModularPhysicsList& physics, bool gamma_to_mumu,
+                        bool positron_to_mumu) {
+  // GetPhysicsWithType only hands out const pointers, but the constructor is
+  // owned by the (non-const) list and has not been constructed yet.
+  auto* em_extra = dynamic_cast<G4EmExtraPhysics*>(
+      const_cast<G4VPhysicsConstructor*>(  // NOLINT
+          physics.GetPhysicsWithType(bEmExtra)));
+  if (em_extra == nullptr) {
+    if (gamma_to_mumu || positron_to_mumu) {
+      throw std::runtime_error(
+          "geant4_module: the physics list has no G4EmExtraPhysics, so "
+          "gamma_to_mumu/positron_to_mumu cannot be applied; set both to "
+          "false");
+    }
+    return;
+  }
+  em_extra->GammaToMuMu(gamma_to_mumu);
+  em_extra->PositronToMuMu(positron_to_mumu);
+}
 
 class Geant4Sim {
  public:
@@ -212,7 +250,17 @@ class Geant4Sim {
     // its objects before deleting them, which suppresses all cross-store
     // references (e.g. ~G4LogicalVolume skips its
     // fRegion->RemoveRootLogicalVolume backreference when locked).
+    //
+    // The master's hadronic models go first, for a similar reason. The
+    // high-precision neutron models (the _HP lists) share their data
+    // between threads and keep per-thread scratch in G4Cache members. A
+    // G4Cache must be destroyed on a thread whose cache table is as long as
+    // its id, which the geometry thread's is and the main thread's need not
+    // be. Left to the registry's exit-time destructor on the main thread,
+    // the deletion aborts the process with G4Exception Cache001 after the
+    // job has finished.
     SHiP::geometry_thread().run([] {
+      G4HadronicInteractionRegistry::Instance()->Clean();
       G4GeometryManager::GetInstance()->OpenGeometry();
       G4RegionStore::Clean();
       G4PhysicalVolumeStore::Clean();
@@ -485,6 +533,11 @@ class Geant4Sim {
       // abort.
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
+      configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
+      spdlog::info(
+          "geant4_module: physics list {} (gamma_to_mumu {}, "
+          "positron_to_mumu {})",
+          cfg_.physics_list, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
       // Transport particles through the scoring planes' parallel world too.
       // Not a layered-mass world: the planes take on no material, the
       // detector geometry's material applies everywhere.
@@ -762,7 +815,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   Geant4SimConfig cfg{
       .physics_list =
-          config.get<std::string>("physics_list", std::string{"FTFP_BERT"}),
+          config.get<std::string>("physics_list", kDefaultPhysicsList),
+      .gamma_to_mumu = config.get<bool>("gamma_to_mumu", true),
+      .positron_to_mumu = config.get<bool>("positron_to_mumu", true),
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
       .seed = seed,

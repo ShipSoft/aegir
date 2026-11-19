@@ -124,7 +124,6 @@
   // output, e.g. lib.geant4 { seed: 12345 }.
   geant4:: {
     cpp: 'geant4_module',
-    physics_list: 'FTFP_BERT',
     verbosity: 0,
   },
 
@@ -133,7 +132,6 @@
   // particle KE cut. Seeding works as for `geant4` above.
   geant4_crossing:: {
     cpp: 'geant4_module',
-    physics_list: 'FTFP_BERT',
     sd_mode: 'crossing',
     ke_threshold: 0.5,  // GeV
     energy_cut: true,

@@ -6,13 +6,16 @@
 # Scoring planes: run gun_st_scoring_planes with neutrinos and with muons and
 # check that every plane records exactly the tracks the geometry says cross
 # it, at its entry face, with the scoring-plane detector id; that neutrinos
-# are recorded although they deposit nothing; that a plane cutting through the
-# target records like any other (the planes live in a parallel world); and
+# are recorded although they deposit nothing; that a plane
+# cutting through the target records like any other (the planes live in a
+# parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
 # 'hit_ancestry' writes exactly the hit tracks and their ancestors. Check that
 # the recording plane's plane_particles hold the tracks it recorded, as
 # they entered the plane, with their full ancestry, and that a replay of them
-# starts exactly those tracks again, from the plane. Then check that bad
+# starts exactly those tracks again, from the plane. Check, with muons that
+# cross all five silicon test planes, that every silicon hit carries its
+# plane's copy number as geometry_node_id. Then check that bad
 # configurations fail with a clear error instead of running, and that the
 # fixed-target production workflow evaluates to the intended settings.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
@@ -344,6 +347,67 @@ EOF
 python3 "$workdir/check_plane_particles.py" "$workdir/gun_st_scoring_planes.root" \
   --want-history 5.0
 mv "$workdir/gun_st_scoring_planes.root" "$workdir/pions.root"
+rm -f "$workdir"/gun_st_scoring_planes*.root
+
+# Silicon geometry_node_ids: in the run above, plane 3 kills every track at
+# 3 m, so the silicon hits are all on the first plane, whose id 0 is also
+# what an unfilled geometry_node_id holds. Here plane 3 sits behind the last
+# silicon plane, at 11 m, and the muons fly within 0.1 rad, so they cross
+# all five planes (|x|, |y| <= 2 m, at z = 2, 4, ..., 10 m). Every silicon hit
+# must carry its plane's copy number, 0-4 from upstream, every id must
+# appear, and every muon must reach at least two planes.
+cat >"$workdir/silicon.jsonnet" <<EOF
+local wf = import '$workflow';
+local base = wf(pdg=13, events=50);
+base {
+  sources+: { gun+: { max_theta: 0.1 } },
+  modules+: {
+    geant4+: {
+      scoring_planes: [
+        if p.id == 3 then p { position: [0.0, 0.0, 11000.0] } else p
+        for p in base.modules.geant4.scoring_planes
+      ],
+    },
+  },
+}
+EOF
+cat >"$workdir/check_silicon.py" <<'EOF'
+import os
+import sys
+
+import ROOT
+
+TEST_FIXTURE = 99  # SHiP::aegir::kTestFixtureDetectorId: the silicon planes
+
+reader = ROOT.RNTupleReader.Open("events", sys.argv[1])
+hits_view = reader.GetView["std::vector<SHiP::SimHit>"]("sim_hits")
+errors = []
+seen = set()
+n = reader.GetNEntries()
+for i in range(n):
+    primary_planes = set()
+    for h in hits_view(i):
+        if h.detector_id != TEST_FIXTURE:
+            continue
+        want = round(h.position[2] / 2000.0) - 1
+        if h.geometry_node_id != want:
+            errors.append(f"event {i}: silicon hit at z={h.position[2]:.1f} "
+                          f"has geometry_node_id {h.geometry_node_id}, not {want}")
+        seen.add(h.geometry_node_id)
+        if h.track_id == 1:
+            primary_planes.add(want)
+    if len(primary_planes) < 2:
+        errors.append(f"event {i}: the muon hit {len(primary_planes)} silicon plane(s)")
+
+for e in errors[:20]:
+    print(e)
+print(f"{n} events, silicon ids seen {sorted(seen)}, {len(errors)} problem(s)")
+ok = n > 0 and not errors and seen == {0, 1, 2, 3, 4}
+sys.stdout.flush()
+os._exit(0 if ok else 1)  # dodge a PyROOT RNTuple teardown crash
+EOF
+(cd "$workdir" && phlex -c <(jsonnet "$workdir/silicon.jsonnet"))
+python3 "$workdir/check_silicon.py" "$workdir/gun_st_scoring_planes.root"
 rm -f "$workdir"/gun_st_scoring_planes*.root
 
 # Replay the pions' plane_particles through Geant4 without the planes: each

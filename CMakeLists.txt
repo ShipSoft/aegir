@@ -67,6 +67,10 @@ find_package(SHiPRandom 0.4 REQUIRED)
 # aegir-genie's GENIE source), see aegir-genie issue #11. >=0.6:
 # geant4WorldLogical() returns a reference and the library requires C++23.
 find_package(SHiPGeometryService 0.6...<0.7 CONFIG REQUIRED)
+# GeoModelIO's GeoModelDBManager and GeoModelWrite, which the GeoModel
+# copy-number test writes its .db file with. Found here rather than relied on
+# through SHiPGeometryService's own find_dependency(GeoModelIO).
+find_package(GeoModelIO CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
 # link phlex::module plus the given LIBS, add any INCLUDES, apply the trace
@@ -339,3 +343,33 @@ target_include_directories(
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME sensitive_volumes COMMAND sensitive_volumes_test)
+
+# GeoModel copy numbers: what a hit's touchable reads at each depth after the
+# GeoModel->Geant4 conversion, for the identifier patterns the SHiP geometry
+# uses, converted from the tree and through a .db file, and that
+# check_id_depths() catches an id_depth that cannot tell the straws apart.
+add_executable(geomodel_copy_number_test tests/geomodel_copy_number_test.cpp)
+target_link_libraries(
+    geomodel_copy_number_test
+    PRIVATE
+        SHiP::GeometryService
+        GeoModelIO::GeoModelDBManager
+        GeoModelIO::GeoModelWrite
+        ${Geant4_LIBRARIES}
+)
+target_include_directories(
+    geomodel_copy_number_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME geomodel_copy_numbers COMMAND geomodel_copy_number_test)
+
+# check_id_depths() on Geant4 replicas, which a GeoModel conversion may or
+# may not produce: copies of a replica above or below the id level read the
+# same id, and a replica at the id level is left unchecked.
+add_executable(geometry_node_id_test tests/geometry_node_id_test.cpp)
+target_link_libraries(geometry_node_id_test PRIVATE ${Geant4_LIBRARIES})
+target_include_directories(
+    geometry_node_id_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME geometry_node_ids COMMAND geometry_node_id_test)

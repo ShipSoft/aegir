@@ -177,6 +177,9 @@ struct Geant4SimConfig {
   bool keep_hit_ancestry = false;
   std::vector<std::pair<std::string, SHiP::Length>> regions;
   std::vector<ScoringPlaneConfig> scoring_planes;
+  // Stop the job, instead of warning, when placements of a sensitive volume
+  // share a geometry_node_id (detector_construction.hpp).
+  bool strict_node_ids = false;
   // When set, write the constructed geometry to this GDML file after
   // initialisation (e.g. to feed the same geometry to external tools).
   std::string export_gdml;
@@ -463,7 +466,7 @@ class Geant4Sim {
     field_ = field;  // keep alive for the G4 run
     detector_ = new ConfigurableDetectorConstruction(
         *geo, *field, cfg_.sd_mode, cfg_.ke_threshold, cfg_.regions,
-        cfg_.scoring_planes);
+        cfg_.scoring_planes, cfg_.strict_node_ids);
 
     // Master initialisation runs on the process-wide geometry thread: only
     // one thread per process may create Geant4 geometry (G4GeomSplitter's
@@ -777,6 +780,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .keep_hit_ancestry = keep_particles == "hit_ancestry",
       .regions = std::move(regions),
       .scoring_planes = read_scoring_planes(config),
+      .strict_node_ids = config.get<bool>("strict_node_ids", false),
       .export_gdml = config.get<std::string>("export_gdml", std::string{}),
       .progress_interval = config.get<int>("progress_interval", 100),
   };

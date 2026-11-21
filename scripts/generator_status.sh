@@ -40,7 +40,8 @@ local lib = import 'lib.libsonnet';
     },
   },
   modules: {
-    output: lib.mc_only_output(std.extVar('outfile'), std.extVar('histofile')),
+    output: lib.mc_only_output(std.extVar('outfile'), std.extVar('histofile'),
+      std.parseInt(std.extVar('events'))),
   },
 }
 EOF
@@ -67,7 +68,8 @@ local lib = import 'lib.libsonnet';
     geant4: lib.geant4 {
       track_all_primaries: std.extVar('trackall') == 'true',
     },
-    output: lib.full_output(std.extVar('simout'), std.extVar('histo')),
+    output: lib.full_output(std.extVar('simout'), std.extVar('histo'),
+      std.parseInt(std.extVar('events'))),
   },
 }
 EOF

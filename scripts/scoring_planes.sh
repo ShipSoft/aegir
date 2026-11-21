@@ -351,9 +351,10 @@ rm -f "$workdir"/gun_st_scoring_planes*.root
 # plane, and point back to the event it came from.
 cat >"$workdir/replay.jsonnet" <<EOF
 local lib = import '$here/../workflows/lib.libsonnet';
+local job = lib.events(std.parseInt(std.extVar('events')));
 {
   stage: lib.stage,
-  driver: lib.driver(std.parseInt(std.extVar('events'))),
+  driver: job.driver,
   sources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
@@ -366,7 +367,7 @@ local lib = import '$here/../workflows/lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4 { seed: 20261019 },
-    output: lib.full_output('$workdir/replay.root', '$workdir/replay_validation.root'),
+    output: job.full_output('$workdir/replay.root', '$workdir/replay_validation.root'),
   },
 }
 EOF

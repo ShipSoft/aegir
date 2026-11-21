@@ -1,7 +1,7 @@
 local lib = import 'lib.libsonnet';
-{
+function(events=10) {
   stage: lib.stage,
-  driver: lib.driver(10),
+  driver: lib.driver(events),
   sources: {
     field: lib.null_field,
     geometry: {
@@ -13,6 +13,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4,
-    output: lib.full_output('gdml_output.root', 'gdml_validation.root'),
+    output: lib.full_output('gdml_output.root', 'gdml_validation.root', events),
   },
 }

@@ -1,7 +1,8 @@
 local lib = import 'lib.libsonnet';
+local events = std.parseInt(std.extVar('events'));
 {
   stage: lib.stage,
-  driver: lib.driver(std.parseInt(std.extVar('events'))),
+  driver: lib.driver(events),
   sources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
@@ -12,6 +13,6 @@ local lib = import 'lib.libsonnet';
     // this workflow bitwise, and the perf baselines in docs assume a fixed
     // workload.
     geant4: lib.geant4 { seed: 20260703 },
-    output: lib.full_output('bench_gun_st_output.root', 'bench_gun_st_validation.root'),
+    output: lib.full_output('bench_gun_st_output.root', 'bench_gun_st_validation.root', events),
   },
 }

@@ -72,6 +72,6 @@ function(pdg=14, events=200) {
         },
       ],
     },
-    output: lib.full_output('gun_st_scoring_planes.root', 'gun_st_scoring_planes_validation.root'),
+    output: lib.full_output('gun_st_scoring_planes.root', 'gun_st_scoring_planes_validation.root', events),
   },
 }

@@ -27,9 +27,10 @@ cat >"$workdir/job.jsonnet" <<'EOF'
 local lib = import 'lib.libsonnet';
 local generator = std.extVar('generator');
 local simulate = generator == 'pythia8';
+local job = lib.events(std.parseInt(std.extVar('events')));
 {
   stage: lib.stage,
-  driver: lib.driver(std.parseInt(std.extVar('events'))),
+  driver: job.driver,
   sources: {
     gen: lib[generator] { seed: 20261005 },
   } + (if simulate then {
@@ -37,7 +38,7 @@ local simulate = generator == 'pythia8';
          geometry: lib.builtin_geometry,
        } else {}),
   modules: {
-    output: (if simulate then lib.full_output else lib.mc_only_output)(
+    output: (if simulate then job.full_output else job.mc_only_output)(
       std.extVar('outfile'), std.extVar('outfile') + '.histo.root'
     ),
   } + (if simulate then { geant4: lib.geant4 { seed: 20261005 } } else {}),

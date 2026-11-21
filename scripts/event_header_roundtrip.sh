@@ -46,6 +46,7 @@ local n_events = std.parseInt(std.extVar('events'));
       mode: 'mc_only',
       rntuple_file: std.extVar('simout'),
       histo_file: std.extVar('histo'),
+      n_events_requested: n_events,
     },
   },
 }

@@ -36,6 +36,8 @@ find_package(
 )
 find_package(Geant4 REQUIRED)
 
+find_package(Boost REQUIRED COMPONENTS json)
+
 # Pythia8 has no CMake config; create an imported target from pythia8-config
 find_program(PYTHIA8_CONFIG pythia8-config REQUIRED)
 execute_process(
@@ -100,6 +102,7 @@ aegir_add_plugin(
         ROOT::ROOTHistUtil
         ROOT::ROOTNTuple
         spdlog::spdlog
+        Boost::json
 )
 
 aegir_add_plugin(
@@ -283,6 +286,13 @@ add_test(
 add_test(
     NAME writer_pool
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/writer_pool.sh
+)
+
+# File summary: the event counts written next to the RNTuple, for complete,
+# filtered and early-stopping jobs.
+add_test(
+    NAME file_summary
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/file_summary.sh
 )
 
 # Field deflection: a generated 0.5 T map goes through field_map_provider and

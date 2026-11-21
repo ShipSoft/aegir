@@ -40,7 +40,7 @@ EOF
 (cd "$workdir/manifest" && phlex -c <(jsonnet -J "$workflows" -e "
   local lib = import 'lib.libsonnet';
   (import 'gun_st_field_smoke.jsonnet') {
-    sources+: { field: lib.field_placements('$workdir/placements.json') },
+    resources+: { field: lib.field_placements('$workdir/placements.json') },
   }"))
 
 # Mean x of the primary muon (track 1) at each scoring plane, compared with the

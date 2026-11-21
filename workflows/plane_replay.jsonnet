@@ -24,9 +24,11 @@ local lib = import 'lib.libsonnet';
 function(infile, events, skip=0, seed=null, ecut=0.5) {
   stage: lib.stage,
   driver: lib.driver(events),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
+  },
+  sources: {
     input: {
       cpp: 'file_source',
       input_file: infile,

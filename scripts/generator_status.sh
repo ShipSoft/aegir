@@ -52,9 +52,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(std.parseInt(std.extVar('events'))),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     input: {
       cpp: 'file_source',
       input_file: std.extVar('infile'),

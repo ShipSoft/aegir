@@ -8,7 +8,7 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(100),
-  sources: {
+  resources: {
     geometry: lib.builtin_geometry,
     field: lib.field_map([
       {
@@ -18,6 +18,8 @@ local lib = import 'lib.libsonnet';
         map: 'target_2T_y',
       },
     ]),
+  },
+  sources: {
     gun: lib.pencil_gun,  // on axis, into target
   },
   modules: {

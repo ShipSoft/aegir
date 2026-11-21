@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// field_null_provider.cpp — Phlex provider plugin for workflows that don't
-// need a magnetic field. Publishes an empty IFieldSource (no regions);
+// field_null_provider.cpp — Phlex resource plugin for workflows that don't
+// need a magnetic field. Registers an empty IFieldSource (no regions);
 // ConstructSDandField() then installs no G4FieldManager and Geant4 propagates
 // in vacuum throughout.
 
@@ -11,8 +11,8 @@
 #include <vector>
 
 #include "SHiP/FieldService/IFieldSource.h"
-#include "phlex/source.hpp"
-#include "provider_helpers.hpp"
+#include "field_resource.hpp"
+#include "phlex/resource.hpp"
 
 namespace {
 
@@ -27,15 +27,7 @@ class NullFieldSource : public SHiP::IFieldSource {
 
 }  // namespace
 
-PHLEX_REGISTER_PROVIDERS(s, config) {
-  using namespace phlex;
-  (void)config;
-
-  // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IFieldSource>.
-  std::shared_ptr<SHiP::IFieldSource> const source =
-      std::make_shared<NullFieldSource>();
-
-  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
-                                "job");
+PHLEX_REGISTER_RESOURCES(r) {
+  r.add_unlimited_resource<SHiP::aegir::FieldResource>(
+      std::make_unique<NullFieldSource>());
 }

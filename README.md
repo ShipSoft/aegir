@@ -11,7 +11,7 @@ An [automatic class reference](https://shipsoft.github.io/aegir/) is built using
 ```
 [Source: ParticleGun / Pythia8 / FixedTarget] -> std::vector<MCParticle>
     |
-[Provider: IGeometrySource]
+[Resources: IGeometrySource, IFieldSource]
     |
 [Transform: Geant4] -> SimResult {hits, particles}
     |
@@ -25,9 +25,11 @@ An [automatic class reference](https://shipsoft.github.io/aegir/) is built using
 | `particle_gun_source` | Source | Configurable single-particle gun with Random123 RNG |
 | `pythia8_source` | Source | Pythia8 fixed-target p-p (serial or PythiaParallel) |
 | `fixed_target_source` | Source | Dual-target Pythia8 (p-p/p-n) with interaction point sampling |
-| `geometry_builtin_provider` | Provider | W target + Si scoring planes (test geometry) |
-| `geometry_gdml_provider` | Provider | GDML file loader |
-| `geometry_geomodel_provider` | Provider | GeoModel .db via SHiPGeometryService (optional) |
+| `geometry_builtin_provider` | Resource | W target + Si scoring planes (test geometry) |
+| `geometry_gdml_provider` | Resource | GDML file loader |
+| `geometry_geomodel_provider` | Resource | GeoModel .db via SHiPGeometryService (optional) |
+| `field_null_provider` | Resource | No magnetic field |
+| `field_map_provider` | Resource | Field maps in the SHiP field-map format, from a placement manifest or a list of magnets |
 | `geant4_module` | Transform | Geant4 simulation (direct worker, configurable concurrency) |
 | `sim_output_module` | Observer | RNTuple parallel writer + validation histograms |
 
@@ -170,7 +172,9 @@ phlex -c workflows/gun_only.jsonnet
 
 ## Geometry
 
-Three geometry providers are available, selectable via workflow configuration:
+Three geometry plugins are available. A workflow loads one of them, and one
+field plugin, in its top-level `resources` table; Phlex builds both once,
+before any module loads:
 
 - **Builtin** (`geometry_builtin_provider`) — Tungsten target + Si scoring planes
   (test geometry). Used by `workflows/gun_st.jsonnet` and friends. No setup
@@ -188,7 +192,7 @@ Three geometry providers are available, selectable via workflow configuration:
   ```
 
   Workflows reference the DB by bare filename (`db_file: 'ship_geometry.db'`);
-  the provider resolves it against the CWD first and, failing that, against
+  the plugin resolves it against the CWD first and, failing that, against
   `$SHIPGEOMETRY_ROOT/share/geometry/`. `activate.sh` sets `SHIPGEOMETRY_ROOT`
   to `$CONDA_PREFIX` by default, so dropping a DB under
   `$CONDA_PREFIX/share/geometry/` makes it discoverable from any CWD.

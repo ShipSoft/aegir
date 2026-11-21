@@ -104,19 +104,20 @@ aegir_add_plugin(
 
 aegir_add_plugin(
     geometry_builtin_provider
-    LIBS SHiP::DataModel SHiP::Units ${Geant4_LIBRARIES}
+    LIBS phlex::resource SHiP::DataModel SHiP::Units ${Geant4_LIBRARIES}
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     geometry_gdml_provider
-    LIBS SHiP::DataModel ${Geant4_LIBRARIES}
+    LIBS phlex::resource SHiP::DataModel ${Geant4_LIBRARIES}
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 aegir_add_plugin(
     geometry_geomodel_provider
     LIBS
+        phlex::resource
         SHiP::DataModel
         ${Geant4_LIBRARIES}
         SHiP::GeometryService
@@ -146,8 +147,8 @@ if(AEGIR_TLS_INITIAL_EXEC)
     target_compile_options(geant4_module PRIVATE -ftls-model=initial-exec)
 endif()
 
-aegir_add_plugin(field_map_provider LIBS SHiP::FieldServiceMapIO)
-aegir_add_plugin(field_null_provider LIBS SHiP::FieldService)
+aegir_add_plugin(field_map_provider LIBS phlex::resource SHiP::FieldServiceMapIO)
+aegir_add_plugin(field_null_provider LIBS phlex::resource SHiP::FieldService)
 
 aegir_add_plugin(
     pythia8_source

@@ -29,6 +29,7 @@ An [automatic class reference](https://shipsoft.github.io/aegir/) is built using
 | `geometry_gdml_provider` | Provider | GDML file loader |
 | `geometry_geomodel_provider` | Provider | GeoModel .db via SHiPGeometryService (optional) |
 | `geant4_module` | Transform | Geant4 simulation (direct worker, configurable concurrency) |
+| `eventcalc_source` | Source | EventCalc-SHiP LLP decay records (see `docs/eventcalc.md`) |
 | `sim_output_module` | Observer | RNTuple parallel writer + validation histograms |
 
 ## Dependencies
@@ -71,6 +72,8 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
   tests registered in [`CMakeLists.txt`](CMakeLists.txt), each a script in
   [`scripts/`](scripts/). CI runs this task.
 - `smoke` — quick end-to-end check used by CI ([`scripts/smoke.sh`](scripts/smoke.sh)).
+- `count_eventcalc_events` — decay count of an EventCalc `.dat` record, for the
+  driver's event total (see [`docs/eventcalc.md`](docs/eventcalc.md)).
 - `clean` — `rm -rf build`.
 
 ### `pixi run` vs `pixi shell`

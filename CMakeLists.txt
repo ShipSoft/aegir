@@ -172,6 +172,12 @@ aegir_add_plugin(
     LIBS SHiP::DataModel SHiP::Units ROOT::RIO ROOT::Tree
 )
 
+aegir_add_plugin(
+    eventcalc_source
+    LIBS SHiP::SHiPDataModel SHiP::SHiPUnits
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
 # Standalone Pythia8 benchmark (no Phlex dependency)
 add_executable(pythia8_benchmark benchmarks/pythia8_benchmark.cpp)
 target_link_libraries(pythia8_benchmark PRIVATE Pythia8::Pythia8 SHiP::Units)
@@ -283,6 +289,29 @@ add_test(
 add_test(
     NAME writer_pool
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/writer_pool.sh
+)
+
+# EventCalc source: the parser test links no Phlex, so this drives the plugin
+# itself — full read, exhaustion error, first_entry offset.
+add_test(
+    NAME eventcalc_source
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/eventcalc_source_check.sh
+)
+
+# EventCalc parser: a fixture covering padded rows, process names containing
+# the decay arrow, CRLF endings and both block-header forms. The parser links
+# only the header-only unit vocabulary: no Phlex, ROOT or Geant4.
+add_executable(test_eventcalc_reader tests/test_eventcalc_reader.cpp)
+target_include_directories(
+    test_eventcalc_reader
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(test_eventcalc_reader PRIVATE SHiP::SHiPUnits)
+add_test(
+    NAME eventcalc_reader
+    COMMAND
+        test_eventcalc_reader
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/eventcalc_sample.dat
 )
 
 # Field deflection: a generated 0.5 T map goes through field_map_provider and

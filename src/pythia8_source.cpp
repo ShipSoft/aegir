@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// pythia8_source.cpp — Phlex source plugin for Pythia8 event generation
+// pythia8_source.cpp — Phlex provider plugin for Pythia8 event generation
 //
 // Provides MCParticle vectors from Pythia8 in 400 GeV fixed-target mode.
 // Supports both single-threaded (serial Pythia) and multi-threaded
@@ -38,12 +38,12 @@ namespace {
 // Single-threaded Pythia8 source
 // ============================================================================
 
-class Pythia8Source : public phlex::source {
+class Pythia8Source {
  public:
-  Pythia8Source(std::string stage, std::string const& xml_dir,
-                SHiP::Energy beam_energy, std::string const& process,
-                SHiP::aegir::record_mode record, std::uint32_t seed)
-      : stage_{std::move(stage)}, seed_{seed}, record_{record} {
+  Pythia8Source(std::string const& xml_dir, SHiP::Energy beam_energy,
+                std::string const& process, SHiP::aegir::record_mode record,
+                std::uint32_t seed)
+      : seed_{seed}, record_{record} {
     pythia_ = std::make_unique<Pythia8::Pythia>(xml_dir, false);
     // Philox engine re-keyed to the event number before every event, so the
     // events do not depend on the order they are processed in (see
@@ -64,16 +64,7 @@ class Pythia8Source : public phlex::source {
         pythia_->event, SHiP::Length::zero(), record_);
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
-  }
-
  private:
-  std::string stage_;
   std::uint32_t seed_;
   std::shared_ptr<SHiP::aegir::PhiloxRndmEngine> engine_ =
       std::make_shared<SHiP::aegir::PhiloxRndmEngine>();
@@ -85,14 +76,13 @@ class Pythia8Source : public phlex::source {
 // Multi-threaded Pythia8 source (PythiaParallel on dedicated thread)
 // ============================================================================
 
-class Pythia8MTSource : public phlex::source {
+class Pythia8MTSource {
  public:
-  Pythia8MTSource(std::string stage, std::string const& xml_dir,
-                  SHiP::Energy beam_energy, std::string const& process,
-                  SHiP::aegir::record_mode record, int num_threads,
-                  long num_events, std::size_t max_queue_size,
+  Pythia8MTSource(std::string const& xml_dir, SHiP::Energy beam_energy,
+                  std::string const& process, SHiP::aegir::record_mode record,
+                  int num_threads, long num_events, std::size_t max_queue_size,
                   std::uint32_t seed)
-      : stage_{std::move(stage)}, max_queue_size_{max_queue_size} {
+      : max_queue_size_{max_queue_size} {
     pythia_thread_ = std::jthread([=, this] {
       // Ensure done_ is always signalled when the thread exits,
       // whether by normal completion or exception.
@@ -153,7 +143,7 @@ class Pythia8MTSource : public phlex::source {
     ready_future_.get();
   }
 
-  ~Pythia8MTSource() override {
+  ~Pythia8MTSource() {
     {
       std::scoped_lock const lock{mutex_};
       done_ = true;
@@ -169,17 +159,7 @@ class Pythia8MTSource : public phlex::source {
     return pop();
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial);
-  }
-
  private:
-  std::string stage_;
-
   void push(std::vector<SHiP::MCParticle> particles) {
     std::unique_lock lock{mutex_};
     cv_push_.wait(lock,
@@ -232,7 +212,7 @@ class Pythia8MTSource : public phlex::source {
 
 }  // namespace
 
-PHLEX_REGISTER_SOURCE(s, config) {
+PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
   auto const xml_dir = config.get<std::string>("xml_dir", [] {
@@ -249,11 +229,13 @@ PHLEX_REGISTER_SOURCE(s, config) {
   auto const record = SHiP::aegir::parse_record_mode(
       config.get<std::string>("record", std::string{"final_state"}), "pythia8");
   auto seed = SHiP::aegir::resolve_seed(config, "pythia8");
-  auto stage = SHiP::aegir::source_stage(config, "pythia8");
 
   if (!parallel) {
-    s.add_source<Pythia8Source>("pythia8", std::move(stage), xml_dir,
-                                beam_energy, process, record, seed);
+    auto const source = std::make_shared<Pythia8Source>(xml_dir, beam_energy,
+                                                        process, record, seed);
+    SHiP::aegir::provide_mc_particles(
+        s, [source](data_cell_index const& id) { return source->generate(id); },
+        concurrency::serial);
   } else {
     auto const num_threads = config.get<int>("num_threads", 4);
     auto const num_events = config.get<long>("num_events", 100);
@@ -263,8 +245,11 @@ PHLEX_REGISTER_SOURCE(s, config) {
                                std::to_string(queue_size));
     }
 
-    s.add_source<Pythia8MTSource>(
-        "pythia8", std::move(stage), xml_dir, beam_energy, process, record,
-        num_threads, num_events, static_cast<std::size_t>(queue_size), seed);
+    auto const source = std::make_shared<Pythia8MTSource>(
+        xml_dir, beam_energy, process, record, num_threads, num_events,
+        static_cast<std::size_t>(queue_size), seed);
+    SHiP::aegir::provide_mc_particles(
+        s, [source](data_cell_index const& id) { return source->generate(id); },
+        concurrency::serial);
   }
 }

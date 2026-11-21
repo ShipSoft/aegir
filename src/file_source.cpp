@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// file_source.cpp — Phlex source plugin
+// file_source.cpp — Phlex provider plugin
 //
 // Reads pre-generated events from a ROOT RNTuple, one entry per event, and
 // publishes them as the "mc_particles" product. Each entry holds a
@@ -47,11 +47,11 @@
 
 namespace {
 
-class FileSource : public phlex::source {
+class FileSource {
  public:
-  FileSource(std::string stage, std::string const& input_file,
-             std::string const& ntuple, std::string const& product, long skip)
-      : stage_{std::move(stage)}, skip_{skip} {
+  FileSource(std::string const& input_file, std::string const& ntuple,
+             std::string const& product, long skip)
+      : skip_{skip} {
     // skip_ is cast to the unsigned ROOT::NTupleSize_t in generate(); reject a
     // negative skip here rather than let it wrap around to a huge offset.
     if (skip < 0) {
@@ -147,24 +147,12 @@ class FileSource : public phlex::source {
     return header;
   }
 
-  phlex::provider_bundles create_providers(
-      phlex::product_selector const& selector) override {
-    // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
-    // additionally guards the reader against the concurrent header provider.
-    SHiP::aegir::event_header_generator header_gen{};
-    if (header_view_ || event_number_view_) {
-      header_gen = [this](phlex::data_cell_index const& id) {
-        return generate_header(id);
-      };
-    }
-    return SHiP::aegir::mc_particle_provider_bundles(
-        selector, stage_,
-        [this](phlex::data_cell_index const& id) { return generate(id); },
-        phlex::concurrency::serial, std::move(header_gen));
+  // Whether the input carries anything for generate_header to read.
+  [[nodiscard]] bool has_header_fields() const {
+    return header_view_ || event_number_view_;
   }
 
  private:
-  std::string stage_;
   long skip_;
   ROOT::NTupleSize_t n_entries_{0};
   // Declared before reader_, so it outlives the reader.
@@ -183,7 +171,7 @@ class FileSource : public phlex::source {
 
 }  // namespace
 
-PHLEX_REGISTER_SOURCE(s, config) {
+PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
   auto const input_file = config.get<std::string>("input_file");
@@ -192,8 +180,18 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("product", std::string{"mc_particles"});
   auto const skip =
       config.get<long>("skip", 0L);  // start reading at this entry
-  auto stage = SHiP::aegir::source_stage(config, "file_source");
 
-  s.add_source<FileSource>("file_source", std::move(stage), input_file, ntuple,
-                           product, skip);
+  auto const source =
+      std::make_shared<FileSource>(input_file, ntuple, product, skip);
+  // Read events serially (RNTupleReader/view is not thread-safe); io_mutex_
+  // additionally guards the reader against the concurrent header provider.
+  SHiP::aegir::event_header_generator header_gen{};
+  if (source->has_header_fields()) {
+    header_gen = [source](data_cell_index const& id) {
+      return source->generate_header(id);
+    };
+  }
+  SHiP::aegir::provide_mc_particles(
+      s, [source](data_cell_index const& id) { return source->generate(id); },
+      concurrency::serial, std::move(header_gen));
 }

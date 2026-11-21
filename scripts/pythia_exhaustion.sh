@@ -24,7 +24,6 @@ cat >"$workdir/exhaust.jsonnet" <<'EOF'
   sources: {
     pythia8: {
       cpp: 'pythia8_source',
-      stage: 'simulation',
       beam_energy: 400.0,
       process: 'SoftQCD:inelastic',
       parallel: true,

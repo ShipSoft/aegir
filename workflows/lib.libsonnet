@@ -5,9 +5,8 @@
 // overrides or extends a block without repeating it.
 {
   // Phlex requires every job to name its stage; products are labelled with
-  // it. Workflows set `stage: lib.stage` at the top level. Phlex does not
-  // pass that key on to sources, so the generator sources below carry their
-  // own copy for the products they publish.
+  // it. Workflows set `stage: lib.stage` at the top level, and `phlex
+  // --stage` overrides it.
   stage:: 'simulation',
 
   driver(events):: {
@@ -63,7 +62,6 @@
   // Default spray gun: 10–100 GeV μ− in a narrow cone from z = −500 mm.
   gun:: {
     cpp: 'particle_gun_source',
-    stage: $.stage,
     pdg: 13,
     p_min: 10.0,  // GeV/c
     p_max: 100.0,  // GeV/c
@@ -74,7 +72,6 @@
   // Pencil beam for the field smokes: straight 20 GeV μ− from z = −2 m.
   pencil_gun:: {
     cpp: 'particle_gun_source',
-    stage: $.stage,
     pdg: 13,
     p_min: 20.0,  // GeV/c
     p_max: 20.0,  // GeV/c
@@ -89,7 +86,6 @@
   // docs/generator_record.md.
   pythia8:: {
     cpp: 'pythia8_source',
-    stage: $.stage,
     beam_energy: 400.0,  // GeV
     process: 'SoftQCD:inelastic',
     record: 'final_state',
@@ -97,7 +93,6 @@
 
   fixed_target:: {
     cpp: 'fixed_target_source',
-    stage: $.stage,
     beam_energy: 400.0,  // GeV
     target_z: 74,  // proton number, not a coordinate
     target_a: 184,
@@ -113,7 +108,6 @@
   // file (gntpc -f rootracker); see docs/genie.md for how to produce one.
   genie_reader:: {
     cpp: 'genie_reader_source',
-    stage: $.stage,
     file: 'genie_events.rootracker.root',
     record: 'final_state',
   },

@@ -29,7 +29,6 @@ function(infile, events, skip=0, seed=null, ecut=0.5) {
     geometry: lib.geomodel_geometry,
     input: {
       cpp: 'file_source',
-      stage: lib.stage,
       input_file: infile,
       product: 'plane_particles',
       skip: skip,

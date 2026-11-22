@@ -93,7 +93,7 @@ std::vector<SHiP::MCParticle> build_plane_particles(
     return out.size() - 1;
   };
 
-  auto add_track = [&](int id, int status) {
+  auto const add_track = [&](int id, int status) {
     if (auto const it = track_index.find(id); it != track_index.end()) {
       return it->second;
     }

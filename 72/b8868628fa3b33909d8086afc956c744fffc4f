@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-11-22T20:12:09.112797Z",
+  "configuration": "",
+  "files": {
+    "gun_st_nofield_smoke_validation.root": {
+      "file_size": 7658,
+      "trees": {},
+      "histograms": {
+        "h_mc_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 1.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_mc_momentum": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 20.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 16.29,
+            "uncertainty": 2.775654697544347,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 27.75654697544347,
+            "uncertainty": 1.9626842588659033,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_edep": {
+          "entries": {
+            "value": 1629.0,
+            "uncertainty": 40.36087214122113,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 7.615955379651426e-05,
+            "uncertainty": 2.6901117926575393e-06,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.00010857525810904211,
+            "uncertainty": 1.9021962907380457e-06,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 1629.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_z": {
+          "entries": {
+            "value": 1629.0,
+            "uncertainty": 40.36087214122113,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 6451.651971274657,
+            "uncertainty": 72.80930190953147,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 2938.646925062167,
+            "uncertainty": 51.48395111368835,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 1629.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_detector": {
+          "entries": {
+            "value": 1629.0,
+            "uncertainty": 40.36087214122113,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 99.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 1629.0,
+            "compare": "float"
+          }
+        },
+        "h_hit_momentum": {
+          "entries": {
+            "value": 1629.0,
+            "uncertainty": 40.36087214122113,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 6.323048313129013,
+            "uncertainty": 0.2303581488812354,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 9.297455793683923,
+            "uncertainty": 0.16288780917550186,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 1629.0,
+            "compare": "float"
+          }
+        },
+        "h_plane_hit_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 0.0,
+            "uncertainty": 0.0,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        },
+        "h_particle_multiplicity": {
+          "entries": {
+            "value": 100.0,
+            "uncertainty": 10.0,
+            "compare": "statistical"
+          },
+          "mean": {
+            "value": 318.4,
+            "uncertainty": 5.624464418946946,
+            "compare": "statistical"
+          },
+          "rms": {
+            "value": 56.24464418946946,
+            "uncertainty": 3.9770969311798403,
+            "compare": "statistical"
+          },
+          "integral": {
+            "value": 100.0,
+            "compare": "float"
+          }
+        }
+      }
+    }
+  }
+}

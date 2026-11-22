@@ -6,9 +6,8 @@
 # Scoring planes: run gun_st_scoring_planes with neutrinos and with muons and
 # check that every plane records exactly the tracks the geometry says cross
 # it, at its entry face, with the scoring-plane detector id; that neutrinos
-# are recorded although they deposit nothing; that a plane
-# cutting through the target records like any other (the planes live in a
-# parallel world); and
+# are recorded although they deposit nothing; that a plane cutting through the
+# target records like any other (the planes live in a parallel world); and
 # that the killing plane stops what it records. Check that keep_particles:
 # 'hit_ancestry' writes exactly the hit tracks and their ancestors. Check that
 # the recording plane's plane_particles hold the tracks it recorded, as

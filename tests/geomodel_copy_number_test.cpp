@@ -104,16 +104,18 @@ void place(GeoPhysVol* mother, GeoVPhysVol* child, std::string const& name,
 // `copies` copies of `unit` along x, at x = -200, -100, ... mm, as the
 // tracker factory places its straws.
 GeoSerialTransformer* row(GeoPhysVol const* unit, unsigned copies) {
-  GeoGenfun::Variable i;
-  GeoGenfun::GENFUNCTION x = -200.0 * GU::mm + 100.0 * GU::mm * i;
-  GeoXF::TRANSFUNCTION xf = GeoXF::Pow(
-      GeoTrf::Transform3D(GeoTrf::Translate3D(1.0 * GU::mm, 0.0, 0.0)), x);
+  GeoGenfun::Variable const i;
+  GeoGenfun::GENFUNCTION x = (-200.0 * GU::mm) + (100.0 * GU::mm * i);
+  // Bound as a Transform3D reference, which copies nothing, rather than
+  // converted to one.
+  GeoTrf::Translate3D const step(1.0 * GU::mm, 0.0, 0.0);
+  GeoXF::TRANSFUNCTION xf = GeoXF::Pow(step, x);
   return new GeoSerialTransformer(unit, &xf, copies);
 }
 
 // The test world: one placement per case listed at the top of this file.
 PVConstLink buildWorld() {
-  auto* nitrogen =
+  auto const* nitrogen =
       new GeoElement("Nitrogen", "N", 7, 14.007 * GU::g / GU::mole);
   auto* air = new GeoMaterial("ProbeAir", 1.29e-3 * GU::g / GU::cm3);
   air->add(nitrogen, 1.0);
@@ -158,19 +160,24 @@ struct Level {
   bool parameterised;
 };
 
+// A case's probe point, in the world frame (mm). Plain coordinates rather
+// than a G4ThreeVector, which is not a literal type, so that the table can be
+// constexpr.
 struct Probe {
   std::string_view name;
-  G4ThreeVector point;
+  double x;
+  double y;
+  double z;
+
+  [[nodiscard]] G4ThreeVector point() const { return {x, y, z}; }
 };
 
-// Each case's probe point, in the world frame (mm). Not constexpr:
-// G4ThreeVector is not a literal type.
-std::array<Probe, 5> const kProbes{{
-    {"leaf", {0, 0, -800}},
-    {"untagged", {0, 0, -600}},
-    {"straw", {-200.0 + 100.0 * kStrawCopy, 0, -200}},
-    {"mixed", {-200.0 + 100.0 * kMixedCopy, 0, 200}},
-    {"fibre", {0, 0, 600}},
+constexpr std::array<Probe, 5> kProbes{{
+    {.name = "leaf", .x = 0, .y = 0, .z = -800},
+    {.name = "untagged", .x = 0, .y = 0, .z = -600},
+    {.name = "straw", .x = -200.0 + (100.0 * kStrawCopy), .y = 0, .z = -200},
+    {.name = "mixed", .x = -200.0 + (100.0 * kMixedCopy), .y = 0, .z = 200},
+    {.name = "fibre", .x = 0, .y = 0, .z = 600},
 }};
 
 // Converts `svc`'s tree and places its world, as the run manager would. The
@@ -195,7 +202,7 @@ std::vector<std::vector<Level>> read_touchables(Checker& ok,
 
   std::vector<std::vector<Level>> result;
   for (auto const& probe : kProbes) {
-    if (navigator.LocateGlobalPointAndSetup(probe.point, nullptr, false,
+    if (navigator.LocateGlobalPointAndSetup(probe.point(), nullptr, false,
                                             true) == nullptr) {
       ok(false, std::format("{}: the {} probe point is in no volume", source,
                             probe.name));
@@ -234,7 +241,7 @@ void print(std::string_view source,
            std::vector<std::vector<Level>> const& touchables) {
   std::println("--- converted {} ---", source);
   for (std::size_t i = 0; i < kProbes.size(); ++i) {
-    std::print("{:9}", kProbes[i].name);
+    std::print("{:9}", kProbes.at(i).name);
     for (auto const& level : touchables[i]) {
       std::print(" | {} {}{}", level.volume, level.copy_number,
                  level.parameterised ? " (parameterised)" : "");
@@ -397,7 +404,7 @@ int run() {
     for (std::size_t depth = 0; depth < 3; ++depth) {
       ok(copy_number(from_tree, i, depth) == copy_number(from_db, i, depth),
          std::format("{} depth {}: same copy number from tree and .db",
-                     kProbes[i].name, depth));
+                     kProbes.at(i).name, depth));
     }
   }
 

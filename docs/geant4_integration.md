@@ -156,7 +156,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
 | `strict_node_ids` | bool | `false` | Stop the job, instead of logging a warning, when placements of a sensitive volume share a `geometry_node_id`, see [Sensitive volumes](#sensitive-volumes) |
-| `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in |
+| `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in. To read the file back with `geometry_gdml_provider`, set `from_geomodel: true` there (see [Sensitive volumes](#sensitive-volumes)). |
 | `progress_interval` | int | `100` | Log a progress line (event count and average rate) every this many simulated events; `0` disables |
 
 For consumers that read the exported file with ROOT's TGeo importer, run
@@ -267,9 +267,9 @@ geometry: {
 },
 ```
 
-What the id means
-otherwise belongs to the detector named by `detector_id`. The builtin
-geometry numbers its five test planes 0-4 from upstream.
+Beyond that, what the id means belongs to the detector named by
+`detector_id`. The builtin geometry numbers its five test planes 0-4 from
+upstream.
 
 The geometry is checked before the run. If, in some placement of a
 sensitive volume, `id_depth` reaches above the world volume, the job

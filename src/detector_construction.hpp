@@ -116,11 +116,15 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
             name, pattern, f.id_depth);
         continue;
       }
+      // check_id_depths() gives every shared finding an id.
+      if (!f.id) {
+        throw std::logic_error("check_id_depths: shared finding without an id");
+      }
       auto const message = std::format(
           "'{}' (pattern '{}'): {} of its {} placements share an id at "
           "id_depth {}, e.g. {} get geometry_node_id {}",
           name, pattern, f.sharing, f.placements, f.id_depth, f.id_placements,
-          f.id.value_or(kNoGeometryNodeId));
+          *f.id);
       if (strict_node_ids_) {
         fatal += "\n  " + message;
       } else {

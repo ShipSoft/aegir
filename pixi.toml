@@ -192,7 +192,8 @@ mkdir -p coverage/html \
     --json-summary-pretty --json-summary coverage/summary.json \
     --markdown-summary coverage/summary.md \
     --html-details coverage/html/index.html \
-    --print-summary
+    --print-summary \
+    build-coverage
 """, depends-on = ["coverage-test"] }
 
 [feature.bench.dependencies]

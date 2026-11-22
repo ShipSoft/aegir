@@ -13,9 +13,12 @@
 //   - Strip (copy 0) > Pad, 4 times as copies 20, 99, 99, 21 > PadGas (0)
 //   - MixGas (0), both in RepCell, a G4PVReplica of 4 copies in RepRow
 //     (copy 3), and in PlCell, placed twice as copy 5 in PlRow (copy 4)
+//   - Bank, placed twice (copies 1, 2) > Tile, a G4PVReplica of 3 copies in
+//     each > TileGas (0): the replica indices 0-2 restart in every bank
 // A replica is one physical volume for all of its copies, so the walk meets
 // the Gas once. Its copies must still be counted, and they read the same id
-// unless the replica itself is the level that carries it. Any id that more
+// unless the replica itself is the level that carries it; then their ids are
+// the replica indices, 0 to N - 1, compared like any other. Any id that more
 // than one placement gets is reported, not only one shared by all of them.
 
 #include "geometry_node_id.hpp"
@@ -49,6 +52,7 @@ struct World {
   G4LogicalVolume* slot_gas;
   G4LogicalVolume* pad_gas;
   G4LogicalVolume* mix_gas;
+  G4LogicalVolume* tile_gas;
 };
 
 // A vacuum box `name` of half-widths `hx`, `hy`, `hz` (mm).
@@ -131,12 +135,24 @@ World build() {
   new G4PVPlacement(nullptr, G4ThreeVector(), mix_gas, "MixGas", pl_cell, false,
                     0);
 
+  auto* bank = box("Bank", 400, 100, 100);
+  for (int b = 1; b <= 2; ++b) {
+    new G4PVPlacement(nullptr, G4ThreeVector(0, b == 1 ? 700 : -700, -500),
+                      bank, "Bank", world_lv, false, b);
+  }
+  auto* tile = box("Tile", 400.0 / 3, 100, 100);
+  new G4PVReplica("Tile", tile, bank, kXAxis, 3, 800.0 / 3);
+  auto* tile_gas = box("TileGas", 50, 50, 50);
+  new G4PVPlacement(nullptr, G4ThreeVector(), tile_gas, "TileGas", tile, false,
+                    0);
+
   return {.world = world,
           .gas = gas,
           .cell_gas = cell_gas,
           .slot_gas = slot_gas,
           .pad_gas = pad_gas,
-          .mix_gas = mix_gas};
+          .mix_gas = mix_gas,
+          .tile_gas = tile_gas};
 }
 
 // check_id_depths() with only `lv` sensitive, at `id_depth`, in a geometry
@@ -177,14 +193,15 @@ int main() {
   ok(shared(findings(w, w.gas, 0), {4, 4, 0, 4}),
      "gas at id_depth 0: the 4 wall copies all read the gas's id 0");
   ok(findings(w, w.gas, 1).empty(),
-     "gas at id_depth 1: the wall replica carries the id, not compared");
+     "gas at id_depth 1: the wall replica's indices 0-3 tell its copies apart");
   ok(shared(findings(w, w.gas, 2), {4, 4, 7, 4}),
      "gas at id_depth 2: the 4 wall copies all read the layer's id 7");
   ok(shared(findings(w, w.gas, 3), {4, 4, 0, 4}),
      "gas at id_depth 3: the world, the deepest level there is");
   auto const above = findings(w, w.gas, 4);
-  ok(above.size() == 1 && above[0].kind == Kind::too_deep,
-     "gas at id_depth 4 reaches above the world");
+  ok(above.size() == 1 && above[0].kind == Kind::too_deep &&
+         above[0].placements == 4,
+     "gas at id_depth 4 reaches above the world, in all 4 wall copies");
 
   // Placements are walked one by one.
   ok(findings(w, w.cell_gas, 1).empty(),
@@ -206,8 +223,13 @@ int main() {
   ok(shared(findings(w, w.pad_gas, 1), {4, 2, 99, 2}),
      "pad gas without an untagged value: copy 99 is given twice");
   ok(shared(findings(w, w.mix_gas, 1), {6, 2, 5, 2}),
-     "mix gas: the replica path is skipped, the 2 placements of copy 5 are "
-     "still compared");
+     "mix gas: replica indices 0-3 next to the 2 placements of copy 5");
+
+  // A replica at the id level whose indices restart in every parent.
+  ok(shared(findings(w, w.tile_gas, 1), {6, 6, 0, 2}),
+     "tile gas at id_depth 1: indices 0-2 in each of the 2 banks collide");
+  ok(shared(findings(w, w.tile_gas, 2), {6, 6, 1, 3}),
+     "tile gas at id_depth 2: the 3 tiles of each bank share its id");
 
   g4::SensitiveVolumeIds const both{
       .volumes = {{w.gas, {.detector_id = 0, .id_depth = 0}},

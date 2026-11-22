@@ -55,6 +55,8 @@
 #include <G4VPhysicalVolume.hh>
 #include <array>
 #include <cstddef>
+#include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -62,6 +64,7 @@
 #include <print>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -334,9 +337,27 @@ void check_depths(Checker& ok, std::string_view source,
      what("id_depth 4 on the straw gas reaches above the world"));
 }
 
-}  // namespace
+// Removes the file at `path` when it goes out of scope, so that no exit,
+// however early, leaves it behind (run() is called inside a try block, so
+// an exception unwinds through it too).
+class RemoveOnExit {
+ public:
+  explicit RemoveOnExit(std::filesystem::path path) : path_{std::move(path)} {}
+  RemoveOnExit(RemoveOnExit const&) = delete;
+  RemoveOnExit& operator=(RemoveOnExit const&) = delete;
+  RemoveOnExit(RemoveOnExit&&) = delete;
+  RemoveOnExit& operator=(RemoveOnExit&&) = delete;
+  ~RemoveOnExit() {
+    std::error_code ignored;
+    std::filesystem::remove(path_, ignored);
+  }
 
-int main() {
+ private:
+  std::filesystem::path path_;
+};
+
+// The test proper; main() turns an exception into a failure.
+int run() {
   Checker ok;
 
   auto direct = SHiP::GeometryService::fromWorld(buildWorld());
@@ -349,13 +370,14 @@ int main() {
   auto const db_path = std::filesystem::temp_directory_path() /
                        std::format("aegir_copy_numbers_{}.db", getpid());
   std::filesystem::remove(db_path);
+  // Declared before from_file, so it outlives the service reading the file.
+  RemoveOnExit const remove_db{db_path};
   {
     GMDBManager db{db_path.string()};
     // Writing to, then reading from, a file that did not open ends in a
     // GeoModel exception or a crash, so stop here with a clean failure.
     if (!db.checkIsDBOpen()) {
       ok(false, "the .db file opens for writing");
-      std::filesystem::remove(db_path);
       std::println("{} problem(s)", ok.failures);
       return 1;
     }
@@ -369,7 +391,6 @@ int main() {
   print("through a .db file", from_db);
   check(ok, "db", from_db);
   check_depths(ok, "db", db_world.get());
-  std::filesystem::remove(db_path);
 
   // Whatever the converter does, the .db must not change it.
   for (std::size_t i = 0; i < kProbes.size(); ++i) {
@@ -382,4 +403,15 @@ int main() {
 
   std::println("{} problem(s)", ok.failures);
   return ok.failures == 0 ? 0 : 1;
+}
+
+}  // namespace
+
+int main() {
+  try {
+    return run();
+  } catch (std::exception const& e) {
+    std::println(stderr, "FAILED: {}", e.what());
+    return 1;
+  }
 }

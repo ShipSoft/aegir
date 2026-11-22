@@ -37,8 +37,10 @@ inline constexpr std::int32_t kNoGeometryNodeId = -1;
 /// (GeoModel 6.32). It is GeoModel's choice, not aegir's, and GeoModel does
 /// not export it, so it is named once here; the GeoModel copy-number test
 /// fails if a GeoModel release stops producing it. Only the GeoModel geometry
-/// source reports it (IGeometrySource::untaggedCopyNumber()): in a GDML or
-/// builtin geometry 16969 is an ordinary copy number.
+/// source, and the GDML one for a file exported from GeoModel
+/// (`from_geomodel`), report it (IGeometrySource::untaggedCopyNumber()):
+/// elsewhere in GDML, and in the builtin geometry, 16969 is an ordinary copy
+/// number.
 inline constexpr int kGeoModelUntaggedCopyNumber = 16969;
 
 /// The geometry_node_id for `copy_number`: the copy number itself, or
@@ -90,8 +92,7 @@ struct IdDepthFinding {
   /// For `shared`: how many placements get an id that another one gets too.
   std::size_t sharing;
   /// For `shared`: the id the most placements share (the lowest on a tie),
-  /// and how many get it. Unset when the only sharing is between copies of a
-  /// replica whose copy numbers are known only while navigating.
+  /// and how many get it. Unset for `too_deep`.
   std::optional<std::int32_t> id;
   std::size_t id_placements;
 };
@@ -105,12 +106,8 @@ class IdDepthWalk {
   struct State {
     std::size_t placements = 0;
     bool too_deep = false;
-    // Placements per id, for the paths whose id level is a placement.
+    // Placements per id.
     std::unordered_map<std::int32_t, std::size_t> per_id;
-    // Placements that read the same copy of a replica or parameterised id
-    // level as another placement: sharing, though the id itself is known only
-    // while navigating.
-    std::size_t sharing_unknown_id = 0;
   };
 
   explicit IdDepthWalk(SensitiveVolumeIds const& sensitive)
@@ -163,38 +160,37 @@ class IdDepthWalk {
 
   void record(G4LogicalVolume* lv, int id_depth) {
     auto& state = states_[lv];
+    // Placements this path stands for: the copies of every replica or
+    // parameterised volume on it.
+    std::size_t path_copies = 1;
+    for (auto const* pv : path_) {
+      path_copies *= copies_of(pv);
+    }
+    state.placements += path_copies;
+
     // path_ runs from the world down to this placement, which is depth 0.
     if (id_depth < 0 || std::cmp_greater_equal(id_depth, path_.size())) {
       state.too_deep = true;
-      ++state.placements;
       return;
     }
-    auto const carrier_index =
-        path_.size() - 1 - static_cast<std::size_t>(id_depth);
-    auto const* carrier = path_[carrier_index];
+    auto const* carrier =
+        path_[path_.size() - 1 - static_cast<std::size_t>(id_depth)];
+    auto const untagged = sensitive_->untagged_copy_number;
 
-    // Placements this path stands for that read the same carrier copy: the
-    // copies of every replica or parameterised volume on it but the carrier.
-    std::size_t same_copy = 1;
-    for (std::size_t k = 0; k < path_.size(); ++k) {
-      if (k != carrier_index) {
-        same_copy *= copies_of(path_[k]);
-      }
+    if (!carrier->IsReplicated()) {
+      state.per_id[node_id_from_copy_number(carrier->GetCopyNo(), untagged)] +=
+          path_copies;
+      return;
     }
+    // A replica or parameterised volume's copy number, as the navigator gives
+    // it, is the copy's index, 0 to its multiplicity - 1. Every index is read
+    // by the placements the other copies on the path stand for.
     auto const carrier_copies = copies_of(carrier);
-    state.placements += same_copy * carrier_copies;
-
-    if (carrier->IsReplicated()) {
-      // Its copy numbers exist only while navigating, so this path's ids
-      // cannot be compared with the others'; within it, copies reading the
-      // same carrier copy still share.
-      if (same_copy > 1) {
-        state.sharing_unknown_id += same_copy * carrier_copies;
-      }
-      return;
+    auto const per_index = path_copies / carrier_copies;
+    for (std::size_t index = 0; index < carrier_copies; ++index) {
+      state.per_id[node_id_from_copy_number(static_cast<int>(index),
+                                            untagged)] += per_index;
     }
-    state.per_id[node_id_from_copy_number(
-        carrier->GetCopyNo(), sensitive_->untagged_copy_number)] += same_copy;
   }
 
   // Whether `root` or anything placed inside it is a sensitive volume, so
@@ -242,9 +238,9 @@ class IdDepthWalk {
 /// whose numbering restarts in every parent, untagged placements among tagged
 /// ones, and copies of a replica or parameterised volume on the way to the
 /// id level, which all read the same id. Where the id level is itself a
-/// replica or parameterised volume, its copy numbers exist only while
-/// navigating, so the placements under it are left out of the comparison.
-/// Findings are ordered by volume name.
+/// replica or parameterised volume, its copies are numbered by index, 0 to
+/// its multiplicity - 1, and compared like placements. Findings are ordered
+/// by volume name.
 [[nodiscard]] inline std::vector<IdDepthFinding> check_id_depths(
     G4VPhysicalVolume const* world, SensitiveVolumeIds const& sensitive) {
   detail::IdDepthWalk walk{sensitive};
@@ -263,7 +259,6 @@ class IdDepthWalk {
       findings.push_back(finding);
       continue;
     }
-    finding.sharing = state.sharing_unknown_id;
     std::int32_t most_shared = 0;
     std::size_t most_count = 0;
     for (auto const& [id, count] : state.per_id) {

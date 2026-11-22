@@ -250,7 +250,24 @@ geometry, a volume without a tag gets GeoModel2G4's default copy number
 (`SHiP::aegir::g4::kGeoModelUntaggedCopyNumber`, set by GeoModel, not
 aegir), which identifies nothing, so its hits carry `-1` instead
 (`SHiP::aegir::g4::kNoGeometryNodeId`). GDML and builtin geometries have
-no such default: every copy number there is an id. What the id means
+no such default: every copy number there is an id. The exception is GDML
+exported from a GeoModel geometry (with `export_gdml`, say), which keeps
+GeoModel's default on its untagged volumes. Load such a file with
+`from_geomodel: true` in the `geometry_gdml_provider` configuration, so
+that its hits get the same ids as when the geometry is read from GeoModel;
+it is off by default, since in other GDML that copy number is an ordinary
+id:
+
+```jsonnet
+geometry: {
+  cpp: 'geometry_gdml_provider',
+  gdml_file: 'ship_geometry_2026.gdml',
+  from_geomodel: true,
+  sensitive_volumes: [ ... ],
+},
+```
+
+What the id means
 otherwise belongs to the detector named by `detector_id`. The builtin
 geometry numbers its five test planes 0-4 from upstream.
 
@@ -265,9 +282,10 @@ parent (0 to N in each sublayer) shares every id, and so do several
 untagged placements among tagged ones (they all get `-1`). Copies of a
 replica or parameterised volume between the sensitive volume and its
 `id_depth` level, or above that level, all read the same id as well. When
-the `id_depth` level is itself a replica or parameterised volume, its copy
-numbers exist only while Geant4 navigates, so the placements under it are
-left out of the comparison.
+the `id_depth` level is itself a replica or parameterised volume, its
+copies' ids are their indices, 0 to the number of copies minus 1, compared
+like any other, so a replica repeated in several parents shares its ids
+too.
 
 GeoModel2G4 doesn't export its untagged default, so aegir names it once.
 A tag that happens to equal it would be read as untagged and get `-1`.

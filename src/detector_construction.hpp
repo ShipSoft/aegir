@@ -116,14 +116,11 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
             name, pattern, f.id_depth);
         continue;
       }
-      auto const example =
-          f.id ? std::format(", e.g. {} get geometry_node_id {}",
-                             f.id_placements, *f.id)
-               : std::string{", copies of a replica reading the same copy"};
       auto const message = std::format(
           "'{}' (pattern '{}'): {} of its {} placements share an id at "
-          "id_depth {}{}",
-          name, pattern, f.sharing, f.placements, f.id_depth, example);
+          "id_depth {}, e.g. {} get geometry_node_id {}",
+          name, pattern, f.sharing, f.placements, f.id_depth, f.id_placements,
+          f.id.value_or(kNoGeometryNodeId));
       if (strict_node_ids_) {
         fatal += "\n  " + message;
       } else {
@@ -211,9 +208,9 @@ class ConfigurableDetectorConstruction : public G4VUserDetectorConstruction {
     // worker thread runs this; nothing here can fail.
     G4VSensitiveDetector* sd = nullptr;
     if (sd_mode_ == SDMode::crossing) {
-      sd = new CrossingSD("CrossingSD", sensitive_, ke_threshold_);
+      sd = new CrossingSD("CrossingSD", &sensitive_, ke_threshold_);
     } else {
-      sd = new ScoringSD("ScoringSD", sensitive_);
+      sd = new ScoringSD("ScoringSD", &sensitive_);
     }
     G4SDManager::GetSDMpointer()->AddNewDetector(sd);
 

@@ -37,7 +37,8 @@ class IGeometrySource {
 
   /// The copy number this geometry gives a volume that carries no id, if it
   /// has one: a GeoModel geometry's conversion gives an untagged volume
-  /// g4::kGeoModelUntaggedCopyNumber. Hits whose id level has it get
+  /// g4::kGeoModelUntaggedCopyNumber, and GDML exported from GeoModel keeps
+  /// it (the GDML provider's `from_geomodel`). Hits whose id level has it get
   /// g4::kNoGeometryNodeId. In other geometries every copy number is an id.
   [[nodiscard]] virtual std::optional<int> untaggedCopyNumber() const {
     return std::nullopt;

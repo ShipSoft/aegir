@@ -71,25 +71,18 @@ int main() {
           std::format("pattern {}", pattern));
   }
 
-  bool threw = false;
-  try {
-    (void)detector_id_for_pattern("StrawTube");
-  } catch (std::invalid_argument const&) {
-    threw = true;
-  }
-  check(threw, "an unknown pattern is an error");
+  auto const unknown_pattern = detector_id_for_pattern("StrawTube");
+  check(!unknown_pattern && unknown_pattern.error().contains("'StrawTube'"),
+        "an unknown pattern is an error");
 
   check(detector_id_from_name("TimingDetector") == id(TimingDetector),
         "detector name");
   check(detector_id_from_name("test_fixture") == kTestFixtureDetectorId,
         "test_fixture name");
-  threw = false;
-  try {
-    (void)detector_id_from_name("trackers");
-  } catch (std::invalid_argument const&) {
-    threw = true;
-  }
-  check(threw, "detector names are not patterns");
+  auto const pattern_as_name = detector_id_from_name("trackers");
+  check(!pattern_as_name &&
+            pattern_as_name.error().starts_with("unknown detector 'trackers'"),
+        "detector names are not patterns");
 
   auto const mixed = read_sensitive_volumes(config(R"({"sensitive_volumes": [
       "trackers",
@@ -122,7 +115,7 @@ int main() {
         "an empty list");
 
   // phlex's own error for a missing key.
-  threw = false;
+  bool threw = false;
   try {
     (void)read_sensitive_volumes(config("{}"));
   } catch (std::runtime_error const&) {

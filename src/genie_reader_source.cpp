@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "expected_util.hpp"
 #include "hepmc_status.hpp"
 #include "mc_particle_source.hpp"
 #include "record_mode.hpp"
@@ -359,8 +360,9 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   if (first_entry < 0) {
     throw std::runtime_error("genie_reader_source: first_entry must be >= 0");
   }
-  auto const record = SHiP::aegir::parse_record_mode(
-      config.get<std::string>("record", std::string{"final_state"}),
+  auto const record = SHiP::aegir::value_or_throw(
+      SHiP::aegir::parse_record_mode(
+          config.get<std::string>("record", std::string{"final_state"})),
       "genie_reader_source");
 
   auto const source = std::make_shared<GenieReaderSource>(

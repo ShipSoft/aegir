@@ -1,0 +1,22 @@
+# Shared Codecov configuration, synced by config-sync.yml. Edit it in
+# ShipSoft/.github (sync/.codecov.yml), not in the repository it was copied to.
+#
+# Both statuses are informational for now: Codecov reports them on pull
+# requests but never fails them. To gate on the coverage of changed lines,
+# set `informational: false` under `patch` and give it a `target`.
+coverage:
+  precision: 1
+  round: down
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, condensed_files, condensed_footer"
+  # Only comment when the coverage actually changes.
+  require_changes: true
+  hide_project_coverage: false

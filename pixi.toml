@@ -109,7 +109,7 @@ smoke = { cmd = "scripts/smoke.sh", depends-on = ["build"] }
 ci-physics-smoke = { cmd = "bash -c 'phlex -c <(jsonnet workflows/gun_st_nofield_smoke.jsonnet)'", depends-on = ["build"] }
 ci-extract-metrics = "ship-metrics-extract . -o metrics-physics-smoke.json --pretty --config ci/metrics_config.yaml"
 ci-render-plots = "ship-metrics-render gun_st_nofield_smoke_validation.root --output-dir plots/physics-smoke --job physics-smoke --config default"
-clean = "rm -rf build"
+clean = "rm -rf build build-coverage coverage"
 
 # Static analysis. `clang-tidy` reports the whole tree, the same run CI does on
 # a push. -source-filter is a Python regex (run-clang-tidy is a Python script),
@@ -146,6 +146,54 @@ git diff --unified=0 --diff-filter=d origin/main -- '*.cpp' '*.hpp' '*.cxx' '*.h
       -quiet -only-check-in-db -extra-arg=-isystem$CONDA_PREFIX/include \
       < build/clang-tidy-diff.patch
 ''', depends-on = ["build"] }
+
+# Test coverage: an instrumented Debug build in build-coverage/ (activate.sh
+# loads its plugins via AEGIR_BUILD_DIR, see activate-coverage.sh), the ctest suite and
+# the smoke run on it, then a gcovr report in coverage/. `pixi run -e coverage
+# coverage-report` does all of it; CI uploads coverage/coverage.xml to Codecov.
+# -fprofile-update=atomic: phlex calls the plugins from several TBB threads,
+# and plain counters lose increments when they race.
+[feature.coverage.dependencies]
+gcovr = ">=8"
+
+[feature.coverage.activation]
+scripts = ["activate-coverage.sh"]
+
+[feature.coverage.tasks]
+coverage-configure = { cmd = """
+cmake -S . -B build-coverage -G Ninja \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_FLAGS="--coverage -fprofile-update=atomic" \
+    -DCMAKE_EXE_LINKER_FLAGS=--coverage \
+    -DCMAKE_SHARED_LINKER_FLAGS=--coverage \
+    -DCMAKE_MODULE_LINKER_FLAGS=--coverage \
+    -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+""" }
+coverage-build = { cmd = "cmake --build build-coverage -j", depends-on = ["coverage-configure"] }
+# Counters from an earlier run are removed first so each report covers one run.
+coverage-test = { cmd = """
+find build-coverage -name '*.gcda' -delete \
+  && ctest --test-dir build-coverage --output-on-failure \
+  && scripts/smoke.sh
+""", depends-on = ["coverage-build"] }
+# Only aegir's own sources count: src/ (not tests/, ROOT dictionaries or
+# anything under the pixi env). Throw and unreachable branches are left out;
+# with exceptions on, GCC adds one per call that can throw.
+coverage-report = { cmd = """
+mkdir -p coverage/html \
+  && gcovr --root . --object-directory build-coverage \
+    --gcov-executable gcov \
+    --filter 'src/' \
+    --exclude-throw-branches --exclude-unreachable-branches \
+    -j $(nproc) \
+    --cobertura coverage/coverage.xml \
+    --json-summary-pretty --json-summary coverage/summary.json \
+    --markdown-summary coverage/summary.md \
+    --html-details coverage/html/index.html \
+    --print-summary
+""", depends-on = ["coverage-test"] }
 
 [feature.bench.dependencies]
 hyperfine = "*"
@@ -215,5 +263,6 @@ sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg
 [environments]
 default = { features = ["released"], solve-group = "default" }
 bench = { features = ["bench", "released"], solve-group = "default" }
+coverage = { features = ["coverage", "released"], solve-group = "default" }
 lint = { features = ["lint", "released"], solve-group = "lint" }
 # dev = { features = ["dev"] }  # multi-package dev, see block above

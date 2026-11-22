@@ -4,9 +4,14 @@
 
 export AEGIR_ROOT="$PIXI_PROJECT_ROOT"
 
+# Build tree for the plugin path and scripts/smoke.sh. The coverage environment
+# sets it to build-coverage/ (activate-coverage.sh) so the instrumented build
+# does not replace the normal one.
+export AEGIR_BUILD_DIR="${AEGIR_BUILD_DIR:-build}"
+
 # Locally built plugins first, then installed plugins from the pixi env.
-export PHLEX_PLUGIN_PATH="$PIXI_PROJECT_ROOT/build:${CONDA_PREFIX}/lib${PHLEX_PLUGIN_PATH:+:$PHLEX_PLUGIN_PATH}"
-export LD_LIBRARY_PATH="$PIXI_PROJECT_ROOT/build${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PHLEX_PLUGIN_PATH="$PIXI_PROJECT_ROOT/$AEGIR_BUILD_DIR:${CONDA_PREFIX}/lib${PHLEX_PLUGIN_PATH:+:$PHLEX_PLUGIN_PATH}"
+export LD_LIBRARY_PATH="$PIXI_PROJECT_ROOT/$AEGIR_BUILD_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # shipgeometry installs geometry DBs under $CONDA_PREFIX/share/geometry/.
 # geometry_geomodel_provider resolves bare db_file names via this variable.

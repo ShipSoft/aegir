@@ -41,6 +41,8 @@ inline constexpr std::int32_t kNoGeometryNodeId = -1;
 /// (`from_geomodel`), report it (IGeometrySource::untaggedCopyNumber()):
 /// elsewhere in GDML, and in the builtin geometry, 16969 is an ordinary copy
 /// number.
+/// GeoModel ticket on exporting it:
+/// https://gitlab.cern.ch/GeoModelDev/GeoModel/-/issues/138
 inline constexpr int kGeoModelUntaggedCopyNumber = 16969;
 
 /// The geometry_node_id for `copy_number`: the copy number itself, or

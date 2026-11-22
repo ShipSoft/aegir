@@ -289,6 +289,8 @@ too.
 
 GeoModel2G4 doesn't export its untagged default, so aegir names it once.
 A tag that happens to equal it would be read as untagged and get `-1`.
+The GeoModel ticket on exporting it is
+[GeoModel#138](https://gitlab.cern.ch/GeoModelDev/GeoModel/-/issues/138).
 
 Scoring-plane hits are the exception: their `geometry_node_id` is the
 plane's configured `id`, not a copy number (see

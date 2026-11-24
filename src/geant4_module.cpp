@@ -94,6 +94,7 @@ namespace {
 
 using SHiP::aegir::g4::ConfigurableDetectorConstruction;
 using SHiP::aegir::g4::EnergyCutAction;
+using SHiP::aegir::g4::EnergyCutStackingAction;
 using SHiP::aegir::g4::find_track;
 using SHiP::aegir::g4::kScoringWorldName;
 using SHiP::aegir::g4::persist_ancestry;
@@ -623,6 +624,8 @@ class Geant4Sim {
         new TrackingAction(cfg_.particle_ke_cut, record_particles_));
     if (cfg_.energy_cut) {
       evt_mgr->SetUserAction(new EnergyCutAction(cfg_.energy_cut_threshold));
+      evt_mgr->SetUserAction(
+          new EnergyCutStackingAction(cfg_.energy_cut_threshold));
     }
 
     tl_kernel->RunInitialization();

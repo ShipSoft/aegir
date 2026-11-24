@@ -305,6 +305,13 @@ add_test(
     NAME generator_status
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generator_status.sh
 )
+# Energy cut: secondaries created below the threshold are dropped before they
+# are tracked, so none of them shows up among the recorded particles.
+add_test(
+    NAME energy_cut
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/energy_cut.sh
+)
+
 # Scoring planes: neutrinos and muons fired through planes placed in the
 # builtin geometry are recorded where the geometry says they cross, the
 # killing plane stops them, and bad plane configurations fail cleanly.

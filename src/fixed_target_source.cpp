@@ -48,7 +48,8 @@ class FixedTargetSource : public phlex::source {
                     SHiP::Length target_z_start, SHiP::Length target_z_end,
                     SHiP::Length interaction_length,
                     SHiP::aegir::PythiaTime tau0_threshold,
-                    SHiP::aegir::record_mode record, std::uint32_t seed)
+                    SHiP::aegir::record_mode record, std::uint32_t seed,
+                    double dimuon_br_boost)
       : stage_{std::move(stage)},
         target_z_{target_z},
         target_a_{target_a},
@@ -56,7 +57,8 @@ class FixedTargetSource : public phlex::source {
         target_z_end_{target_z_end},
         interaction_length_{interaction_length},
         record_{record},
-        seed_{seed} {
+        seed_{seed},
+        dimuon_br_boost_{dimuon_br_boost} {
     // Both instances draw from Philox engines that generate() re-keys to the
     // event number before every event (see pythia_philox_engine.hpp). Pythia
     // also draws while initialising; distinct init sub-streams keep the two
@@ -76,6 +78,7 @@ class FixedTargetSource : public phlex::source {
     configure_processes(*pythia_pp_);
     pythia_pp_->readString("Print:quiet = on");
     SHiP::aegir::stabilise_long_lived(*pythia_pp_, tau0_threshold);
+    SHiP::aegir::boost_dimuon_branching_ratios(*pythia_pp_, dimuon_br_boost_);
     pythia_pp_->init();
 
     // Neutron target (p-n)
@@ -85,6 +88,7 @@ class FixedTargetSource : public phlex::source {
     configure_processes(*pythia_pn_);
     pythia_pn_->readString("Print:quiet = on");
     SHiP::aegir::stabilise_long_lived(*pythia_pn_, tau0_threshold);
+    SHiP::aegir::boost_dimuon_branching_ratios(*pythia_pn_, dimuon_br_boost_);
     pythia_pn_->init();
   }
 
@@ -142,6 +146,7 @@ class FixedTargetSource : public phlex::source {
   std::unique_ptr<Pythia8::Pythia> pythia_pn_;
   SHiP::aegir::record_mode record_;
   std::uint32_t seed_;
+  double dimuon_br_boost_;
 };
 
 }  // namespace
@@ -171,10 +176,11 @@ PHLEX_REGISTER_SOURCE(s, config) {
       config.get<std::string>("record", std::string{"final_state"}),
       "fixed_target");
   auto seed = SHiP::aegir::resolve_seed(config, "fixed_target");
+  auto dimuon_br_boost = config.get<double>("dimuon_br_boost", 1.0);
   auto stage = SHiP::aegir::source_stage(config, "fixed_target");
 
   s.add_source<FixedTargetSource>(
       "fixed_target", std::move(stage), xml_dir, beam_energy, target_z,
       target_a, target_z_start, target_z_end, interaction_length,
-      tau0_threshold, record, seed);
+      tau0_threshold, record, seed, dimuon_br_boost);
 }

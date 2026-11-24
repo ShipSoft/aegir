@@ -173,6 +173,7 @@ struct Geant4SimConfig {
   // Off in Geant4's reference lists, but a source of muon background.
   bool gamma_to_mumu = true;
   bool positron_to_mumu = true;
+  double mumu_prod_factor = 1.0;
   int verbosity = 0;
   int concurrency = 1;
   std::uint32_t seed = 0;
@@ -203,23 +204,36 @@ struct Geant4SimConfig {
 // commands). Runs on the master before initialisation; the workers share the
 // constructor objects, so the settings reach them too.
 void configure_em_extra(G4VModularPhysicsList& physics, bool gamma_to_mumu,
-                        bool positron_to_mumu) {
+                        bool positron_to_mumu, double mumu_prod_factor) {
   // GetPhysicsWithType only hands out const pointers, but the constructor is
   // owned by the (non-const) list and has not been constructed yet.
   auto* em_extra = dynamic_cast<G4EmExtraPhysics*>(
       const_cast<G4VPhysicsConstructor*>(  // NOLINT
           physics.GetPhysicsWithType(bEmExtra)));
   if (em_extra == nullptr) {
-    if (gamma_to_mumu || positron_to_mumu) {
+    if (gamma_to_mumu || positron_to_mumu || mumu_prod_factor != 1.0) {
       throw std::runtime_error(
           "geant4_module: the physics list has no G4EmExtraPhysics, so "
-          "gamma_to_mumu/positron_to_mumu cannot be applied; set both to "
-          "false");
+          "gamma_to_mumu/positron_to_mumu (along with mumu_prod_factor) "
+          "cannot be applied; set both to false");
     }
     return;
   }
   em_extra->GammaToMuMu(gamma_to_mumu);
   em_extra->PositronToMuMu(positron_to_mumu);
+  if (mumu_prod_factor <= 0.0) {
+    throw std::runtime_error(
+        "geant4_module: the dimuon production factor must be higher than 0.0, "
+        "boosting cannot applied");
+  }
+  if (mumu_prod_factor != 1.0) {
+    if (gamma_to_mumu) {
+      em_extra->GammaToMuMuFactor(mumu_prod_factor);
+    }
+    if (positron_to_mumu) {
+      em_extra->PositronToMuMuFactor(mumu_prod_factor);
+    }
+  }
 }
 
 class Geant4Sim {
@@ -533,7 +547,8 @@ class Geant4Sim {
       // abort.
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
-      configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
+      configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu,
+                         cfg_.mumu_prod_factor);
       spdlog::info(
           "geant4_module: physics list {} (gamma_to_mumu {}, "
           "positron_to_mumu {})",
@@ -818,6 +833,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           config.get<std::string>("physics_list", kDefaultPhysicsList),
       .gamma_to_mumu = config.get<bool>("gamma_to_mumu", true),
       .positron_to_mumu = config.get<bool>("positron_to_mumu", true),
+      .mumu_prod_factor = config.get<double>("mumu_prod_factor", 1.0),
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
       .seed = seed,

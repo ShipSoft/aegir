@@ -75,6 +75,38 @@ Findings:
 Raw data, keyed by git SHA: `results/` (protocol:
 `scripts/bench_baseline.sh`).
 
+## Fixed target on one thread, compared with FairShip
+
+`workflows/fixed_target_production.jsonnet` against FairShip's
+`run_fixedTarget.py -e 0.5` (FairShip c29d044f3, Geant4 11.4, both with
+FTFP_BERT_HP_EMZ and a 0.5 GeV energy cut), on an i5-1334U with the job
+pinned to one performance core (`taskset -c 0`, `phlex -j 1`). CPU time per
+event is the difference between a 420-event and a 20-event run divided by
+400, which removes the roughly 30 s of initialisation both programs need:
+
+| | CPU time per event |
+|:---|---:|
+| aegir, energy cut applied after the first step | 0.49 s |
+| FairShip | 0.17 s |
+| aegir, sub-threshold secondaries dropped before tracking | 0.14 s |
+
+The energy cut used to act only at the end of a step. Every secondary
+created below the threshold therefore still took one step, and what that
+step produced took one step in turn, so most of the showers in the target
+were still simulated. For 50 GeV pions in tungsten, 99% of the tracked
+secondaries were of this kind. They are now dropped when Geant4 stacks
+them, before any step, as FairShip does in `PreTrack`.
+
+The two programs do not do identical work, so read the remaining difference
+with care: FairShip simulates the field in the hadron absorber by default
+and builds only the cave, target and absorber, while aegir runs without a
+field in the full detector geometry. FairShip's generator also leaves out
+primaries below the cut or going backwards, and follows tracks that fall
+below the cut on the way, which aegir stops.
+
+To repeat the aegir side: `just bench-fixed-target` (needs the GeoModel
+geometry DB).
+
 ## Geant4: single-threaded vs multi-threaded (historical)
 
 Particle gun (muons, 10–100 GeV), FTFP_BERT, noop output, `mt` backend.
@@ -180,6 +212,7 @@ just bench-geant4                          # G4 ST vs MT, 100 events
 just g4_events=500 bench-geant4            # more events
 just g4_events=500 bench-geant4-threads    # sweep 1,2,4,8 threads
 just g4_events=500 bench-geant4-backends   # compare mt/task_ptl/task_tbb
+just bench-fixed-target                    # fixed target on one thread, 20 and 420 events
 just bench-fairship                        # default vs FairShip config
 just bench-scaling                         # event count sweep
 ```

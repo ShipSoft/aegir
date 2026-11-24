@@ -90,6 +90,17 @@ bench-geant4: build
         --export-markdown bench-geant4.md \
         --export-json bench-geant4.json
 
+# Fixed-target production on one thread, at two event counts: the difference
+# divided by the extra events is the time per event without initialisation
+# (compare with FairShip's run_fixedTarget.py, see docs/benchmarks.md)
+bench-fixed-target: build
+    hyperfine \
+        --runs 3 \
+        -L events 20,420 \
+        -n 'fixed target, {events} events' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={events} workflows/fixed_target_st_bench.jsonnet) -j 1' \
+        --export-markdown bench-fixed-target.md \
+        --export-json bench-fixed-target.json
+
 # Compare G4 with and without I/O
 bench-geant4-io: build
     hyperfine \

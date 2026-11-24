@@ -165,8 +165,33 @@ class CrossingSD : public G4VSensitiveDetector {
   double ke_threshold_;  // Geant4 internal units
 };
 
-// Kills tracks below kinetic energy threshold.
-// Matches FairShip's PreTrack() stopping behaviour.
+// Drops secondaries created below the kinetic energy threshold before they
+// are tracked, as FairShip's PreTrack() does: they take no step, produce no
+// secondaries of their own and are not recorded. Most tracks of a hadronic
+// shower start below a threshold of a few hundred MeV, so this is where the
+// energy cut saves its time. Primaries are left to EnergyCutAction, which
+// stops them after their first step, so that every primary is recorded.
+class EnergyCutStackingAction : public G4UserStackingAction {
+ public:
+  explicit EnergyCutStackingAction(SHiP::Energy ke_threshold)
+      : ke_threshold_{SHiP::aegir::clhep::g4(ke_threshold)} {}
+
+  G4ClassificationOfNewTrack ClassifyNewTrack(const G4Track* track) override {
+    if (track->GetParentID() != 0 &&
+        track->GetKineticEnergy() < ke_threshold_) {
+      return fKill;
+    }
+    return fUrgent;
+  }
+
+ private:
+  double ke_threshold_;  // Geant4 internal units
+};
+
+// Kills tracks that fall below the kinetic energy threshold while they are
+// tracked. It runs after each step, so on its own it would still give every
+// track one step; EnergyCutStackingAction stops the secondaries that start
+// below the threshold before that.
 class EnergyCutAction : public G4UserSteppingAction {
  public:
   explicit EnergyCutAction(SHiP::Energy ke_threshold)
@@ -181,22 +206,6 @@ class EnergyCutAction : public G4UserSteppingAction {
 
  private:
   double ke_threshold_;  // Geant4 internal units
-};
-
-class EnergyCutStackingAction : public G4UserStackingAction {
- public:
-  explicit EnergyCutStackingAction(SHiP::Energy ke_threshold)
-      : ke_threshold_{SHiP::aegir::clhep::g4(ke_threshold)} {}
-
-  G4ClassificationOfNewTrack ClassifyNewTrack(const G4Track* track) override {
-    if (track->GetKineticEnergy() < ke_threshold_) {
-      return fKill;
-    }
-    return fUrgent;
-  }
-
- private:
-  double ke_threshold_;
 };
 
 class TrackingAction : public G4UserTrackingAction {

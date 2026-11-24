@@ -148,7 +148,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `verbosity` | int | `0` | Geant4 run verbosity level |
 | `sd_mode` | string | `scoring` | Sensitive detector mode: `scoring` or `crossing` |
 | `ke_threshold` | double | `0.0` | Kinetic energy threshold for crossing SD (GeV) |
-| `energy_cut` | bool | `false` | Enable stepping energy cut |
+| `energy_cut` | bool | `false` | Kill tracks below `energy_cut_threshold`. Secondaries created below it are dropped before they are tracked, as FairShip's `PreTrack` does, so they take no step and are not recorded. Tracks that fall below it on the way are stopped at the end of that step. Primaries are always tracked for at least one step and recorded |
 | `energy_cut_threshold` | double | `ke_threshold` | KE below which tracks are killed (GeV) |
 | `particle_ke_cut` | double | `0.0` | KE below which secondary particles are not recorded (GeV) |
 | `keep_particles` | string | `all` | Which `SimParticle`s are written. `all` writes every recorded particle. `hit_ancestry` writes only the particles that left a hit, plus all their ancestors, as FairShip's stack does, so every `parent_id` in the output points to a written particle. `hit_ancestry` needs `particle_ke_cut` at 0, because a skipped ancestor would break the chain |

@@ -1,7 +1,7 @@
 // Read MCParticles from a ROOT RNTuple and run them through Geant4.
 // The file must hold a std::vector<SHiP::MCParticle> field "mc_particles" in an
 // RNTuple named "events" (as written by sim_output_module or file_write_mc).
-//   n=$(pixi run count_entries input.root)   # read the whole file
+//   n=$(python3 scripts/count_entries.py input.root)   # read the whole file
 //   jsonnet --ext-str events=$n --ext-str infile=input.root \
 //       --ext-str simout=sim.root --ext-str histo=valid.root file_read.jsonnet
 local n_events = std.parseInt(std.extVar('events'));

@@ -241,6 +241,13 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/determinism.sh
 )
 
+# Render: every workflow in workflows/ evaluates with jsonnet. Most of them are
+# not run by any other test.
+add_test(
+    NAME render_workflows
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/render_workflows.sh
+)
+
 # Exhaustion: the parallel Pythia8 source must throw, not emit empty events,
 # when the driver requests more events than its configured num_events.
 add_test(

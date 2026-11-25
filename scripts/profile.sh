@@ -41,7 +41,9 @@ flamegraph)
     echo "Wrote flamegraph_$PROFILE_WORKFLOW.svg"
   else
     echo "flamegraph.pl not in PATH, printing perf report instead"
-    perf report -i perf.data --stdio | head -80
+    # sed, unlike head, reads to the end, so perf never gets SIGPIPE
+    # (which pipefail would turn into a failed task).
+    perf report -i perf.data --stdio | sed -n '1,80p'
     echo ""
     echo "(install flamegraph for SVG output: nix-shell -p flamegraph)"
   fi

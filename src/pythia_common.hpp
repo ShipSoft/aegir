@@ -15,7 +15,9 @@
 #include <Pythia8/Pythia.h>
 
 #include <SHiP/Units.hpp>
+#include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -69,6 +71,28 @@ void stabilise_long_lived(Pythia& pythia, PythiaTime tau0_threshold) {
     auto const& entry = it->second;  // ParticleDataEntryPtr (shared_ptr-like)
     if (entry && entry->tau0() > threshold) {
       entry->setMayDecay(false);
+    }
+  }
+}
+
+template <typename Pythia>
+void boost_dimuon_branching_ratios(Pythia& pythia, double boost) {
+  if (boost == 1.0) return;
+  if (boost <= 0.0) {
+    throw std::runtime_error(
+        "boost_dimuon_branching_ratios: "
+        "the boost in branching ratios must be higher than 0");
+  }
+
+  static constexpr std::array pdgs = {221, 223, 113, 331, 333};
+  for (int pdg : pdgs) {
+    auto entry = pythia.particleData.particleDataEntryPtr(pdg);
+    if (!entry) throw std::runtime_error("Unknown PDG: " + std::to_string(pdg));
+    for (int i = 0; i < entry->sizeChannels(); ++i) {
+      auto& ch = entry->channel(i);
+      if (std::abs(ch.product(0)) == 13 && std::abs(ch.product(1)) == 13) {
+        ch.bRatio(boost * ch.bRatio());
+      }
     }
   }
 }

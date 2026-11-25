@@ -144,6 +144,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `physics_list` | string | `FTFP_BERT_HP_EMZ` | Geant4 reference physics list name. The default is the list FairShip uses |
 | `gamma_to_mumu` | bool | `true` | Enable muon-pair production by photons (γ → μ⁺μ⁻), as FairShip does. Off in the Geant4 reference lists, but a source of muon background |
 | `positron_to_mumu` | bool | `true` | Enable muon-pair production in positron annihilation (e⁺e⁻ → μ⁺μ⁻), as FairShip does |
+| `mumu_prod_factor` | double | `1.0` | Boost dimuon production by scaling the γ → μ⁺μ⁻ and e⁺e⁻ → μ⁺μ⁻ cross-sections. This factor is only applied when `gamma_to_mumu` or `positron_to_mumu` is `true` |
 | `concurrency` | int | `1` | Number of concurrent worker threads |
 | `verbosity` | int | `0` | Geant4 run verbosity level |
 | `sd_mode` | string | `scoring` | Sensitive detector mode: `scoring` or `crossing` |

@@ -107,6 +107,7 @@
     interaction_length: 191.9,  // mm
     tau0_threshold: 1.0,  // mm/c
     record: 'final_state',
+    dimuon_br_boost: 1.0  // boost in branching fractions of light resonances to dimuons
   },
 
   // Neutrino interactions pre-generated with GENIE, read from a rootracker

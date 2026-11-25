@@ -92,7 +92,9 @@ event is the difference between a 420-event and a 20-event run divided by
 
 Raw data for the aegir rows (20- and 420-event runs), keyed by git SHA:
 `results/fixed_target_<sha>.json` (protocol: `just bench-fixed-target`,
-run under `taskset -c 0`).
+run under `taskset -c 0`). A run from a tree with uncommitted changes is
+saved as `fixed_target_<sha>-dirty.*`, so it can't overwrite the results
+for the commit itself.
 
 The energy cut used to act only at the end of a step. Every secondary
 created below the threshold therefore still took one step, and what that

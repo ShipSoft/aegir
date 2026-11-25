@@ -4,6 +4,8 @@ plugin_path := build_dir + ":" + phlex_lib
 events := "10000"
 g4_events := "100"
 g4_concurrency := "4"
+# Short HEAD SHA, suffixed with -dirty if tracked files have uncommitted changes
+bench_tag := `git rev-parse --short HEAD` + `git diff --quiet HEAD -- || echo -dirty`
 
 _phlex *args:
     PHLEX_PLUGIN_PATH={{plugin_path}} phlex {{args}}
@@ -100,8 +102,8 @@ bench-fixed-target: build
         --runs 3 \
         -L events 20,420 \
         -n 'fixed target, {events} events' 'PHLEX_PLUGIN_PATH={{plugin_path}} phlex -c <(jsonnet --ext-str events={events} workflows/fixed_target_st_bench.jsonnet) -j 1' \
-        --export-markdown results/fixed_target_$(git rev-parse --short HEAD).md \
-        --export-json results/fixed_target_$(git rev-parse --short HEAD).json
+        --export-markdown results/fixed_target_{{bench_tag}}.md \
+        --export-json results/fixed_target_{{bench_tag}}.json
 
 # Compare G4 with and without I/O
 bench-geant4-io: build

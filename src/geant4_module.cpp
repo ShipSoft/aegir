@@ -21,6 +21,7 @@
 #include <spdlog/spdlog.h>
 
 #include <G4BuilderType.hh>
+#include <G4DeexPrecoParameters.hh>
 #include <G4EmExtraPhysics.hh>
 #include <G4Event.hh>
 #include <G4EventManager.hh>
@@ -29,6 +30,7 @@
 #include <G4HadronicInteractionRegistry.hh>
 #include <G4LogicalVolumeStore.hh>
 #include <G4MTRunManager.hh>
+#include <G4NuclearLevelData.hh>
 #include <G4ParallelWorldPhysics.hh>
 #include <G4ParticleDefinition.hh>
 #include <G4ParticleTable.hh>
@@ -174,6 +176,12 @@ struct Geant4SimConfig {
   // Off in Geant4's reference lists, but a source of muon background.
   bool gamma_to_mumu = true;
   bool positron_to_mumu = true;
+  // The pre-equilibrium (pre-compound) stage of nuclear de-excitation after
+  // a hadronic interaction, which emits low-energy nucleons and light ions.
+  // It takes over half of the time of a fixed-target run with a 0.5 GeV
+  // energy cut. Off, the excited nucleus goes straight to evaporation. On in
+  // Geant4 and FairShip.
+  bool pre_equilibrium = true;
   int verbosity = 0;
   int concurrency = 1;
   std::uint32_t seed = 0;
@@ -535,6 +543,14 @@ class Geant4Sim {
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
       configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
+      if (!cfg_.pre_equilibrium) {
+        // Process-wide, and only settable before initialisation. The hadronic
+        // models then hand the excited nucleus straight to evaporation.
+        G4NuclearLevelData::GetInstance()->GetParameters()->SetPrecoDummy(true);
+        spdlog::info(
+            "geant4_module: pre-equilibrium stage of nuclear de-excitation "
+            "is off");
+      }
       spdlog::info(
           "geant4_module: physics list {} (gamma_to_mumu {}, "
           "positron_to_mumu {})",
@@ -821,6 +837,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           config.get<std::string>("physics_list", kDefaultPhysicsList),
       .gamma_to_mumu = config.get<bool>("gamma_to_mumu", true),
       .positron_to_mumu = config.get<bool>("positron_to_mumu", true),
+      .pre_equilibrium = config.get<bool>("pre_equilibrium", true),
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
       .seed = seed,

@@ -113,6 +113,40 @@ below the cut on the way, which aegir stops.
 To repeat the aegir side: `just bench-fixed-target` (needs the GeoModel
 geometry DB).
 
+### Without the pre-equilibrium stage
+
+After that change, more than half of the time goes into the
+pre-equilibrium stage of nuclear de-excitation, which follows each hadronic
+interaction and emits low-energy nucleons and light ions.
+`pre_equilibrium: false` skips it and hands the excited nucleus straight to
+evaporation. Measured on a different machine (AMD EPYC-Genoa virtual
+machine, one pinned core, wall time, same 420 minus 20 event method):
+
+| | Time per event |
+|:---|---:|
+| aegir, energy cut applied after the first step | 0.33 s |
+| FairShip | 0.13 s |
+| aegir | 0.11 s |
+| aegir, `pre_equilibrium: false` | 0.049 s |
+
+This is not what FairShip simulates, so it is off unless asked for. In two
+independent pairs of runs, 192 000 events per setting in total, the
+particles reaching the plane behind the hadron absorber above 0.5 GeV
+compare as follows:
+
+| | default | `pre_equilibrium: false` |
+|:---|---:|---:|
+| neutrinos | 4275 | 4313 |
+| neutrons | 840 | 963 |
+| muons | 274 | 299 |
+| protons | 52 | 47 |
+| charged pions | 40 | 36 |
+
+Neutrinos agree to about 1%, within the statistical uncertainty of 1.5%.
+The muon samples are too small to see a difference below roughly 10%.
+Neutrons are 15% more frequent without the stage, 2.9 standard deviations,
+and higher in both pairs, so this is probably a real change.
+
 ## Geant4: single-threaded vs multi-threaded (historical)
 
 Particle gun (muons, 10–100 GeV), FTFP_BERT, noop output, `mt` backend.

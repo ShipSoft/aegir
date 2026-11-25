@@ -86,9 +86,13 @@ event is the difference between a 420-event and a 20-event run divided by
 
 | | CPU time per event |
 |:---|---:|
-| aegir, energy cut applied after the first step | 0.49 s |
+| aegir 72b8868, energy cut applied after the first step | 0.47 s |
 | FairShip | 0.17 s |
-| aegir, sub-threshold secondaries dropped before tracking | 0.14 s |
+| aegir 844f446, sub-threshold secondaries dropped before tracking | 0.14 s |
+
+Raw data for the aegir rows (20- and 420-event runs), keyed by git SHA:
+`results/fixed_target_<sha>.json` (protocol: `just bench-fixed-target`,
+run under `taskset -c 0`).
 
 The energy cut used to act only at the end of a step. Every secondary
 created below the threshold therefore still took one step, and what that

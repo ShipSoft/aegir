@@ -13,18 +13,19 @@ requires-pixi = ">=0.68"
 # packages (shipdatamodel/shipgeometry/shipgeometryservice) are declared in
 # [feature.released] just below — not here — so the opt-in `dev` environment can
 # override them with sibling source builds without these channel specs in scope.
-# >=0.5: readFieldMapPlacements, used by field_map_provider for placement
-# manifests (0.4 brought the SHiP namespace, SHiP/FieldService/ headers and
-# SHiP::FieldService* targets).
+# >=0.6: magnet translations are SHiP::Length quantities. 0.5 added
+# readFieldMapPlacements, used by field_map_provider for placement manifests;
+# 0.4 brought the SHiP namespace, SHiP/FieldService/ headers and
+# SHiP::FieldService* targets.
 # The SHiP packages below are capped at the next minor, which may break
 # the API while they are 0.x; keep each cap in step with the find_package range
 # in CMakeLists.txt.
-field-service-core = ">=0.5,<0.6"
-field-service-g4 = ">=0.5,<0.6"
+field-service-core = ">=0.6,<0.7"
+field-service-g4 = ">=0.6,<0.7"
 # Field-map file I/O (SHiP::FieldServiceMapIO), used by field_map_provider.
-field-service-mapio = ">=0.5,<0.6"
+field-service-mapio = ">=0.6,<0.7"
 # generate_constant_fieldmap, used by the field_deflection test.
-field-service-tools = ">=0.5,<0.6"
+field-service-tools = ">=0.6,<0.7"
 # The SHiP muon shield and spectrometer maps with their placements.json, read by
 # workflows/gun_st_field.jsonnet.
 ship-field-maps = ">=0.1"

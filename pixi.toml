@@ -64,8 +64,11 @@ cxx-compiler = "*"
 # Both carry a >=20 floor: .clang-tidy's ExcludeHeaderFilterRegex needs 19,
 # and the clang-tidy-diff task's -only-check-in-db needs 20. They have to
 # resolve to the same major: clang-tidy looks for its builtin headers under
-# lib/clang/<major>/include, which is what the clang package supplies. Both
-# come from the same llvm feedstock, so conda keeps them in step.
+# lib/clang/<major>/include, which is what the clang package supplies.
+# Nothing in the package metadata enforces this. Both are built by the same
+# feedstock and published together, so the solver picks the same major for
+# each unless another dependency caps one of them. Check the pixi.lock diff
+# for a split when relocking.
 clang = ">=20"
 clang-tools = ">=20"
 

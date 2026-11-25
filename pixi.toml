@@ -203,8 +203,26 @@ mkdir -p coverage/html \
 
 [feature.bench.dependencies]
 hyperfine = "*"
-just = "*"
 linux-perf = "*"
+
+# Benchmarks and profiling. The commands live in scripts/bench.sh and
+# scripts/profile.sh; environment variables override their defaults, e.g.
+# `G4_EVENTS=500 pixi run -e bench bench-geant4`. See docs/benchmarks.md.
+[feature.bench.tasks]
+bench-pythia8 = { cmd = "scripts/bench.sh pythia8", depends-on = ["build"], description = "Standalone Pythia8 vs phlex workflows" }
+bench-standalone = { cmd = "scripts/bench.sh standalone", depends-on = ["build"], description = "Standalone Pythia8, serial vs parallel" }
+bench-phlex-io = { cmd = "scripts/bench.sh phlex-io", depends-on = ["build"], description = "phlex I/O overhead: noop vs mc_only" }
+bench-fairship = { cmd = "scripts/bench.sh fairship", depends-on = ["build"], description = "Default vs FairShip-like Pythia8 configuration" }
+bench-scaling = { cmd = "scripts/bench.sh scaling", depends-on = ["build"], description = "Event-count sweep: start-up vs per-event cost" }
+bench-geant4 = { cmd = "scripts/bench.sh geant4", depends-on = ["build"], description = "Geant4 single- vs multi-threaded, no output" }
+bench-geant4-io = { cmd = "scripts/bench.sh geant4-io", depends-on = ["build"], description = "Geant4 with and without output" }
+bench-geant4-threads = { cmd = "scripts/bench.sh geant4-threads", depends-on = ["build"], description = "Geant4 thread-count sweep" }
+bench-gun-noop = { cmd = "scripts/bench.sh gun-noop", depends-on = ["build"], description = "Framework overhead: particle gun without Geant4" }
+bench-fixed-target = { cmd = "scripts/bench.sh fixed-target", depends-on = ["build"], description = "Fixed target on one thread, 20 and 420 events" }
+bench-sweep = { cmd = "scripts/bench.sh sweep", depends-on = ["build"], description = "Thread x parallelism sweep, CSV and plots" }
+bench-sweep-saturated = { cmd = "scripts/bench.sh sweep-saturated", depends-on = ["build"], description = "Thread x parallelism sweep on a fully loaded machine" }
+profile-flamegraph = { cmd = "scripts/profile.sh flamegraph", depends-on = ["build"], description = "Sampled CPU profile with perf (flame graph)" }
+profile-trace = { cmd = "scripts/profile.sh trace", depends-on = ["build"], description = "Chrome trace of a short run (needs AEGIR_ENABLE_TRACE)" }
 
 # Linting / formatting toolchain. prek orchestrates the hooks; the tools come
 # from this environment so versions are tracked in pixi.lock and run identically

@@ -44,8 +44,8 @@ Thank you for your interest in contributing to aegir! As part of the SHiP Collab
      pixi run phlex -c workflows/gun_only.jsonnet
      ```
      Or `pixi shell` first if you prefer an interactive session.
-   - Benchmark targets driven by `just` live behind the `bench` feature
-     (`pixi shell -e bench`); see `docs/benchmarks.md`.
+   - Benchmarks are pixi tasks in the `bench` environment
+     (`pixi run -e bench bench-geant4`, for example); see `docs/benchmarks.md`.
    - Add new workflows or benchmarks if you introduce new features.
 8. **Submission**: Open a Pull Request against the `main` branch. Ensure the CI passes.
 

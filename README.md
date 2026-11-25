@@ -78,7 +78,7 @@ separately. Available tasks (see [`pixi.toml`](pixi.toml)):
 - `pixi run <task>` (or `pixi run <command>`) activates the environment for
   the duration of one command. Use it for scripted invocations and CI.
 - `pixi shell` drops you into an interactive subshell with the environment
-  active until you `exit`. Use it for iterative development — `just`
+  active until you `exit`. Use it for iterative development — benchmark
   targets, ad-hoc `phlex` invocations, debugging.
 
 `activate.sh` sets `PHLEX_PLUGIN_PATH`, `LD_LIBRARY_PATH`, `SHIPGEOMETRY_ROOT`,
@@ -200,14 +200,13 @@ See [docs/geant4_integration.md](docs/geant4_integration.md) for details on the 
 
 ## Benchmarking
 
-See `docs/benchmarks.md` for details. The benchmark targets need `hyperfine`
-and `just`, which the `bench` pixi feature provides:
+See `docs/benchmarks.md` for details. The benchmarks are pixi tasks in the
+`bench` environment, which provides `hyperfine`:
 
 ```bash
-pixi shell -e bench
-just bench-geant4          # ST vs MT comparison
-just bench-geant4-threads  # Thread count sweep
-just bench-pythia8         # Standalone vs Phlex Pythia8
+pixi run -e bench bench-geant4          # ST vs MT comparison
+pixi run -e bench bench-geant4-threads  # Thread count sweep
+pixi run -e bench bench-pythia8         # Standalone vs Phlex Pythia8
 ```
 
 ## Contributing

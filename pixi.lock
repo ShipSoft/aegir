@@ -106,7 +106,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/hyperfine-2.0.0-hf19af3b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/icu-78.3-py310h44b86e0_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/json-c-0.19-hebe6cf0_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/just-1.59.0-hf19af3b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/keyutils-1.6.3-h7cc23a3_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/krb5-1.22.2-hbc21106_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.46.1-default_hbd61a6d_103.conda
@@ -513,7 +512,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/hyperfine-2.0.0-h328a733_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/icu-78.3-py311h3512406_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/json-c-0.19-h29ee22c_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/just-1.59.0-h328a733_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/keyutils-1.6.3-h5bc82ec_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/krb5-1.22.2-h095d8e5_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ld_impl_linux-aarch64-2.46.1-default_h1979696_103.conda
@@ -4788,18 +4786,6 @@ packages:
     - json-c >=0.19,<0.20.0a0
   size: 93822
   timestamp: 1794151250663
-- conda: https://conda.anaconda.org/conda-forge/linux-64/just-1.59.0-hf19af3b_0.conda
-  sha256: bd0d0be0073c0f3158bbe436a82fcab61faac2e5355501ed107725484a58bf77
-  md5: cfac9e4efbe6d0050da7c18190e13b2a
-  depends:
-  - libgcc >=15
-  - __glibc >=2.17,<3.0.a0
-  constrains:
-  - __glibc >=2.17
-  license: CC0-1.0
-  run_exports: {}
-  size: 2025606
-  timestamp: 1792056974524
 - conda: https://conda.anaconda.org/conda-forge/linux-64/keyutils-1.6.3-h7cc23a3_1.conda
   sha256: dd053c96dcb0dcfd59422aefea9d2fe937a190167f34fba7893ec1e10a7e8963
   md5: ba55d1b89fd7775e67de8291029b4059
@@ -9231,17 +9217,6 @@ packages:
     - json-c >=0.19,<0.20.0a0
   size: 101024
   timestamp: 1794151265601
-- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/just-1.59.0-h328a733_0.conda
-  sha256: c7096012c9d27edada4a4290c0eb8364467cd7b79b8cedfb19ba74ae11d32d5a
-  md5: 551eba64c931873febd293f511cf161f
-  depends:
-  - libgcc >=15
-  constrains:
-  - __glibc >=2.17
-  license: CC0-1.0
-  run_exports: {}
-  size: 1920328
-  timestamp: 1792056964215
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/keyutils-1.6.3-h5bc82ec_1.conda
   sha256: 3999b1472f1e549a0b766428e2823abf20626aac5314b474c9b76bf6eb679def
   md5: 6d9be306ecb8dfc9ff46f02cb367d5c2

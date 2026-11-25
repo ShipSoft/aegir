@@ -77,7 +77,7 @@ Measured with `gun_st_full` (200 events, fixed gun seed):
   warning; it was not observed in these short tests.
 - Consequence for validation: physics comparisons must either run
   `-j 1` (exact) or compare distributions statistically. The
-  single-threaded benchmark recipes in the justfile now pin `-j 1`.
+  single-threaded benchmarks in `scripts/bench.sh` now pin `-j 1`.
 - **Resolved** by per-event seeding: the geant4 module now reseeds the
   calling worker's engine from the data-cell index hash (Philox stream
   keyed on the base seed), so the event↔RNG pairing no longer

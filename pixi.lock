@@ -19,12 +19,15 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     packages:
       linux-64:
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/expat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-11.4.3-noqt_f3881a7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-qt-mutex-11.4.3-noqt_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-core-6.32.0-h4c1a03e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-g4-6.32.0-h036e760_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-tools-6.32.0-h036e760_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.54.1-h13e7031_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/mdspan-5.3.0-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-8_kmp_llvm.conda
       - conda: https://prefix.dev/conda-forge/linux-64/alsa-lib-1.2.16.1-h7cc23a3_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/argon2-cffi-bindings-26.1.0-py314h89acca1_2.conda
@@ -62,7 +65,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-abi-5.0.1.80-hf414acd_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/elfutils-0.196-h03e2bf6_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/epoxy-1.5.10-hb03c661_2.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/expat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fastjet-cxx-3.5.2-h74165de_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fftw-3.3.11-nompi_h3b011a4_100.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fmt-12.1.0-h76c4fd7_1.conda
@@ -125,7 +127,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-devel-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-h280c20c_3.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype-2.14.3-ha770c72_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype6-2.14.3-h5e6c136_2.conda
@@ -400,10 +401,10 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.5.0-h88d25f5_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.5.0-h851e82d_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.6.0-h1c7f545_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.6.0-hcbb851d_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipdatamodel-0.6.0-h88d25f5_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipgeometry-0.2.1-h1c7f545_5.conda
@@ -450,7 +451,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-abi-5.0.1.100-h9a8c16c_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/elfutils-0.196-h424db8c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/epoxy-1.5.10-he30d5cf_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastjet-cxx-3.5.3-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fftw-3.3.11-nompi_h66d8d02_100.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fmt-12.1.0-h166da81_1.conda
@@ -517,7 +518,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-devel-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libev-4.33-h80f16a2_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libffi-3.7.0-hdaad0be_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype-2.14.3-h8af1aa0_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype6-2.14.3-h9cc7050_2.conda
@@ -587,6 +588,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lz4-c-1.10.0-hfb11796_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lzo-2.10-h29ee22c_1003.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/markupsafe-3.0.4-py314ha6eade7_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdspan-5.3.0-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ms-gsl-5.0.1-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-h2b6f883_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ninja-1.13.2-hdc560ac_1.conda
@@ -794,10 +796,10 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.1-pyh5ded981_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.5.0-he694b7a_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.5.0-hc983733_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.6.0-h300e7cd_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.6.0-hffa10d7_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/mp-units-2.5.0-h300e7cd_6.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipdatamodel-0.6.0-he694b7a_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipgeometry-0.2.1-h300e7cd_5.conda
@@ -812,14 +814,17 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     packages:
       linux-64:
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/expat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-11.4.3-noqt_f3881a7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-qt-mutex-11.4.3-noqt_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-core-6.32.0-h4c1a03e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-g4-6.32.0-h036e760_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-tools-6.32.0-h036e760_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.54.1-h13e7031_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libxslt-1.1.45-h8e12856_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/lxml-6.1.3-py314h9a24db0_2.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/mdspan-5.3.0-h4dbf13b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/colorlog-6.12.0-pyhfa0c392_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/gcovr-8.8-pyh5ded981_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-8_kmp_llvm.conda
@@ -858,7 +863,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-5.0.1-h19c2612_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-abi-5.0.1.80-hf414acd_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/epoxy-1.5.10-hb03c661_2.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/expat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fastjet-cxx-3.5.2-h74165de_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fftw-3.3.11-nompi_h3b011a4_100.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fmt-12.1.0-h76c4fd7_1.conda
@@ -917,7 +921,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-devel-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-h280c20c_3.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype-2.14.3-ha770c72_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype6-2.14.3-h5e6c136_2.conda
@@ -1186,10 +1189,10 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.5.0-h88d25f5_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.5.0-h851e82d_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.6.0-h1c7f545_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.6.0-hcbb851d_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipdatamodel-0.6.0-h88d25f5_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipgeometry-0.2.1-h1c7f545_5.conda
@@ -1235,7 +1238,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-5.0.1-hbf0d46f_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-abi-5.0.1.100-h9a8c16c_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/epoxy-1.5.10-he30d5cf_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastjet-cxx-3.5.3-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fftw-3.3.11-nompi_h66d8d02_100.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fmt-12.1.0-h166da81_1.conda
@@ -1298,7 +1301,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-devel-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libev-4.33-h80f16a2_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libffi-3.7.0-hdaad0be_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype-2.14.3-h8af1aa0_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype6-2.14.3-h9cc7050_2.conda
@@ -1366,6 +1369,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lxml-6.1.3-py314h8dc93f1_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lz4-c-1.10.0-hfb11796_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/markupsafe-3.0.4-py314ha6eade7_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdspan-5.3.0-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ms-gsl-5.0.1-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-h2b6f883_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ninja-1.13.2-hdc560ac_1.conda
@@ -1573,10 +1577,10 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.1-pyh5ded981_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.5.0-he694b7a_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.5.0-hc983733_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.6.0-h300e7cd_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.6.0-hffa10d7_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/mp-units-2.5.0-h300e7cd_6.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipdatamodel-0.6.0-he694b7a_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipgeometry-0.2.1-h300e7cd_5.conda
@@ -1591,12 +1595,15 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     packages:
       linux-64:
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/expat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-11.4.3-noqt_f3881a7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-qt-mutex-11.4.3-noqt_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-core-6.32.0-h4c1a03e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-g4-6.32.0-h036e760_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-tools-6.32.0-h036e760_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.54.1-h13e7031_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/mdspan-5.3.0-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-8_kmp_llvm.conda
       - conda: https://prefix.dev/conda-forge/linux-64/alsa-lib-1.2.16.1-h7cc23a3_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/argon2-cffi-bindings-26.1.0-py314h89acca1_2.conda
@@ -1633,7 +1640,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-5.0.1-h19c2612_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-abi-5.0.1.80-hf414acd_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/epoxy-1.5.10-hb03c661_2.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/expat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fastjet-cxx-3.5.2-h74165de_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fftw-3.3.11-nompi_h3b011a4_100.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fmt-12.1.0-h76c4fd7_1.conda
@@ -1692,7 +1698,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-devel-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-h280c20c_3.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype-2.14.3-ha770c72_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype6-2.14.3-h5e6c136_2.conda
@@ -1961,10 +1966,10 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.5.0-h88d25f5_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.5.0-h851e82d_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.6.0-h1c7f545_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.6.0-hcbb851d_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipdatamodel-0.6.0-h88d25f5_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipgeometry-0.2.1-h1c7f545_5.conda
@@ -2010,7 +2015,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-5.0.1-hbf0d46f_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-abi-5.0.1.100-h9a8c16c_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/epoxy-1.5.10-he30d5cf_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastjet-cxx-3.5.3-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fftw-3.3.11-nompi_h66d8d02_100.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fmt-12.1.0-h166da81_1.conda
@@ -2073,7 +2078,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-devel-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libev-4.33-h80f16a2_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libffi-3.7.0-hdaad0be_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype-2.14.3-h8af1aa0_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype6-2.14.3-h9cc7050_2.conda
@@ -2139,6 +2144,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/llvmlite-0.50.0-py314h917d9d2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lz4-c-1.10.0-hfb11796_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/markupsafe-3.0.4-py314ha6eade7_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdspan-5.3.0-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ms-gsl-5.0.1-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-h2b6f883_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ninja-1.13.2-hdc560ac_1.conda
@@ -2344,10 +2350,10 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.1-pyh5ded981_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.5.0-he694b7a_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.5.0-hc983733_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.6.0-h300e7cd_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.6.0-hffa10d7_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/mp-units-2.5.0-h300e7cd_6.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipdatamodel-0.6.0-he694b7a_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipgeometry-0.2.1-h300e7cd_5.conda
@@ -2364,12 +2370,15 @@ environments:
     - https://pypi.org/simple
     packages:
       linux-64:
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/expat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-11.4.3-noqt_f3881a7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-qt-mutex-11.4.3-noqt_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-core-6.32.0-h4c1a03e_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-g4-6.32.0-h036e760_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/geomodel-tools-6.32.0-h036e760_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.9.0-hd2095e1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.54.1-h13e7031_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/mdspan-5.3.0-h4dbf13b_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/_openmp_mutex-4.5-8_kmp_llvm.conda
       - conda: https://prefix.dev/conda-forge/linux-64/alsa-lib-1.2.16.1-h7cc23a3_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/argon2-cffi-bindings-26.1.0-py314h89acca1_2.conda
@@ -2407,7 +2416,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-5.0.1-h19c2612_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/eigen-abi-5.0.1.80-hf414acd_3.conda
       - conda: https://prefix.dev/conda-forge/linux-64/epoxy-1.5.10-hb03c661_2.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/expat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fastjet-cxx-3.5.2-h74165de_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fftw-3.3.11-nompi_h3b011a4_100.conda
       - conda: https://prefix.dev/conda-forge/linux-64/fmt-12.1.0-h76c4fd7_1.conda
@@ -2466,7 +2474,6 @@ environments:
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libegl-devel-1.7.0-ha4b6fd6_5.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libev-4.33-h280c20c_3.conda
-      - conda: https://prefix.dev/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype-2.14.3-ha770c72_2.conda
       - conda: https://prefix.dev/conda-forge/linux-64/libfreetype6-2.14.3-h5e6c136_2.conda
@@ -2741,10 +2748,10 @@ environments:
       - conda: https://prefix.dev/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://prefix.dev/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://prefix.dev/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.5.0-h88d25f5_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.5.0-h4850774_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.5.0-h851e82d_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.6.0-h1c7f545_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.6.0-h6989ce3_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.6.0-hcbb851d_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipdatamodel-0.6.0-h88d25f5_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-64/shipgeometry-0.2.1-h1c7f545_5.conda
@@ -2793,7 +2800,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-5.0.1-hbf0d46f_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/eigen-abi-5.0.1.100-h9a8c16c_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/epoxy-1.5.10-he30d5cf_2.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastjet-cxx-3.5.3-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fftw-3.3.11-nompi_h66d8d02_100.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fmt-12.1.0-h166da81_1.conda
@@ -2856,7 +2863,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libegl-devel-1.7.0-hd24410f_5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libev-4.33-h80f16a2_3.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.8.5-h4154aff_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.9.0-h4154aff_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libffi-3.7.0-hdaad0be_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype-2.14.3-h8af1aa0_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libfreetype6-2.14.3-h9cc7050_2.conda
@@ -2923,6 +2930,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/llvmlite-0.50.0-py314h917d9d2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/lz4-c-1.10.0-hfb11796_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/markupsafe-3.0.4-py314ha6eade7_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdspan-5.3.0-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ms-gsl-5.0.1-h45ce4d5_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-h2b6f883_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ninja-1.13.2-hdc560ac_1.conda
@@ -3134,10 +3142,10 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/websocket-client-1.9.2-pyh5ded981_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.1-pyh5ded981_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.5.0-he694b7a_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.5.0-h6c0c5cc_0.conda
-      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.5.0-hc983733_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.6.0-h300e7cd_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.6.0-h282e0bc_0.conda
+      - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.6.0-hffa10d7_0.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/mp-units-2.5.0-h300e7cd_6.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipdatamodel-0.6.0-he694b7a_1.conda
       - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/shipgeometry-0.2.1-h300e7cd_5.conda
@@ -3149,6 +3157,21 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/66/65/08d3a5039b565231c501b31d1a973d4222e9803c03b2c31a9c08bdec3e30/cpplint-2.0.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/c9/c0/6e7fc4402d423297f60d06c053224675823863b6ee9cb3e18dfcb674e1c1/gersemi-0.29.2-cp314-cp314-manylinux_2_28_aarch64.whl
 packages:
+- conda: https://conda.anaconda.org/conda-forge/linux-64/expat-2.9.0-hd2095e1_0.conda
+  sha256: a59722000e2afd899c55465daa222aa510dcb035439dd7cd0ee18f7e938f664c
+  md5: 7ddc762bb33ba2adb9b46742c8af84bf
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libexpat 2.9.0 hd2095e1_0
+  - libgcc >=15
+  license: MIT
+  license_family: MIT
+  purls: []
+  run_exports:
+    weak:
+    - libexpat >=2.9.0,<3.0a0
+  size: 153307
+  timestamp: 1793054226084
 - conda: https://conda.anaconda.org/conda-forge/linux-64/geant4-11.4.3-noqt_f3881a7_0.conda
   sha256: 5ed47a3cf06adc25e1eda36af8c2243e5c4c9fc3c72332ad2dc047cf77c74a2c
   md5: aa69e1cfe80ac1255ae1d49614528975
@@ -3291,6 +3314,20 @@ packages:
     - geomodel-tools >=6.32.0,<6.33.0a0
   size: 2277848
   timestamp: 1792169847308
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libexpat-2.9.0-hd2095e1_0.conda
+  sha256: 7b930a8b6bc6553cb754b4977a11f9c862c719a652fc2d128d89270992ce8beb
+  md5: 317ecabe4a58b3068c7958dc5eb89e43
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=15
+  constrains:
+  - expat 2.9.0.*
+  license: MIT
+  license_family: MIT
+  purls: []
+  run_exports: {}
+  size: 78894
+  timestamp: 1793054221966
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.54.1-h13e7031_0.conda
   sha256: 07b3c98282022f05781122d073f84e944bfb4299946e8457ece3ce6c384ff78e
   md5: 8f15f0ec9b69344df5c3bb5cce1751a1
@@ -3337,6 +3374,19 @@ packages:
   run_exports: {}
   size: 1736272
   timestamp: 1794836053040
+- conda: https://conda.anaconda.org/conda-forge/linux-64/mdspan-5.3.0-h4dbf13b_0.conda
+  sha256: 67be474e991da21f8c6e3e9e660fbca731ac29625e2da758a203b89e4166832d
+  md5: 3f6311e6154d1c8ea36271e8576fc29a
+  depends:
+  - libstdcxx >=15
+  - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
+  license: Apache-2.0 WITH LLVM-exception
+  license_family: APACHE
+  purls: []
+  run_exports: {}
+  size: 56722
+  timestamp: 1794417685386
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/_openmp_mutex-4.5-8_kmp_llvm.conda
   build_number: 8
   sha256: 7a5e2f64baac739aa01c68273ccde7020eb4801e6f1d2973f8c6caf1702b0bfa
@@ -3977,20 +4027,20 @@ packages:
     - epoxy >=1.5.10,<1.6.0a0
   size: 422103
   timestamp: 1758743388115
-- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.8.5-h4154aff_0.conda
-  sha256: b6493399c9642c582cb1cb008407b86816e258291a55a6c69bdc8e4866805675
-  md5: 777ebf043483d364cc6e1f9b4b1c3442
+- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/expat-2.9.0-h4154aff_0.conda
+  sha256: a39a3821bc73c1640ba9ae1d45eac632c9bb7eb6ff6a6ca78394c84db3aeffd0
+  md5: 90c2a34d06fa0c609559d1307a090e45
   depends:
-  - libexpat 2.8.5 h4154aff_0
+  - libexpat 2.9.0 h4154aff_0
   - libgcc >=15
   license: MIT
   license_family: MIT
   purls: []
   run_exports:
     weak:
-    - libexpat >=2.8.5,<3.0a0
-  size: 147106
-  timestamp: 1790346238462
+    - libexpat >=2.9.0,<3.0a0
+  size: 149011
+  timestamp: 1793054218639
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastjet-cxx-3.5.3-h45ce4d5_0.conda
   sha256: 81eab5eb414ff46cfde383be890d81884ff8fa3a3fc662742277dbac5d056898
   md5: a45a1f68119cec24299cca43a68c39e0
@@ -5090,19 +5140,19 @@ packages:
     - libev >=4.33,<4.34.0a0
   size: 45746
   timestamp: 1785917328690
-- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.8.5-h4154aff_0.conda
-  sha256: d155b9ee74abac0865095a66ebb008be967937a6deea6e7666ba01ead4a155fc
-  md5: e5a973222327d9183c25eddfc3a80828
+- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libexpat-2.9.0-h4154aff_0.conda
+  sha256: d3327ab1086334309cab3cf533c95f70c44dcbb8f66a99a92b23fb0f3f20f1da
+  md5: cb3ce9ae94bc74f792c119312e03bcf7
   depends:
   - libgcc >=15
   constrains:
-  - expat 2.8.5.*
+  - expat 2.9.0.*
   license: MIT
   license_family: MIT
   purls: []
   run_exports: {}
-  size: 79463
-  timestamp: 1790346233159
+  size: 80340
+  timestamp: 1793054214232
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/libffi-3.7.0-hdaad0be_1.conda
   sha256: b1879d78b622c5f4817fd6d77fe7ae3ab7b501542e3c2f4ac77198c54c62c189
   md5: f9e5b3e446b526b34a7e25ecec08efd9
@@ -6193,6 +6243,18 @@ packages:
   run_exports: {}
   size: 29173
   timestamp: 1791549315477
+- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/mdspan-5.3.0-h45ce4d5_0.conda
+  sha256: 7b156ea987e1b14aca639bb1774a22803cb2e708d5e3767070ab3504fef8a46f
+  md5: da66f557dcae481cd2a95894539dd0d9
+  depends:
+  - libstdcxx >=15
+  - libgcc >=15
+  license: Apache-2.0 WITH LLVM-exception
+  license_family: APACHE
+  purls: []
+  run_exports: {}
+  size: 56661
+  timestamp: 1794417691213
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/ms-gsl-5.0.1-h45ce4d5_0.conda
   sha256: d0fb6e116f96547e0f256176ad7d37ca21119f850135abfda6c9b1bd654695df
   md5: d0a69b4de49c39bea48dff6b3564e5e4
@@ -9535,7 +9597,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/setuptools?source=compressed-mapping
+  - pkg:pypi/setuptools?source=hash-mapping
   run_exports: {}
   size: 524690
   timestamp: 1792442584277
@@ -10488,21 +10550,6 @@ packages:
     - epoxy >=1.5.10,<1.6.0a0
   size: 411735
   timestamp: 1758743520805
-- conda: https://prefix.dev/conda-forge/linux-64/expat-2.8.5-hd2095e1_0.conda
-  sha256: c18c5196847fbf5ba3653f13664bf1a57c87aaa063b87d77c246e3b040aa1963
-  md5: 30a967b6ac673c8f21b64604a2b9ccd6
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libexpat 2.8.5 hd2095e1_0
-  - libgcc >=15
-  license: MIT
-  license_family: MIT
-  purls: []
-  run_exports:
-    weak:
-    - libexpat >=2.8.5,<3.0a0
-  size: 151545
-  timestamp: 1790346253137
 - conda: https://prefix.dev/conda-forge/linux-64/fastjet-cxx-3.5.2-h74165de_0.conda
   sha256: d89c94caef79fa3e898b7c5731578c583c53c39078b33693a7056316c2c756e0
   md5: 5ddc285fc3e5056686e95368579f6a33
@@ -11522,20 +11569,6 @@ packages:
     - libev >=4.33,<4.34.0a0
   size: 43220
   timestamp: 1785917328200
-- conda: https://prefix.dev/conda-forge/linux-64/libexpat-2.8.5-hd2095e1_0.conda
-  sha256: 6de73033a7c5f712c9c5a54124e4581e025691029835e5bceaf10a333a7e7bc0
-  md5: 72cfd2b95b0540247220b42f58a148d7
-  depends:
-  - __glibc >=2.17,<3.0.a0
-  - libgcc >=15
-  constrains:
-  - expat 2.8.5.*
-  license: MIT
-  license_family: MIT
-  purls: []
-  run_exports: {}
-  size: 77893
-  timestamp: 1790346247149
 - conda: https://prefix.dev/conda-forge/linux-64/libffi-3.7.0-h81df57d_1.conda
   sha256: c8c7583ef063bc3c430f1d48298e5ad24f796a35c22ed5b14183325825a61106
   md5: 6525a0b06aa4fd390795f0740636a9dd
@@ -16001,7 +16034,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/setuptools?source=compressed-mapping
+  - pkg:pypi/setuptools?source=hash-mapping
   run_exports: {}
   size: 524488
   timestamp: 1786282924579
@@ -16280,72 +16313,83 @@ packages:
   run_exports: {}
   size: 24190
   timestamp: 1779159948016
-- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.5.0-h88d25f5_0.conda
-  sha256: 44b8a20a0f58d5ecfcacfe3940ccf097f1ee8ef21cf4b55ef0d9f77045cb5258
-  md5: 525a86a72e6d71912b9237289657a4e7
+- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-core-0.6.0-h1c7f545_0.conda
+  sha256: 7ce1af5626a5efaa827dbbd163c020431b41fdfe997b758aff3b35febaa300cb
+  md5: 09f53824e4ec792939a4d87450bbeab1
   depends:
   - mp-units
+  - mdspan
   - shipdatamodel >=0.6.0
-  - __glibc >=2.17,<3.0.a0
   - libstdcxx >=15
   - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
   - shipdatamodel >=0.6.0,<0.7.0a0
   - mp-units >=2.5.0,<2.6.0a0
   license: LGPL-3.0-or-later
-  size: 97435
-  timestamp: 1792594708802
-- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.5.0-h4850774_0.conda
-  sha256: fe013a79d3d184c8415de24d83eb8a4e41bf42354aabcaed2a26730d77859167
-  md5: 4f18ca7833fe35ec13d3bd011f20c24a
+  run_exports:
+    weak:
+    - field-service-core >=0.6.0,<0.7.0a0
+  size: 128522
+  timestamp: 1795566798814
+- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-g4-0.6.0-h6989ce3_0.conda
+  sha256: 61f5236d15168982225674c9c466a6beff032f226a9e4b432f448ea7866c1c22
+  md5: 6c73cea173deed3296a1159cbb574be0
   depends:
-  - field-service-core ==0.5.0 h88d25f5_0
+  - field-service-core ==0.6.0 h1c7f545_0
   - geant4
   - expat
   - zlib
   - freetype
-  - __glibc >=2.17,<3.0.a0
   - libstdcxx >=15
   - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
   - libfreetype >=2.14.3
   - libfreetype6 >=2.14.3
-  - shipdatamodel >=0.6.0,<0.7.0a0
-  - libzlib >=1.3.2,<2.0a0
-  - libexpat >=2.8.5,<3.0a0
-  - mp-units >=2.5.0,<2.6.0a0
   - geant4 >=11.4.3,<11.4.4.0a0
-  license: LGPL-3.0-or-later
-  size: 59524
-  timestamp: 1792594708802
-- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.5.0-h4850774_0.conda
-  sha256: 30668c7b22930d90408b82f4a27719da9d182c551b86a5dcaf3ccd7a27ad2806
-  md5: 10d3b23da330f39b64893b8a20324cdf
-  depends:
-  - field-service-core ==0.5.0 h88d25f5_0
-  - libstdcxx >=16.2
-  - __glibc >=2.17,<3.0.a0
-  - libstdcxx >=15
-  - libgcc >=15
   - shipdatamodel >=0.6.0,<0.7.0a0
-  - root_base >=6.40.4,<6.40.5.0a0
-  - root_cxx_standard ==23
+  - libexpat >=2.9.0,<3.0a0
   - mp-units >=2.5.0,<2.6.0a0
+  - libzlib >=1.3.2,<2.0a0
   license: LGPL-3.0-or-later
-  size: 238720
-  timestamp: 1792594708802
-- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.5.0-h851e82d_0.conda
-  sha256: 3415889d02bd264475a5641516afb93177fd42fef9c6ce5f92fe416a596fdccd
-  md5: 8e835c2d4e82537cd6000f07fb0f5182
+  run_exports:
+    weak:
+    - field-service-g4 >=0.6.0,<0.7.0a0
+  size: 60903
+  timestamp: 1795566798814
+- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-mapio-0.6.0-h6989ce3_0.conda
+  sha256: d33bd67b53161b3c0e8689118c64c0ae113eccf55d6fe322f5e142f4713f0f91
+  md5: c8fdd28a6759830d11b73814a8e379e4
   depends:
-  - field-service-mapio ==0.5.0 h4850774_0
-  - __glibc >=2.17,<3.0.a0
+  - field-service-core ==0.6.0 h1c7f545_0
+  - libstdcxx >=16.2
   - libstdcxx >=15
   - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
+  - shipdatamodel >=0.6.0,<0.7.0a0
+  - root_base >=6.40.4,<6.40.5.0a0
+  - mp-units >=2.5.0,<2.6.0a0
+  - root_cxx_standard ==23
+  license: LGPL-3.0-or-later
+  run_exports:
+    weak:
+    - field-service-mapio >=0.6.0,<0.7.0a0
+  size: 239516
+  timestamp: 1795566798814
+- conda: https://prefix.dev/ship-experiment/stable/linux-64/field-service-tools-0.6.0-hcbb851d_0.conda
+  sha256: 0df10c32ff5e5d7bd14e02446ef91a7b85e9e99959525bdb67b8d69cf54b12a9
+  md5: ab9b600bab15c83fbcb80b5e3f8721e9
+  depends:
+  - field-service-mapio ==0.6.0 h6989ce3_0
+  - libstdcxx >=15
+  - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
   - shipdatamodel >=0.6.0,<0.7.0a0
   - root_base >=6.40.4,<6.40.5.0a0
   - root_cxx_standard ==23
   license: LGPL-3.0-or-later
-  size: 137476
-  timestamp: 1792594708802
+  run_exports: {}
+  size: 217655
+  timestamp: 1795566798814
 - conda: https://prefix.dev/ship-experiment/stable/linux-64/mp-units-2.5.0-hb0f4dca_5.conda
   sha256: 98eb61e874a65c8172a6dc7ed7a111f68934c563955ff4448f14b681e8686dca
   md5: d32935557c13c811d14f573bf78c4490
@@ -16407,68 +16451,79 @@ packages:
   license: LGPL-3.0-or-later
   size: 61016
   timestamp: 1792453755141
-- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.5.0-he694b7a_0.conda
-  sha256: 79842bfd7f1be9c049e27652d59262fc16a581b3276e117c083e44adaf2014ce
-  md5: c684b3cc582d806a6a1b1063c8967959
+- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-core-0.6.0-h300e7cd_0.conda
+  sha256: c9ad6f2561678fad61bf74109ed0948a1576cfccaaad5e248bb77250cc008c01
+  md5: cad860ca9dc4a96b048658c253e92b18
   depends:
   - mp-units
+  - mdspan
   - shipdatamodel >=0.6.0
   - libstdcxx >=15
   - libgcc >=15
-  - shipdatamodel >=0.6.0,<0.7.0a0
   - mp-units >=2.5.0,<2.6.0a0
+  - shipdatamodel >=0.6.0,<0.7.0a0
   license: LGPL-3.0-or-later
-  size: 97508
-  timestamp: 1792594583007
-- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.5.0-h6c0c5cc_0.conda
-  sha256: adf176f85125fc67bd7883921041b9773fd8de1acd3a44b939f0e93d1a36d477
-  md5: 221b135ea5324177cfda4b3944023ac5
+  run_exports:
+    weak:
+    - field-service-core >=0.6.0,<0.7.0a0
+  size: 127371
+  timestamp: 1795566793477
+- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-g4-0.6.0-h282e0bc_0.conda
+  sha256: 77f4627dabe02b8e479062000ea8f55fbd2d150e98e76ced8022f6b4925b3524
+  md5: cc9e442202260724649160619eb54eca
   depends:
-  - field-service-core ==0.5.0 he694b7a_0
+  - field-service-core ==0.6.0 h300e7cd_0
   - geant4
   - expat
   - zlib
   - freetype
   - libstdcxx >=15
   - libgcc >=15
-  - shipdatamodel >=0.6.0,<0.7.0a0
-  - libzlib >=1.3.2,<2.0a0
+  - mp-units >=2.5.0,<2.6.0a0
+  - libexpat >=2.9.0,<3.0a0
+  - geant4 >=11.4.3,<11.4.4.0a0
   - libfreetype >=2.14.3
   - libfreetype6 >=2.14.3
-  - mp-units >=2.5.0,<2.6.0a0
-  - libexpat >=2.8.5,<3.0a0
-  - geant4 >=11.4.3,<11.4.4.0a0
+  - shipdatamodel >=0.6.0,<0.7.0a0
+  - libzlib >=1.3.2,<2.0a0
   license: LGPL-3.0-or-later
-  size: 59008
-  timestamp: 1792594583007
-- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.5.0-h6c0c5cc_0.conda
-  sha256: 84856e359fb28dd153948ee7b0716d2f7f467920a175e0745471891c9d077ff6
-  md5: 2de4a0cfb8cedbf944ef10cb6b0e1d5d
+  run_exports:
+    weak:
+    - field-service-g4 >=0.6.0,<0.7.0a0
+  size: 60311
+  timestamp: 1795566793477
+- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-mapio-0.6.0-h282e0bc_0.conda
+  sha256: a37a59e92814ad8977af803fe6e3ad16df88a72dd00213f05be7225171049063
+  md5: f8639c60198029f8c349422943d54775
   depends:
-  - field-service-core ==0.5.0 he694b7a_0
+  - field-service-core ==0.6.0 h300e7cd_0
   - libstdcxx >=16.2
   - libstdcxx >=15
   - libgcc >=15
   - root_cxx_standard ==23
-  - shipdatamodel >=0.6.0,<0.7.0a0
   - mp-units >=2.5.0,<2.6.0a0
+  - shipdatamodel >=0.6.0,<0.7.0a0
   - root_base >=6.40.4,<6.40.5.0a0
   license: LGPL-3.0-or-later
-  size: 240295
-  timestamp: 1792594583007
-- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.5.0-hc983733_0.conda
-  sha256: 640bf90d807fe21cb37c4c2516c6d0739d29150c389ae77cb9686191d7409178
-  md5: 51188926ba2d081c1c11ee28571b7362
+  run_exports:
+    weak:
+    - field-service-mapio >=0.6.0,<0.7.0a0
+  size: 241519
+  timestamp: 1795566793477
+- conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/field-service-tools-0.6.0-hffa10d7_0.conda
+  sha256: 86ab541c4c4bc2a14b356e76dc194759d35c57a4bc1a3030f13617c8669e629b
+  md5: 45825a51e2362e915020f9ebf2e9145a
   depends:
-  - field-service-mapio ==0.5.0 h6c0c5cc_0
+  - field-service-mapio ==0.6.0 h282e0bc_0
   - libstdcxx >=15
   - libgcc >=15
   - root_cxx_standard ==23
   - shipdatamodel >=0.6.0,<0.7.0a0
   - root_base >=6.40.4,<6.40.5.0a0
   license: LGPL-3.0-or-later
-  size: 153023
-  timestamp: 1792594583007
+  run_exports: {}
+  size: 222544
+  timestamp: 1795566793477
 - conda: https://prefix.dev/ship-experiment/stable/linux-aarch64/mp-units-2.5.0-h300e7cd_6.conda
   sha256: 6a57eacd4aca45796205bfa07770643d2c695a03a9e79f4f64af64f199546b55
   md5: e8b2b45ce8bc22184a624efabfd0f5c8

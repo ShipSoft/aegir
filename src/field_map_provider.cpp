@@ -8,6 +8,7 @@
 // come either from a placement manifest (`placements`, field_service
 // docs/placements_format.md) or from a jsonnet `magnets` list.
 
+#include <SHiP/Units.hpp>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -22,6 +23,8 @@
 #include "provider_helpers.hpp"
 
 namespace {
+
+namespace su = SHiP::units;
 
 std::vector<SHiP::FieldMapSource::MagnetConfig> magnetsFromConfig(
     std::vector<phlex::configuration> const& entries) {
@@ -46,7 +49,8 @@ std::vector<SHiP::FieldMapSource::MagnetConfig> magnetsFromConfig(
                                     magnet.name +
                                     "': translation values must be finite");
       }
-      std::ranges::copy(*t, magnet.translation.begin());
+      std::ranges::transform(*t, magnet.translation.begin(),
+                             [](double v) { return v * su::mm; });
     }
     magnets.push_back(std::move(magnet));
   }

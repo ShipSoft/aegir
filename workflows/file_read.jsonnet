@@ -26,7 +26,6 @@ local lib = import 'lib.libsonnet';
   modules: {
     geant4: {
       cpp: 'geant4_module',
-      physics_list: 'FTFP_BERT',
       verbosity: 0,
     },
     output: {

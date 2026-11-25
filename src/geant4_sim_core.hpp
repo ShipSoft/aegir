@@ -10,6 +10,7 @@
 #include <G4Step.hh>
 #include <G4StepPoint.hh>
 #include <G4Track.hh>
+#include <G4UserStackingAction.hh>
 #include <G4UserSteppingAction.hh>
 #include <G4UserTrackingAction.hh>
 #include <G4VProcess.hh>
@@ -180,6 +181,22 @@ class EnergyCutAction : public G4UserSteppingAction {
 
  private:
   double ke_threshold_;  // Geant4 internal units
+};
+
+class EnergyCutStackingAction : public G4UserStackingAction {
+ public:
+  explicit EnergyCutStackingAction(SHiP::Energy ke_threshold)
+      : ke_threshold_{SHiP::aegir::clhep::g4(ke_threshold)} {}
+
+  G4ClassificationOfNewTrack ClassifyNewTrack(const G4Track* track) override {
+    if (track->GetKineticEnergy() < ke_threshold_) {
+      return fKill;
+    }
+    return fUrgent;
+  }
+
+ private:
+  double ke_threshold_;
 };
 
 class TrackingAction : public G4UserTrackingAction {

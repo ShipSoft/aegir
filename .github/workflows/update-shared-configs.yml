@@ -15,3 +15,6 @@ jobs:
         AI_POLICY.md
         .clang-tidy
         cliff.toml
+        .codecov.yml
+    secrets:
+      app-private-key: ${{ secrets.APP_PRIVATE_KEY }}

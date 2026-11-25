@@ -47,7 +47,9 @@ no event queue), the sections below this one describing "threading
 backends" and the queue/promise pattern are **historical** — those
 backends no longer exist. Current numbers, measured on a different
 machine (i5-1334U: 2 P-cores + 8 E-cores, 12 threads), 2000 events,
-particle gun (muons, 10–100 GeV), FTFP_BERT, noop output:
+particle gun (muons, 10–100 GeV), FTFP_BERT, noop output. These runs
+predate the switch of the default physics list to FTFP_BERT_HP_EMZ (with
+γ → μμ and e⁺e⁻ → μμ), which costs more per event:
 
 | Config | time |
 |:---|---:|

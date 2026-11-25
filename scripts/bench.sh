@@ -158,6 +158,7 @@ fixed-target)
   tag="$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- || echo -dirty)"
   mkdir -p results
   hf \
+    --warmup 1 \
     --runs 3 \
     -L events 20,420 \
     -n 'fixed target, {events} events' \

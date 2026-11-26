@@ -544,9 +544,18 @@ class Geant4Sim {
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
       configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
       if (!cfg_.pre_equilibrium) {
-        // Process-wide, and only settable before initialisation. The hadronic
-        // models then hand the excited nucleus straight to evaporation.
-        G4NuclearLevelData::GetInstance()->GetParameters()->SetPrecoDummy(true);
+        // Process-wide, and only settable before initialisation. The
+        // pre-compound model then hands the excited nucleus straight to the
+        // excitation handler (evaporation, photon emission, break-up). Not
+        // SetPrecoDummy: it also sets the de-excitation channels to fDummy,
+        // which switches off the excitation handler as well.
+        auto* deex = G4NuclearLevelData::GetInstance()->GetParameters();
+        deex->SetPreCompoundType(eDeexcitation);
+        if (deex->GetPreCompoundType() != eDeexcitation) {
+          throw std::runtime_error(
+              "geant4_module: pre_equilibrium: false could not be applied, "
+              "the de-excitation parameters are already locked");
+        }
         spdlog::info(
             "geant4_module: pre-equilibrium stage of nuclear de-excitation "
             "is off");

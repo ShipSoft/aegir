@@ -34,7 +34,7 @@ find_package(
     REQUIRED
     COMPONENTS Core RIO Tree Hist MathCore ROOTNTuple
 )
-find_package(Geant4 REQUIRED)
+find_package(Geant4 11.4 REQUIRED)
 
 # Pythia8 has no CMake config; create an imported target from pythia8-config
 find_program(PYTHIA8_CONFIG pythia8-config REQUIRED)

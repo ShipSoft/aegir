@@ -155,7 +155,8 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `track_all_primaries` | bool | `false` | Hand every input `MCParticle` to Geant4 regardless of its generator status. By default only HepMC status-1 (final-state) entries are tracked; set this only for inputs whose `status` does not follow the HepMC convention |
 | `regions` | map | `{}` | Volume name pattern to production cut (mm) mapping |
 | `scoring_planes` | list | `[]` | Scoring planes to add to the geometry, see [Scoring planes](#scoring-planes) |
-| `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in |
+| `strict_node_ids` | bool | `false` | Stop the job, instead of logging a warning, when placements of a sensitive volume share a `geometry_node_id`, see [Sensitive volumes](#sensitive-volumes) |
+| `export_gdml` | string | *(unset)* | Write the constructed geometry to this GDML file after initialisation. Errors if the file exists. Lets external tools (e.g. the GENIE event generator) use exactly the geometry Geant4 tracks in. To read the file back with `geometry_gdml_provider`, set `from_geomodel: true` there (see [Sensitive volumes](#sensitive-volumes)). |
 | `progress_interval` | int | `100` | Log a progress line (event count and average rate) every this many simulated events; `0` disables |
 
 For consumers that read the exported file with ROOT's TGeo importer, run
@@ -195,7 +196,8 @@ entry, the first one wins. The `detector_id` of each hit says which SHiP
 subsystem it belongs to, using the `SHiP::detector_id` values of the data
 model.
 
-An entry can be a bare pattern, and aegir then looks up its detector:
+An entry can be a bare pattern, and aegir then looks up its detector; its
+`id_depth` is `0` (see below):
 
 | Pattern | `detector_id` |
 |:---|:---|
@@ -206,8 +208,15 @@ An entry can be a bare pattern, and aegir then looks up its detector:
 | `TimingDetector`, `timing_detector` | `4` (TimingDetector) |
 | `Scoring`, `ScoringPlane` | `99`, the toy geometries' test planes, which belong to no subsystem |
 
+Patterns match by substring, so a bare pattern can catch volumes at
+several levels: `trackers` matches the stations, envelopes, frames and
+straw walls as well as the straw gas. To get one id per straw, list the
+gas with its depth, `{ pattern: 'straw_gas', detector: 'StrawTubes',
+id_depth: 1 }`, as in the example below.
+
 For any other pattern, name the detector yourself with
-`{ pattern: ..., detector: ... }`. `detector` is one of `UpstreamTagger`,
+`{ pattern: ..., detector: ... }`, and add `id_depth` if the id is not on
+the volume itself (default `0`). `detector` is one of `UpstreamTagger`,
 `SurroundTagger`, `StrawTubes`, `Calorimeter`, `TimingDetector` or
 `test_fixture` (id 99). Both kinds of entry can go in one list, and
 several entries can share a detector:
@@ -218,15 +227,74 @@ geometry: {
   db_file: 'ship_geometry.db',
   sensitive_volumes: [
     'upstream_tagger',
-    { pattern: 'straw_gas', detector: 'StrawTubes' },
+    { pattern: 'straw_gas', detector: 'StrawTubes', id_depth: 1 },
     { pattern: 'timing_detector/bar', detector: 'TimingDetector' },
   ],
 },
 ```
 
-A pattern aegir doesn't know, an unknown detector name, or an unknown key
-stops the job while the configuration is read, before Geant4 starts. The
-builtin geometry always uses `Scoring`, with id 99.
+A pattern aegir doesn't know, an unknown detector name, an unknown key, or
+an `id_depth` that is not a whole number of 0 or more stops the job while
+the configuration is read, before Geant4 starts. The builtin geometry
+always uses `Scoring`, with id 99.
+
+A detector hit's `geometry_node_id` says which volume of its detector it
+came from. It is the Geant4 copy number `id_depth` levels above the volume
+the step started in: `0`, the default, is that volume itself, `1` the
+volume it is placed in, and so on. A GeoModel geometry sets copy numbers
+with its `GeoIdentifierTag`s, which the conversion to Geant4 turns into
+copy numbers, so `id_depth` names the level whose tag carries the id. In
+the example above, every straw's gas has the same tag and the straw's id
+sits on its wall, one level up, hence `id_depth: 1`. In a GeoModel
+geometry, a volume without a tag gets GeoModel2G4's default copy number
+(`SHiP::aegir::g4::kGeoModelUntaggedCopyNumber`, set by GeoModel, not
+aegir), which identifies nothing, so its hits carry `-1` instead
+(`SHiP::aegir::g4::kNoGeometryNodeId`). GDML and builtin geometries have
+no such default: every copy number there is an id. The exception is GDML
+exported from a GeoModel geometry (with `export_gdml`, say), which keeps
+GeoModel's default on its untagged volumes. Load such a file with
+`from_geomodel: true` in the `geometry_gdml_provider` configuration, so
+that its hits get the same ids as when the geometry is read from GeoModel;
+it is off by default, since in other GDML that copy number is an ordinary
+id:
+
+```jsonnet
+geometry: {
+  cpp: 'geometry_gdml_provider',
+  gdml_file: 'ship_geometry_2026.gdml',
+  from_geomodel: true,
+  sensitive_volumes: [ ... ],
+},
+```
+
+Beyond that, what the id means belongs to the detector named by
+`detector_id`. The builtin geometry numbers its five test planes 0-4 from
+upstream.
+
+The geometry is checked before the run. If, in some placement of a
+sensitive volume, `id_depth` reaches above the world volume, the job
+stops. If placements of a sensitive volume share an id, so that their hits
+cannot be told apart, aegir logs a warning; with `strict_node_ids: true`
+in the `geant4` module's configuration, the job stops instead. Usually
+`id_depth` should then point one level further up. Any id given to more
+than one placement counts: a level whose numbering restarts in every
+parent (0 to N in each sublayer) shares every id, and so do several
+untagged placements among tagged ones (they all get `-1`). Copies of a
+replica or parameterised volume between the sensitive volume and its
+`id_depth` level, or above that level, all read the same id as well. When
+the `id_depth` level is itself a replica or parameterised volume, its
+copies' ids are their indices, 0 to the number of copies minus 1, compared
+like any other, so a replica repeated in several parents shares its ids
+too.
+
+GeoModel2G4 doesn't export its untagged default, so aegir names it once.
+A tag that happens to equal it would be read as untagged and get `-1`.
+The GeoModel ticket on exporting it is
+[GeoModel#138](https://gitlab.cern.ch/GeoModelDev/GeoModel/-/issues/138).
+
+Scoring-plane hits are the exception: their `geometry_node_id` is the
+plane's configured `id`, not a copy number (see
+[Scoring planes](#scoring-planes)).
 
 ## Scoring planes
 

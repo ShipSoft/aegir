@@ -587,8 +587,7 @@ class ScoringPlaneSD : public G4VSensitiveDetector {
       return false;
     }
 
-    auto hit = make_base_hit(step, kScoringPlaneDetectorId);
-    hit.geometry_node_id = plane.id;
+    auto hit = make_base_hit(step, kScoringPlaneDetectorId, plane.id);
     hit.energy_deposit = 0;
     // This SD runs inside G4ParallelWorldProcess::PostStepDoIt, before the
     // stepping manager adds the current step to the track length, so this is

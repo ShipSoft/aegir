@@ -12,11 +12,13 @@
 #include <filesystem>  // NOLINT(build/c++17)
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "SHiP/GeometryService/GeometryService.h"
+#include "geometry_node_id.hpp"
 #include "geometry_source.hpp"
 #include "phlex/source.hpp"
 #include "provider_helpers.hpp"
@@ -67,6 +69,10 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
   [[nodiscard]] std::vector<SHiP::aegir::SensitiveVolume> const&
   sensitiveVolumes() const override {
     return sensitive_vols_;
+  }
+
+  [[nodiscard]] std::optional<int> untaggedCopyNumber() const override {
+    return SHiP::aegir::g4::kGeoModelUntaggedCopyNumber;
   }
 };
 

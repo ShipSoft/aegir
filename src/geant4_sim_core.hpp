@@ -19,11 +19,13 @@
 #include <SHiP/SimHit.hpp>
 #include <SHiP/SimParticle.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "geometry_node_id.hpp"
 #include "plane_particles.hpp"
 #include "units/clhep_bridge.hpp"
 
@@ -80,16 +82,19 @@ inline void persist_ancestry(std::vector<PlaneCrossing> const& recorded) {
   }
 }
 
-using DetectorIdMap = std::unordered_map<G4LogicalVolume*, int>;
-
-// Track, particle and pre-step-point kinematics of a hit, under `detector_id`.
-inline SimHit make_base_hit(G4Step const* step, int detector_id) {
+// Track, particle and pre-step-point kinematics of a hit, under `detector_id`
+// and `geometry_node_id`. What the node id means is up to the detector named
+// by `detector_id`; the caller chooses it, so that no hit carries a copy
+// number by accident.
+inline SimHit make_base_hit(G4Step const* step, std::int32_t detector_id,
+                            std::int32_t geometry_node_id) {
   auto const* pre = step->GetPreStepPoint();
   auto const pos = pre->GetPosition();
   auto const mom = pre->GetMomentum();
 
   SimHit hit;
   hit.detector_id = detector_id;
+  hit.geometry_node_id = geometry_node_id;
   hit.track_id = step->GetTrack()->GetTrackID();
   hit.pdg_code = step->GetTrack()->GetDefinition()->GetPDGEncoding();
   SHiP::view::set_position(hit, SHiP::aegir::clhep::position(pos));
@@ -98,20 +103,32 @@ inline SimHit make_base_hit(G4Step const* step, int detector_id) {
   return hit;
 }
 
-// As above, with the detector id looked up from the step's logical volume
-// (-1 if the volume is not in `detector_ids`).
+// A detector hit: the ids of the step's logical volume in `sensitive`, with
+// the geometry_node_id read at its id_depth (geometry_node_id.hpp). The
+// sensitive detector is attached only to volumes in `sensitive`, so the
+// fallback for any other volume, detector id -1 and kNoGeometryNodeId, should
+// never be used; it carries no copy number by accident either.
 inline SimHit make_base_hit(G4Step const* step,
-                            DetectorIdMap const& detector_ids) {
-  auto* lv =
-      step->GetPreStepPoint()->GetTouchable()->GetVolume()->GetLogicalVolume();
-  auto const it = detector_ids.find(lv);
-  return make_base_hit(step, it != detector_ids.end() ? it->second : -1);
+                            SensitiveVolumeIds const& sensitive) {
+  auto const* touchable = step->GetPreStepPoint()->GetTouchable();
+  auto* lv = touchable->GetVolume()->GetLogicalVolume();
+  auto const it = sensitive.volumes.find(lv);
+  if (it == sensitive.volumes.end()) {
+    return make_base_hit(step, -1, kNoGeometryNodeId);
+  }
+  return make_base_hit(step, it->second.detector_id,
+                       geometry_node_id(*touchable, it->second.id_depth,
+                                        sensitive.untagged_copy_number));
 }
 
+// The sensitive detectors read the sensitive volumes through a pointer, not a
+// copy per worker thread: the detector construction fills them before any
+// worker builds its detectors, never changes them afterwards, and outlives
+// every detector.
 class ScoringSD : public G4VSensitiveDetector {
  public:
-  ScoringSD(G4String const& name, DetectorIdMap detector_ids)
-      : G4VSensitiveDetector(name), detector_ids_{std::move(detector_ids)} {}
+  ScoringSD(G4String const& name, SensitiveVolumeIds const* sensitive)
+      : G4VSensitiveDetector(name), sensitive_{sensitive} {}
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
     double const edep = step->GetTotalEnergyDeposit();
@@ -119,7 +136,7 @@ class ScoringSD : public G4VSensitiveDetector {
       return false;
     }
 
-    auto hit = make_base_hit(step, detector_ids_);
+    auto hit = make_base_hit(step, *sensitive_);
     SHiP::view::set_energy_deposit(hit, SHiP::aegir::clhep::energy(edep));
     SHiP::view::set_path_length(
         hit, SHiP::aegir::clhep::length(step->GetStepLength()));
@@ -128,7 +145,7 @@ class ScoringSD : public G4VSensitiveDetector {
   }
 
  private:
-  DetectorIdMap detector_ids_;
+  SensitiveVolumeIds const* sensitive_;
 };
 
 // Records a SimHit when a track first enters the volume, regardless of
@@ -136,10 +153,10 @@ class ScoringSD : public G4VSensitiveDetector {
 // Matches FairShip's exitHadronAbsorber scoring behaviour.
 class CrossingSD : public G4VSensitiveDetector {
  public:
-  CrossingSD(G4String const& name, DetectorIdMap detector_ids,
+  CrossingSD(G4String const& name, SensitiveVolumeIds const* sensitive,
              SHiP::Energy ke_threshold = SHiP::Energy::zero())
       : G4VSensitiveDetector(name),
-        detector_ids_{std::move(detector_ids)},
+        sensitive_{sensitive},
         ke_threshold_{SHiP::aegir::clhep::g4(ke_threshold)} {}
 
   G4bool ProcessHits(G4Step* step, G4TouchableHistory*) override {
@@ -152,7 +169,7 @@ class CrossingSD : public G4VSensitiveDetector {
       return false;
     }
 
-    auto hit = make_base_hit(step, detector_ids_);
+    auto hit = make_base_hit(step, *sensitive_);
     hit.energy_deposit = 0;
     SHiP::view::set_path_length(
         hit, SHiP::aegir::clhep::length(track->GetTrackLength()));
@@ -161,7 +178,7 @@ class CrossingSD : public G4VSensitiveDetector {
   }
 
  private:
-  DetectorIdMap detector_ids_;
+  SensitiveVolumeIds const* sensitive_;
   double ke_threshold_;  // Geant4 internal units
 };
 

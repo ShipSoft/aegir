@@ -178,9 +178,9 @@ struct Geant4SimConfig {
   bool positron_to_mumu = true;
   // The pre-equilibrium (pre-compound) stage of nuclear de-excitation after
   // a hadronic interaction, which emits low-energy nucleons and light ions.
-  // It takes over half of the time of a fixed-target run with a 0.5 GeV
-  // energy cut. Off, the excited nucleus goes straight to evaporation. On in
-  // Geant4 and FairShip.
+  // Skipping it saves about a third of the time of a fixed-target run with
+  // a 0.5 GeV energy cut, and about half with a cut of 5 to 20 GeV. Off, the
+  // excited nucleus goes straight to evaporation. On in Geant4 and FairShip.
   bool pre_equilibrium = true;
   int verbosity = 0;
   int concurrency = 1;

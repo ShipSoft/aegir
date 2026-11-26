@@ -115,9 +115,11 @@ geometry DB).
 
 ### Without the pre-equilibrium stage
 
-After that change, more than half of the time goes into the
+After that change, a large share of the time goes into the
 pre-equilibrium stage of nuclear de-excitation, which follows each hadronic
-interaction and emits low-energy nucleons and light ions.
+interaction and emits low-energy nucleons and light ions. Skipping it saves
+about a third of the time with a 0.5 GeV cut and about half with a cut of 5
+to 20 GeV.
 `pre_equilibrium: false` skips it and hands the excited nucleus straight to
 evaporation. This is not what FairShip simulates, so it is off unless asked
 for.

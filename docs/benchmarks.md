@@ -124,14 +124,14 @@ for.
 
 Time per event on a different machine (AMD EPYC-Genoa virtual machine, one
 pinned core, wall time, 1020 minus 20 events, three repeats that agree to
-within 0.6 ms):
+within 1 ms):
 
 | Energy cut | default | `pre_equilibrium: false` | Speed-up |
 |---:|---:|---:|---:|
-| 0.5 GeV | 114 ms | 49 ms | 2.3× |
-| 5 GeV | 63 ms | 8.3 ms | 7.6× |
-| 10 GeV | 37 ms | 5.4 ms | 6.9× |
-| 20 GeV | 22 ms | 4.1 ms | 5.4× |
+| 0.5 GeV | 116 ms | 78 ms | 1.5× |
+| 5 GeV | 64 ms | 33 ms | 1.9× |
+| 10 GeV | 38 ms | 19 ms | 2.0× |
+| 20 GeV | 23 ms | 12 ms | 1.9× |
 
 On the same machine, with 420 minus 20 events and a 0.5 GeV cut, FairShip
 took 0.13 s per event and aegir with the energy cut applied after the first

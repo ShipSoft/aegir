@@ -19,7 +19,7 @@
 //           without it each run draws its own (logged at startup)
 //   ecut    energy cut in GeV (FairShip's --ecut, default 0.5)
 //   pre_equilibrium  false skips the pre-equilibrium stage of nuclear
-//           de-excitation, which FairShip simulates. 2 to 8 times as fast,
+//           de-excitation, which FairShip simulates. 1.5 to 2 times as fast,
 //           but the yields at the plane change for some particles (fewer
 //           charged pions and neutrinos); see docs/benchmarks.md
 //           (default true)

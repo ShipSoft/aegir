@@ -19,8 +19,10 @@
 //           without it each run draws its own (logged at startup)
 //   ecut    energy cut in GeV (FairShip's --ecut, default 0.5)
 //   pre_equilibrium  false skips the pre-equilibrium stage of nuclear
-//           de-excitation, which FairShip simulates: more than twice as
-//           fast, see docs/benchmarks.md (default true)
+//           de-excitation, which FairShip simulates. More than twice as
+//           fast, but the yields at the plane change for some particles:
+//           with ecut 0.5, about 15% more neutrons arrive. See
+//           docs/benchmarks.md (default true)
 //   events  number of proton interactions
 //
 // Needs the GeoModel geometry DB (pixi run build_geometry, see README).
@@ -42,7 +44,7 @@ function(seed=null, ecut=0.5, events=100000, pre_equilibrium=true) {
       // there to keep.
       particle_ke_cut: 0.0,
       keep_particles: 'hit_ancestry',
-      [if !pre_equilibrium then 'pre_equilibrium']: false,
+      pre_equilibrium: pre_equilibrium,
       scoring_planes: [lib.exit_hadron_absorber_plane { ke_threshold: ecut }],
       [if seed != null then 'seed']: seed,
     },

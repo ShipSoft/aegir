@@ -119,33 +119,59 @@ After that change, more than half of the time goes into the
 pre-equilibrium stage of nuclear de-excitation, which follows each hadronic
 interaction and emits low-energy nucleons and light ions.
 `pre_equilibrium: false` skips it and hands the excited nucleus straight to
-evaporation. Measured on a different machine (AMD EPYC-Genoa virtual
-machine, one pinned core, wall time, same 420 minus 20 event method):
+evaporation. This is not what FairShip simulates, so it is off unless asked
+for.
 
-| | Time per event |
-|:---|---:|
-| aegir, energy cut applied after the first step | 0.33 s |
-| FairShip | 0.13 s |
-| aegir | 0.11 s |
-| aegir, `pre_equilibrium: false` | 0.049 s |
+Time per event on a different machine (AMD EPYC-Genoa virtual machine, one
+pinned core, wall time, 1020 minus 20 events, three repeats that agree to
+within 0.6 ms):
 
-This is not what FairShip simulates, so it is off unless asked for. In two
-independent pairs of runs, 192 000 events per setting in total, the
-particles reaching the plane behind the hadron absorber above 0.5 GeV
-compare as follows:
+| Energy cut | default | `pre_equilibrium: false` | Speed-up |
+|---:|---:|---:|---:|
+| 0.5 GeV | 114 ms | 49 ms | 2.3× |
+| 5 GeV | 63 ms | 8.3 ms | 7.6× |
+| 10 GeV | 37 ms | 5.4 ms | 6.9× |
+| 20 GeV | 22 ms | 4.1 ms | 5.4× |
 
-| | default | `pre_equilibrium: false` |
-|:---|---:|---:|
-| neutrinos | 4275 | 4313 |
-| neutrons | 840 | 963 |
-| muons | 274 | 299 |
-| protons | 52 | 47 |
-| charged pions | 40 | 36 |
+On the same machine, with 420 minus 20 events and a 0.5 GeV cut, FairShip
+took 0.13 s per event and aegir with the energy cut applied after the first
+step 0.33 s. The benchmark workflow takes the cut and the switch as
+top-level arguments:
 
-Neutrinos agree to about 1%, within the statistical uncertainty of 1.5%.
-The muon samples are too small to see a difference below roughly 10%.
-Neutrons are 15% more frequent without the stage, 2.9 standard deviations,
-and higher in both pairs, so this is probably a real change.
+```bash
+phlex -j 1 -c <(jsonnet --ext-str events=1020 --tla-code ecut=5 \
+    --tla-code pre_equilibrium=false workflows/fixed_target_st_bench.jsonnet)
+```
+
+Particles reaching the plane behind the hadron absorber above the cut, from
+batch runs of `fixed_target_production.jsonnet` with the same Pythia seeds
+for both settings: 200 000 events per setting at 0.5 GeV and 1 000 000 at
+5, 10 and 20 GeV. The difference is `false` relative to the default, with
+its uncertainty taken from the spread between seeds. Species with fewer
+than 20 particles are left out.
+
+| Cut | Particle | default | `pre_equilibrium: false` | Difference |
+|---:|:---|---:|---:|---:|
+| 0.5 GeV | neutrinos | 4472 | 4435 | −0.8 ± 1.9% |
+| | neutrons | 885 | 892 | +0.8 ± 4.2% |
+| | muons | 283 | 286 | +1.1 ± 5.9% |
+| | protons | 64 | 69 | +8 ± 15% |
+| | charged pions | 53 | 29 | −45 ± 15% |
+| 5 GeV | neutrinos | 773 | 670 | −13.3 ± 4.5% |
+| | muons | 575 | 573 | −0.3 ± 4.2% |
+| 10 GeV | neutrinos | 188 | 193 | +3 ± 9% |
+| | muons | 323 | 310 | −4.0 ± 4.9% |
+| 20 GeV | neutrinos | 53 | 51 | −4 ± 15% |
+| | muons | 146 | 135 | −7.5 ± 7.4% |
+
+Muons agree at every cut. Two differences reach about 3 standard
+deviations: about half as many charged pions at 0.5 GeV, all of them below
+2 GeV/c, and 13% fewer neutrinos at 5 GeV, mostly between 5 and 10 GeV/c.
+The neutrinos above 5 GeV/c in the 0.5 GeV sample point the same way
+(0.91 ± 0.11) but are too few to confirm it. Two such differences among a
+dozen comparisons are unlikely to both be chance. An earlier comparison, on
+a first version of the stacking-action change, showed 15% more neutrons
+without the stage; these runs do not reproduce that.
 
 ## Geant4: single-threaded vs multi-threaded (historical)
 

@@ -374,7 +374,7 @@ class SimHistogrammer {
         h_mc_momentum_{make_hist(200, 0., 500.)},
         h_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},
         h_hit_edep_{make_hist(200, 0., 1.0)},
-        h_hit_z_{make_hist(200, -1000., 12000.)},
+        h_hit_z_{make_hist(200, -1000., 120000.)},
         h_hit_detector_{make_hist(100, -0.5, 99.5)},
         h_hit_momentum_{make_hist(200, 0., 500.)},
         h_plane_hit_multiplicity_{make_hist(1000, -0.5, 999.5)},

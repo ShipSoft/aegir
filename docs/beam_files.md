@@ -111,10 +111,10 @@ Rates per proton on target come out differently for the two kinds of file:
 - Background files: the weights are already per proton on target. Sum
   `event_header.weight` over the events you are interested in and divide by
   the fraction of the file you simulated (entries simulated over entries in
-  the file).
-- Beam files: every weight is 1 and every entry is one proton. Count the
-  events you are interested in and divide by the number of protons you
-  simulated.
+  the file), and by `weight_scale` if you set one.
+- Beam files: every weight is 1 (or `weight_scale`, if you set one) and every
+  entry is one proton. Count the events you are interested in and divide by
+  the number of protons you simulated.
 
 ## Open questions
 

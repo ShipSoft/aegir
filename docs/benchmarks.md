@@ -151,6 +151,8 @@ for both settings: 200 000 events per setting at 0.5 GeV and 1 000 000 at
 5, 10 and 20 GeV. The difference is `false` relative to the default, with
 its uncertainty taken from the spread between seeds. Species with fewer
 than 20 particles are left out.
+These counts predate the fix that keeps the excitation handler on when
+`pre_equilibrium` is false, and are being redone.
 
 | Cut | Particle | default | `pre_equilibrium: false` | Difference |
 |---:|:---|---:|---:|---:|

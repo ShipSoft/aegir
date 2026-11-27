@@ -112,6 +112,34 @@
     record: 'final_state',
   },
 
+  // Beam-line particle files from the BDSIM simulation of the P42/BDF line
+  // (one TTree, one particle per entry; see docs/beam_files.md). Each entry
+  // becomes an event with one particle, its weight in the event header.
+  // `z` (mm) places the file's plane in the aegir frame, whose origin is the
+  // target front face; x and y are taken from the file as they are, plus the
+  // optional `x_offset`/`y_offset` (mm). `tree` defaults to the file's only
+  // TTree. `project_to_z` (mm) moves each particle in a straight line from
+  // the plane to that z before tracking. Files on EOS can be read directly over xrootd:
+  //   root://eospublic.cern.ch//eos/workspace/s/sba-sim/north-area/p42/ship-beamfiles/<file>
+  beam_file:: {
+    cpp: 'beam_file_source',
+    file: error 'beam_file: set `file`',
+    z: error 'beam_file: set `z` (mm)',
+  },
+
+  // The beam at the entrance of the BDF shielding, 7.81 m upstream of the
+  // target front face (the *-beam-* files, tree DRIFT_96). Weight 1 per proton.
+  // The geometry has air, not the vacuum beam pipe, upstream of the target,
+  // where about 1% of the protons interact; merge in project_to_z (e.g.
+  // -100.0) to start them just in front of the target instead.
+  p42_beam:: self.beam_file { z: -7810.0 },
+
+  // Beam-induced background behind the hadron stopper, 4.444 m downstream of
+  // the target front face: in the air gap between the hadron absorber (ends
+  // at 4350 mm) and the first muon-shield magnet (*_mibs-in_HADRON_STOPPER
+  // files). Weights are per proton on target.
+  p42_background:: self.beam_file { z: 4444.0 },
+
   // ── modules ────────────────────────────────────────────────────────────
   // Without a `seed`, each run draws a random one (logged at startup, so a
   // run can be reproduced after the fact). Merge one in for reproducible

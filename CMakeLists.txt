@@ -176,6 +176,12 @@ aegir_add_plugin(
     LIBS SHiP::DataModel SHiP::Units ROOT::RIO ROOT::Tree
 )
 
+aegir_add_plugin(
+    beam_file_source
+    LIBS SHiP::DataModel SHiP::Units ROOT::RIO ROOT::Tree ROOT::EG spdlog::spdlog
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
 # Standalone Pythia8 benchmark (no Phlex dependency)
 add_executable(pythia8_benchmark benchmarks/pythia8_benchmark.cpp)
 target_link_libraries(pythia8_benchmark PRIVATE Pythia8::Pythia8 SHiP::Units)
@@ -266,6 +272,14 @@ add_test(
 add_test(
     NAME event_header_roundtrip
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/event_header_roundtrip.sh
+)
+
+# beam_file_source: a small file in the layout of the BDSIM beam-line files is
+# read back via mc_only (no Geant4); checks the unit conversion, the weight in
+# the event header, the offsets, the tree lookup and the errors.
+add_test(
+    NAME beam_file_source
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/beam_file_source.sh
 )
 
 # Physics-list failure: an unknown physics_list must fail cleanly (catchable

@@ -78,6 +78,56 @@ def gauss_core(h):
     return result
 
 
+def flat_top(h):
+    """Fit a uniform +-a convolved with a Gaussian sigma to a profile.
+
+    a = 0 is a plain Gaussian; a > 0 gives a flat top with Gaussian edges, as
+    in the SPS beam. This is the shape the beam_spot module samples (uniform
+    plus Gaussian), so the fitted a and sigma go into its configuration.
+    """
+    rms = h.GetStdDev()
+    # Normalised to the integral N, so that a -> 0 tends to a Gaussian
+    # instead of blowing up the amplitude.
+    f = ROOT.TF1(
+        f"flat_top_{h.GetName()}",
+        "[0]/(4*[2])*(TMath::Erf((x-[1]+[2])/(sqrt(2)*[3]))"
+        " - TMath::Erf((x-[1]-[2])/(sqrt(2)*[3])))",
+        h.GetXaxis().GetXmin(),
+        h.GetXaxis().GetXmax(),
+    )
+    norm = h.Integral() * h.GetXaxis().GetBinWidth(1)
+    best = None
+    # From Gaussian-like and from box-like starting points; keep the better.
+    for a0, s0 in ((0.05 * rms, rms), (1.5 * rms, 0.3 * rms)):
+        f.SetParameters(norm, h.GetMean(), a0, s0)
+        f.SetParLimits(2, 1e-3 * rms, 5 * rms)
+        f.SetParLimits(3, 1e-2 * rms, 5 * rms)
+        r = h.Fit(f, "QS0")
+        if r.Get() and r.IsValid() and (best is None or r.Chi2() < best[0]):
+            best = (
+                r.Chi2(),
+                r.Ndf(),
+                f.GetParameter(1),
+                f.GetParameter(2),
+                f.GetParameter(3),
+            )
+    if best is None:
+        return None
+    chi2, ndf, mean, a, sigma = best
+    return {
+        "mean": mean,
+        "half_width": a,
+        "sigma": sigma,
+        "chi2_ndf": chi2 / ndf if ndf else None,
+    }
+
+
+def source_distance_m(h2):
+    """Distance [m] to the point the spot seems to come from: x / x'."""
+    slope = h2.GetCovariance() / h2.GetRMS(1) ** 2  # mrad per mm
+    return 1.0 / slope if slope else None
+
+
 def unwrapped_turns(xs, ys):
     """Turns of the centre around the origin over the spill (sign: sense)."""
     angle, prev, offset = 0.0, None, 0.0
@@ -307,7 +357,15 @@ def analyse(path, entries, outdir, plots):
         "corr_x_xp": spot["xphase"].GetCorrelationFactor(),
         "corr_y_yp": spot["yphase"].GetCorrelationFactor(),
         "corr_x_y": spot["dxdy"].GetCorrelationFactor(),
+        "x_flat_top_mm": flat_top(spot["dx"]),
+        "y_flat_top_mm": flat_top(spot["dy"]),
+        "source_distance_x_m": source_distance_m(spot["xphase"]),
+        "source_distance_y_m": source_distance_m(spot["yphase"]),
     }
+    if swept:
+        sw = summary["sweep"]
+        sw["source_distance_x_m"] = sw["x"]["amplitude"] / sw["xp"]["amplitude"]
+        sw["source_distance_y_m"] = sw["y"]["amplitude"] / sw["yp"]["amplitude"]
 
     _ALIVE.extend((df, protons, beam, rel, booked, g, spot))
     os.makedirs(outdir, exist_ok=True)

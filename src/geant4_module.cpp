@@ -867,6 +867,11 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         "double-count the event");
   }
 
+  // The creator of the particles to track: the generator's mc_particles, or
+  // a transform of them such as beam_spot_module.
+  auto const particles_from =
+      config.get<std::string>("particles_from", std::string{"mc_particles"});
+
   auto const num_threads = cfg.concurrency;
   auto g4 = m.make<Geant4Sim>(std::move(cfg));
 
@@ -875,6 +880,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
       .input_family(
           product_selector{.creator = "geometry"_id, .layer = "job"_id},
           product_selector{.creator = "field"_id, .layer = "job"_id},
-          product_selector{.creator = "mc_particles"_id, .layer = "event"_id})
+          product_selector{.creator = experimental::identifier{particles_from},
+                           .layer = "event"_id})
       .output_product_suffixes("sim_result", "plane_particles");
 }

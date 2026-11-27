@@ -141,6 +141,58 @@
   p42_background:: self.beam_file { z: 4444.0 },
 
   // ── modules ────────────────────────────────────────────────────────────
+  // The beam spot transform moves each generated event to where a proton of
+  // the beam hits the target (docs/beam_spot.md). The geant4 and output
+  // modules then read its particles: merge in particles_from: 'beam_spot'
+  // (the transform's block name). Without settings it leaves events where
+  // they are.
+  beam_spot:: { cpp: 'beam_spot_module' },
+
+  // The P42 beam on the BDF target, fitted with scripts/analyse_beam_spot.py
+  // to the beam-line simulation's v23 files with full collimation (20M
+  // protons each). Lengths in mm, the drift in mm/s, the frequency in Hz, the
+  // phase in rad, the source distances in m (the sweep comes from further
+  // upstream in x and from closer in y than the spot). The y centre drifts up over the
+  // 1 s spill in both beams, with or without dilution. With dilution the
+  // centre turns four times per spill, starting at the bottom, clockwise
+  // with x to the right and y up (the view looking upstream). The SPS beam has a flat-topped x profile
+  // (uniform +-half_width_x with Gaussian edges); the shape is approximate.
+  p42_beam_spot_sps:: self.beam_spot {
+    centre: { x: -0.3, y: -6.8, y_drift: 13.2 },
+    sweep: {
+      radius_x: 48.1,
+      radius_y: 48.5,
+      frequency: -4.0,
+      phase: -1.5708,
+      source_distance_x: 123.0,
+      source_distance_y: 115.0,
+    },
+    spot: { half_width_x: 21.8, sigma_x: 5.8, sigma_y: 18.0 },
+    source_distance: { x: 113.0, y: 142.0 },
+  },
+  p42_beam_spot_sps_no_dilution:: self.beam_spot {
+    centre: { x: -0.1, y: -6.2, y_drift: 13.2 },
+    spot: { half_width_x: 21.9, sigma_x: 3.5, sigma_y: 17.2 },
+    source_distance: { x: 112.0, y: 146.0 },
+  },
+  p42_beam_spot_gauss:: self.beam_spot {
+    centre: { x: -0.3, y: -4.8, y_drift: 8.6 },
+    sweep: {
+      radius_x: 48.1,
+      radius_y: 48.6,
+      frequency: -4.0,
+      phase: -1.5708,
+      source_distance_x: 123.0,
+      source_distance_y: 115.0,
+    },
+    spot: { sigma_x: 16.5, sigma_y: 17.6 },
+    source_distance: { x: 113.0, y: 142.0 },
+  },
+  p42_beam_spot_gauss_no_dilution:: self.beam_spot {
+    centre: { x: -0.1, y: -4.3, y_drift: 8.6 },
+    spot: { sigma_x: 15.9, sigma_y: 16.7 },
+    source_distance: { x: 112.0, y: 146.0 },
+  },
   // Without a `seed`, each run draws a random one (logged at startup, so a
   // run can be reproduced after the fact). Merge one in for reproducible
   // output, e.g. lib.geant4 { seed: 12345 }.

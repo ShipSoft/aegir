@@ -24,6 +24,7 @@
 #include <TDatabasePDG.h>
 #include <TFile.h>
 #include <TKey.h>
+#include <TLeaf.h>
 #include <TNamed.h>
 #include <TParameter.h>
 #include <TParticlePDG.h>
@@ -219,6 +220,19 @@ class BeamFileSource {
       throw std::runtime_error(std::string{kName} + ": branch '" + name +
                                "' missing from TTree '" + s_.tree + "' in '" +
                                s_.file + "'");
+    }
+    // Each branch must hold one value per entry. SetBranchAddress checks the
+    // element type but not the length, so an array branch (weight[16]/D,
+    // say) would bind and then overwrite the neighbouring buffers.
+    auto* leaves = tree_->GetBranch(name)->GetListOfLeaves();
+    auto const* leaf = leaves->GetEntries() == 1
+                           ? dynamic_cast<TLeaf const*>(leaves->At(0))
+                           : nullptr;
+    if (leaf == nullptr || leaf->GetLeafCount() != nullptr ||
+        leaf->GetLenStatic() != 1) {
+      throw std::runtime_error(std::string{kName} + ": branch '" + name +
+                               "' in '" + s_.file +
+                               "' is not a single value per entry");
     }
     tree_->SetBranchStatus(name, true);
     // Negative means the branch could not be bound to this address (a type

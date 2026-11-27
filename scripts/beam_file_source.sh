@@ -17,7 +17,8 @@
 #     index as original_event_id,
 #   - first_entry offsets the read and reading past the end fails,
 #   - the tree is found without naming it, and a file with two trees, a
-#     missing branch or a branch of the wrong type fails clearly,
+#     missing branch, a branch of the wrong type or an array branch fails
+#     clearly,
 #   - count_entries.py counts the tree.
 # Relies on PHLEX_PLUGIN_PATH being set (activate.sh does this under `pixi run`).
 set -euo pipefail
@@ -71,14 +72,15 @@ rows = [
 ]
 f = ROOT.TFile(path, "RECREATE")
 names = ["HADRON_STOPPER", "OTHER"] if layout == "two_trees" else ["HADRON_STOPPER"]
+weight_leaf = "weight[2]/D" if layout == "array_weight" else "weight/D"
 for name in names:
     t = ROOT.TTree(name, name)
-    bufs = {b: array.array("d", [0.0]) for b in ["x", "y", "xp", "yp", "zp", "p", "t", "weight"]}
+    bufs = {b: array.array("d", [0.0, 0.0]) for b in ["x", "y", "xp", "yp", "zp", "p", "t", "weight"]}
     pdg = array.array("f" if layout == "bad_type" else "i", [0])
     for b, buf in bufs.items():
         if layout == "no_weight" and b == "weight":
             continue
-        t.Branch(b, buf, f"{b}/D")
+        t.Branch(b, buf, weight_leaf if b == "weight" else f"{b}/D")
     t.Branch("pdgID", pdg, "pdgID/F" if layout == "bad_type" else "pdgID/I")
     for x, y, xp, yp, p, time, code, w in rows:
         for b, v in zip(["x", "y", "xp", "yp", "p", "t", "weight"], [x, y, xp, yp, p, time, w]):
@@ -115,8 +117,8 @@ errors = []
 seen = []
 
 
-def close(a, b, rel=1e-6):
-    return math.isclose(a, b, rel_tol=rel, abs_tol=1e-9)
+def close(a, b, rel=1e-6, abs_tol=1e-9):
+    return math.isclose(a, b, rel_tol=rel, abs_tol=abs_tol)
 
 
 for i in range(reader.GetNEntries()):
@@ -130,11 +132,11 @@ for i in range(reader.GetNEntries()):
         continue
     mc = ps[0]
     zp = math.sqrt(1.0 - xp * xp - yp * yp)
-    z, vx, vy, vt = 4444.0, x * 1000 + 1.5, y * 1000 - 2.5, t
+    z, vx, vy, flight = 4444.0, x * 1000 + 1.5, y * 1000 - 2.5, 0.0
     if project is not None:
         path = (project - z) / zp  # mm
         vx, vy, z = vx + xp * path, vy + yp * path, project
-        vt += path / (p / math.hypot(p, mass) * 299.792458)
+        flight = path / (p / math.hypot(p, mass) * 299.792458)  # ns
     checks = {
         "pdg": (mc.pdg_code, code),
         "status": (mc.status, 1),
@@ -146,14 +148,21 @@ for i in range(reader.GetNEntries()):
         "py": (mc.momentum[1], p * yp),
         "pz": (mc.momentum[2], p * zp),
         "energy": (mc.energy, math.hypot(p, mass)),
-        "time": (mc.time, vt if keep_time else 0.0),
-        "weight": (h.weight, 2.0 * w),
+        "time": (mc.time, t + flight if keep_time else 0.0),
     }
     for what, (got, want) in checks.items():
         # Masses come from the PDG table, which may differ in the last digits.
-        rel = 1e-4 if what in ("energy", "time") else 1e-6
+        rel = 1e-4 if what == "energy" else 1e-6
         if not close(float(got), float(want), rel):
             errors.append(f"entry {entry}: {what} = {got}, expected {want}")
+    # The weights are tiny (down to 1e-12), so compare them without an
+    # absolute tolerance, which would accept zero.
+    if not close(h.weight, 2.0 * w, abs_tol=0.0):
+        errors.append(f"entry {entry}: weight = {h.weight}, expected {2.0 * w}")
+    # The flight time (ns) is small next to the file's time (up to 1e8 ns),
+    # so check it on its own.
+    if keep_time and project is not None and not close(mc.time - t, flight, 1e-4, abs_tol=0.0):
+        errors.append(f"entry {entry}: flight time = {mc.time - t} ns, expected {flight}")
 
 if sorted(seen) != list(range(first, len(rows))):
     errors.append(f"entries read {sorted(seen)}, expected {first}..{len(rows) - 1}")
@@ -187,7 +196,7 @@ expect_failure() {  # expect_failure <message> <run args...>
   }
 }
 
-for layout in good two_trees no_weight bad_type; do
+for layout in good two_trees no_weight bad_type array_weight; do
   python3 "$workdir/make_input.py" "$workdir/$layout.root" "$layout"
 done
 
@@ -214,6 +223,8 @@ expect_failure "holds 2 TTrees (HADRON_STOPPER, OTHER)" "$workdir/two_trees.root
 expect_failure "branch 'weight' missing" "$workdir/no_weight.root" 1 0 false
 expect_failure "branch 'pdgID' in '$workdir/bad_type.root' does not have the expected type" \
   "$workdir/bad_type.root" 1 0 false
+expect_failure "branch 'weight' in '$workdir/array_weight.root' is not a single value per entry" \
+  "$workdir/array_weight.root" 1 0 false
 expect_failure "no TTree 'NOPE'" "$workdir/good.root" 1 0 false "{tree: 'NOPE'}"
 
 echo "beam_file_source passed: conversion, header, offsets, tree lookup and errors"

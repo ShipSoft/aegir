@@ -106,9 +106,15 @@ pixi run phlex -c <(jsonnet --tla-str infile="$f" --tla-code events=1000 \
 For the beam, use `--tla-str kind=beam` and usually `--tla-code project_to_z=-100`.
 Reading over xrootd needs a valid Kerberos ticket (`kinit`).
 
-To get rates, sum `event_header.weight` over the events you are interested in,
-then divide by the fraction of the file you simulated. That gives the rate per
-proton on target.
+Rates per proton on target come out differently for the two kinds of file:
+
+- Background files: the weights are already per proton on target. Sum
+  `event_header.weight` over the events you are interested in and divide by
+  the fraction of the file you simulated (entries simulated over entries in
+  the file).
+- Beam files: every weight is 1 and every entry is one proton. Count the
+  events you are interested in and divide by the number of protons you
+  simulated.
 
 ## Open questions
 

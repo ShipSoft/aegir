@@ -319,7 +319,7 @@ class GenieReaderSource {
   }
 
   double p4(int i, int k) const {
-    return p4_[4 * static_cast<std::size_t>(i) + static_cast<std::size_t>(k)];
+    return p4_[(4 * static_cast<std::size_t>(i)) + static_cast<std::size_t>(k)];
   }
 
   std::string file_name_;

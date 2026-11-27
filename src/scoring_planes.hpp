@@ -212,7 +212,7 @@ class PlacementIndex {
     std::unordered_map<G4LogicalVolume*, std::size_t> pending{{world_lv, 0}};
     std::vector<G4LogicalVolume*> todo{world_lv};
     while (!todo.empty()) {
-      auto* lv = todo.back();
+      auto const* lv = todo.back();
       todo.pop_back();
       for (std::size_t i = 0; i < lv->GetNoDaughters(); ++i) {
         auto* child =

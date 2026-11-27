@@ -568,12 +568,12 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   }
 
   if (mode == "noop") {
-    auto noop = m.make<MCNoop>();
+    auto const noop = m.make<MCNoop>();
     noop.observe("noop", &MCNoop::observe, concurrency::unlimited)
         .input_family(product_selector{.creator = "mc_particles"_id,
                                        .layer = "event"_id});
   } else if (mode == "noop_full") {
-    auto noop = m.make<SimNoop>();
+    auto const noop = m.make<SimNoop>();
     noop.observe("noop", &SimNoop::observe, concurrency::unlimited)
         .input_family(
             product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
@@ -581,9 +581,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
                              .layer = "event"_id,
                              .suffix = "sim_result"_id});
   } else if (mode == "mc_only") {
-    auto writer = m.make<MCRNTupleWriter>(rntuple_file,
-                                          static_cast<std::size_t>(cluster_mib),
-                                          static_cast<std::size_t>(n_contexts));
+    auto const writer = m.make<MCRNTupleWriter>(
+        rntuple_file, static_cast<std::size_t>(cluster_mib),
+        static_cast<std::size_t>(n_contexts));
     // Unlimited on purpose: excess write() calls block on the pool lease,
     // which throttles the framework when the writer is the bottleneck. phlex
     // has no in-flight-event limit, so a concurrency-limited node would let
@@ -597,7 +597,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 
-    auto histogrammer = m.make<MCHistogrammer>(histo_file);
+    auto const histogrammer = m.make<MCHistogrammer>(histo_file);
     histogrammer
         .observe("validate", &MCHistogrammer::observe, concurrency::unlimited)
         .input_family(product_selector{.creator = "mc_particles"_id,
@@ -605,7 +605,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   } else {
     auto const filter_empty = config.get<bool>("filter_empty", false);
 
-    auto writer = m.make<SimRNTupleWriter>(
+    auto const writer = m.make<SimRNTupleWriter>(
         rntuple_file, filter_empty, static_cast<std::size_t>(cluster_mib),
         static_cast<std::size_t>(n_contexts));
     // Unlimited on purpose: excess write() calls block on the pool lease,
@@ -627,7 +627,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 
-    auto histogrammer = m.make<SimHistogrammer>(histo_file);
+    auto const histogrammer = m.make<SimHistogrammer>(histo_file);
     histogrammer
         .observe("validate", &SimHistogrammer::observe, concurrency::unlimited)
         .input_family(

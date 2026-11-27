@@ -686,14 +686,14 @@ void read_plane_shape(phlex::configuration const& entry,
   namespace su = SHiP::units;
   auto const shape = entry.get<std::string>("shape", std::string{"box"});
   auto const keys = entry.keys();
-  auto length = [&](char const* key) {
+  auto const length = [&](char const* key) {
     auto const value = entry.get_if_present<double>(key);
     if (!value) {
       plane_error(plane.name, std::string{"missing '"} + key + "' (mm)");
     }
     return *value * su::mm;
   };
-  auto reject = [&](std::initializer_list<char const*> other_shape_keys) {
+  auto const reject = [&](std::initializer_list<char const*> other_shape_keys) {
     for (auto const* key : other_shape_keys) {
       if (std::ranges::find(keys, key) != keys.end()) {
         plane_error(plane.name, std::string{"'"} + key +
@@ -868,7 +868,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   }
 
   auto const num_threads = cfg.concurrency;
-  auto g4 = m.make<Geant4Sim>(std::move(cfg));
+  auto const g4 = m.make<Geant4Sim>(std::move(cfg));
 
   g4.transform("simulate", &Geant4Sim::simulate,
                concurrency{static_cast<std::size_t>(num_threads)})

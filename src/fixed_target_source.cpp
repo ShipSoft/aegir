@@ -104,7 +104,7 @@ class FixedTargetSource {
                                            .numerical_value_in(mp_units::one));
     SHiP::Length const z_interaction =
         target_z_start_ -
-        interaction_length_ * std::log(1.0 - u * (1.0 - exp_ratio));
+        interaction_length_ * std::log(1.0 - (u * (1.0 - exp_ratio)));
 
     auto& pythia = proton_target ? *pythia_pp_ : *pythia_pn_;
     // Key Pythia's draws to this event, whatever order events arrive in.

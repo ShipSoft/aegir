@@ -145,37 +145,23 @@ phlex -j 1 -c <(jsonnet --ext-str events=1020 --tla-code ecut=5 \
     --tla-code pre_equilibrium=false workflows/fixed_target_st_bench.jsonnet)
 ```
 
-Particles reaching the plane behind the hadron absorber above the cut, from
-batch runs of `fixed_target_production.jsonnet` with the same Pythia seeds
-for both settings: 200 000 events per setting at 0.5 GeV and 1 000 000 at
-5, 10 and 20 GeV. The difference is `false` relative to the default, with
-its uncertainty taken from the spread between seeds. Species with fewer
-than 20 particles are left out.
-These counts predate the fix that keeps the excitation handler on when
-`pre_equilibrium` is false, and are being redone.
+Particles reaching the plane behind the hadron absorber above a 0.5 GeV
+cut, from batch runs of `fixed_target_production.jsonnet` with the same
+Pythia seeds for both settings: 2 000 000 events with the stage and
+1 990 000 without. The difference is `false` relative to the default, with
+its uncertainty taken from the spread between seeds.
 
-| Cut | Particle | default | `pre_equilibrium: false` | Difference |
-|---:|:---|---:|---:|---:|
-| 0.5 GeV | neutrinos | 4472 | 4435 | −0.8 ± 1.9% |
-| | neutrons | 885 | 892 | +0.8 ± 4.2% |
-| | muons | 283 | 286 | +1.1 ± 5.9% |
-| | protons | 64 | 69 | +8 ± 15% |
-| | charged pions | 53 | 29 | −45 ± 15% |
-| 5 GeV | neutrinos | 773 | 670 | −13.3 ± 4.5% |
-| | muons | 575 | 573 | −0.3 ± 4.2% |
-| 10 GeV | neutrinos | 188 | 193 | +3 ± 9% |
-| | muons | 323 | 310 | −4.0 ± 4.9% |
-| 20 GeV | neutrinos | 53 | 51 | −4 ± 15% |
-| | muons | 146 | 135 | −7.5 ± 7.4% |
+| Particle | default | `pre_equilibrium: false` | Difference |
+|:---|---:|---:|---:|
+| neutrinos | 44 419 | 43 976 | −0.5 ± 0.7% |
+| neutrons | 8 964 | 8 992 | +0.9 ± 1.5% |
+| muons | 3 000 | 2 998 | +0.5 ± 2.4% |
+| protons | 672 | 671 | +0.8 ± 5.2% |
+| charged pions | 391 | 434 | +11 ± 7% |
 
-Muons agree at every cut. Two differences reach about 3 standard
-deviations: about half as many charged pions at 0.5 GeV, all of them below
-2 GeV/c, and 13% fewer neutrinos at 5 GeV, mostly between 5 and 10 GeV/c.
-The neutrinos above 5 GeV/c in the 0.5 GeV sample point the same way
-(0.91 ± 0.11) but are too few to confirm it. Two such differences among a
-dozen comparisons are unlikely to both be chance. An earlier comparison, on
-a first version of the stacking-action change, showed 15% more neutrons
-without the stage; these runs do not reproduce that.
+All agree within the statistical uncertainty, and so do their momentum
+spectra. The rarer species (kaons, K⁰L, photons) agree within 2 standard
+deviations. Higher energy cuts have not been compared.
 
 ## Geant4: single-threaded vs multi-threaded (historical)
 

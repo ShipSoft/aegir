@@ -18,10 +18,15 @@ import ROOT
 HISTOGRAMS = ["h_mc_multiplicity", "h_mc_momentum", "h_mc_pdg"]
 
 
+# ROOT 6.42 moved RFile out of ROOT::Experimental; older releases only have the
+# experimental spelling.
+RFile = getattr(ROOT, "RFile", None) or ROOT.Experimental.RFile
+
+
 def compare(path_a, path_b):
     try:
-        fa = ROOT.Experimental.RFile.Open(path_a)
-        fb = ROOT.Experimental.RFile.Open(path_b)
+        fa = RFile.Open(path_a)
+        fb = RFile.Open(path_b)
     except ROOT.RException as err:
         print(f"could not open {path_a} and/or {path_b}: {err}")
         return False

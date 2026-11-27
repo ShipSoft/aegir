@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-11-27
+
+### Features
+
+- Add detector labels
+- Let sensitive_volumes entries name their detector
+- Load field maps from a placement manifest
+- *(geant4)* [**breaking**] Default to FairShip's physics configuration
+- Add EnergyCutStackingAction
+- *(geant4)* Fill geometry_node_id from copy numbers at a per-volume id_depth
+
+### Bug fixes
+
+- Map calorimeter patterns by name, not by truthiness
+- Give the toy scoring volumes a test-fixture detector id
+- *(geant4)* Record primaries below the energy cut
+- *(bench)* Run bench-fixed-target under bash
+- *(bench)* Tag fixed-target results from a modified tree as dirty
+- Use ROOT::RFile with ROOT 6.42
+
+### Refactor
+
+- Resolve sensitive-volume detector ids at configuration time
+- *(generators)* Register the event generators as explicit providers
+
+### Documentation
+
+- Describe sensitive_volumes and its detector ids
+- Add a tutorial workflow for a single-momentum muon beam
+- Record the fixed-target comparison with FairShip
+- *(bench)* Name the measured SHAs for the fixed-target comparison
+
+### Testing
+
+- Cover sensitive-volume detector ids
+
+### Miscellaneous
+
+- Build and test on linux-aarch64
+- Measure test coverage and upload it to Codecov
+- Limit gcovr's search to the coverage build
+- Open automated PRs as ship's mate
+- Sync shared configs
+- Update pixi lock file
+- Fail pull requests on new clang-tidy findings
+
+### Build
+
+- Lock field-service 0.5.0 and ship-field-maps 0.1.0
+- Move to field-service 0.6
+- Require LLVM 20 for the clang-tidy-diff task
+- Lock ROOT 6.42
 ## [0.5.0] - 2026-10-20
 
 ### Features

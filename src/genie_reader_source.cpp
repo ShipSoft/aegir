@@ -16,6 +16,7 @@
 #include <spdlog/spdlog.h>
 
 #include <ROOT/RFile.hxx>
+#include <ROOT/RVersion.hxx>
 #include <SHiP/EventHeader.hpp>
 #include <SHiP/MCParticle.hpp>
 #include <SHiP/QuantityView.hpp>
@@ -37,7 +38,11 @@ namespace {
 
 namespace su = SHiP::units;
 
+#if ROOT_VERSION_CODE >= ROOT_VERSION(6, 42, 0)
+using ROOT::RFile;
+#else
 using ROOT::Experimental::RFile;
+#endif
 
 // GENIE GHepStatus codes (Framework/GHEP/GHepStatus.h). Only the ones needing
 // a distinct HepMC translation are named; the rest are nuclear/intermediate

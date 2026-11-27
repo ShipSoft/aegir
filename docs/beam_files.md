@@ -116,6 +116,12 @@ Rates per proton on target come out differently for the two kinds of file:
   events you are interested in and divide by the number of protons you
   simulated.
 
+## Beam spot for other generators
+
+`scripts/analyse_beam_spot.py` fits the beam on the target from the beam
+files, and `beam_spot_module` applies that model to the events of any
+generator. See [beam_spot.md](beam_spot.md).
+
 ## Open questions
 
 These are for the beam-line team and do not stop the plugin from being used:

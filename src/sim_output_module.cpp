@@ -538,6 +538,11 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   using namespace phlex;
 
   auto const mode = config.get<std::string>("mode", std::string{"mc_only"});
+  // The creator of the particle collection to write: the generator's
+  // mc_particles, or a transform of them such as beam_spot_module. Must match
+  // the geant4 module's particles_from.
+  experimental::identifier const particles{
+      config.get<std::string>("particles_from", std::string{"mc_particles"})};
   auto const rntuple_file =
       config.get<std::string>("rntuple_file", std::string{"sim_output.root"});
   auto const histo_file =
@@ -570,13 +575,13 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
   if (mode == "noop") {
     auto noop = m.make<MCNoop>();
     noop.observe("noop", &MCNoop::observe, concurrency::unlimited)
-        .input_family(product_selector{.creator = "mc_particles"_id,
-                                       .layer = "event"_id});
+        .input_family(
+            product_selector{.creator = particles, .layer = "event"_id});
   } else if (mode == "noop_full") {
     auto noop = m.make<SimNoop>();
     noop.observe("noop", &SimNoop::observe, concurrency::unlimited)
         .input_family(
-            product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
+            product_selector{.creator = particles, .layer = "event"_id},
             product_selector{.creator = "geant4"_id,
                              .layer = "event"_id,
                              .suffix = "sim_result"_id});
@@ -593,15 +598,15 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         .observe("write_rntuple", &MCRNTupleWriter::write,
                  concurrency::unlimited)
         .input_family(
-            product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
+            product_selector{.creator = particles, .layer = "event"_id},
             product_selector{.creator = "event_header"_id,
                              .layer = "event"_id});
 
     auto histogrammer = m.make<MCHistogrammer>(histo_file);
     histogrammer
         .observe("validate", &MCHistogrammer::observe, concurrency::unlimited)
-        .input_family(product_selector{.creator = "mc_particles"_id,
-                                       .layer = "event"_id});
+        .input_family(
+            product_selector{.creator = particles, .layer = "event"_id});
   } else {
     auto const filter_empty = config.get<bool>("filter_empty", false);
 
@@ -617,7 +622,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
         .observe("write_rntuple", &SimRNTupleWriter::write,
                  concurrency::unlimited)
         .input_family(
-            product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
+            product_selector{.creator = particles, .layer = "event"_id},
             product_selector{.creator = "geant4"_id,
                              .layer = "event"_id,
                              .suffix = "sim_result"_id},
@@ -631,7 +636,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
     histogrammer
         .observe("validate", &SimHistogrammer::observe, concurrency::unlimited)
         .input_family(
-            product_selector{.creator = "mc_particles"_id, .layer = "event"_id},
+            product_selector{.creator = particles, .layer = "event"_id},
             product_selector{.creator = "geant4"_id,
                              .layer = "event"_id,
                              .suffix = "sim_result"_id});

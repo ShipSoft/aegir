@@ -177,6 +177,12 @@ aegir_add_plugin(
 )
 
 aegir_add_plugin(
+    beam_spot_module
+    LIBS SHiP::DataModel SHiP::Units SHiP::Random spdlog::spdlog
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+aegir_add_plugin(
     beam_file_source
     LIBS SHiP::DataModel SHiP::Units ROOT::RIO ROOT::Tree ROOT::EG spdlog::spdlog
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -280,6 +286,14 @@ add_test(
 add_test(
     NAME beam_file_source
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/beam_file_source.sh
+)
+
+# beam_spot_module: gun events moved by the beam_spot transform land where the
+# model puts them (fixed shift, sweep against spill time, spot moments,
+# angles), reproducibly per seed, with clean errors for bad settings.
+add_test(
+    NAME beam_spot
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/beam_spot.sh
 )
 
 # Physics-list failure: an unknown physics_list must fail cleanly (catchable

@@ -16,7 +16,9 @@
     },
   },
 
-  // ── sources ────────────────────────────────────────────────────────────
+  // ── resources ──────────────────────────────────────────────────────────
+  // The field and the geometry go in a workflow's top-level `resources`
+  // table. Phlex builds them once, before any module loads.
   null_field:: { cpp: 'field_null_provider' },
 
   // Field maps in the SHiP field-map format. Each magnet names a `file`
@@ -55,6 +57,7 @@
     sensitive_volumes: ['ScoringPlane'],
   },
 
+  // ── sources ────────────────────────────────────────────────────────────
   // The generator sources follow the same seeding convention as the geant4
   // module below: without a `seed`, each run draws a random one (logged at
   // startup, so a run can be reproduced after the fact). Merge one in for

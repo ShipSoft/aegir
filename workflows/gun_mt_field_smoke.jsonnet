@@ -6,9 +6,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(200),
-  sources: {
+  resources: {
     geometry: lib.builtin_geometry,
     field: lib.world_field_05T_y,
+  },
+  sources: {
     gun: lib.pencil_gun { vertex_x: 200.0, seed: 20260703 },
   },
   modules: {

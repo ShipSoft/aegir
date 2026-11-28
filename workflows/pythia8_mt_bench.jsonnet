@@ -3,9 +3,11 @@ local num_events = std.parseInt(std.extVar('num_events'));
 {
   stage: lib.stage,
   driver: lib.driver(num_events),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     pythia8: lib.pythia8 {
       parallel: true,
       num_threads: std.parseInt(std.extVar('pythia_threads')),

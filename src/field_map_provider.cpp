@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-// field_map_provider.cpp — Phlex provider plugin for magnetic field maps in
+// field_map_provider.cpp — Phlex resource plugin for magnetic field maps in
 // the SHiP field-map format (field_service docs/field_map_format.md). Builds a
-// SHiP::FieldMapSource and publishes it as a Job-layer product. The magnets
+// SHiP::FieldMapSource and registers it as the FieldResource. The magnets
 // come either from a placement manifest (`placements`, field_service
 // docs/placements_format.md) or from a jsonnet `magnets` list.
 
@@ -19,8 +19,9 @@
 
 #include "SHiP/FieldService/FieldMapIO.h"
 #include "SHiP/FieldService/IFieldSource.h"
-#include "phlex/source.hpp"
-#include "provider_helpers.hpp"
+#include "field_resource.hpp"
+#include "phlex/configuration.hpp"
+#include "phlex/resource.hpp"
 
 namespace {
 
@@ -59,7 +60,7 @@ std::vector<SHiP::FieldMapSource::MagnetConfig> magnetsFromConfig(
 
 }  // namespace
 
-PHLEX_REGISTER_PROVIDERS(s, config) {
+PHLEX_REGISTER_RESOURCES(r, config) {
   auto const placements = config.get_if_present<std::string>("placements");
   auto const entries =
       config.get_if_present<std::vector<phlex::configuration>>("magnets");
@@ -73,11 +74,6 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   auto magnets = placements ? SHiP::readFieldMapPlacements(*placements).magnets
                             : magnetsFromConfig(*entries);
 
-  // Publish as the interface type: consumers request
-  // std::shared_ptr<SHiP::IFieldSource>.
-  std::shared_ptr<SHiP::IFieldSource> const source =
-      std::make_shared<SHiP::FieldMapSource>(std::move(magnets));
-
-  SHiP::aegir::provide_constant(s, "create_field", source, "field", "map",
-                                "job");
+  r.add_unlimited_resource<SHiP::aegir::FieldResource>(
+      std::make_unique<SHiP::FieldMapSource>(std::move(magnets)));
 }

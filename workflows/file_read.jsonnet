@@ -12,9 +12,11 @@ local lib = import 'lib.libsonnet';
     cpp: 'generate_layers',
     layers: { event: { total: n_events } },
   },
-  sources: {
+  resources: {
     field: { cpp: 'field_null_provider' },
     geometry: { cpp: 'geometry_builtin_provider' },
+  },
+  sources: {
     input: {
       cpp: 'file_source',
       input_file: std.extVar('infile'),

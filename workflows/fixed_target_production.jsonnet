@@ -25,10 +25,12 @@ local lib = import 'lib.libsonnet';
 function(seed=null, ecut=0.5, events=100000) {
   stage: lib.stage,
   driver: lib.driver(events),
-  sources: {
+  resources: {
     field: lib.null_field,
     // Only the scoring plane is instrumented.
     geometry: lib.geomodel_geometry { sensitive_volumes: [] },
+  },
+  sources: {
     pythia8: lib.fixed_target { [if seed != null then 'seed']: seed },
   },
   modules: {

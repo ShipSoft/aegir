@@ -30,12 +30,13 @@ local simulate = generator == 'pythia8';
 {
   stage: lib.stage,
   driver: lib.driver(std.parseInt(std.extVar('events'))),
+  [if simulate then 'resources']: {
+    field: lib.null_field,
+    geometry: lib.builtin_geometry,
+  },
   sources: {
     gen: lib[generator] { seed: 20261005 },
-  } + (if simulate then {
-         field: lib.null_field,
-         geometry: lib.builtin_geometry,
-       } else {}),
+  },
   modules: {
     output: (if simulate then lib.full_output else lib.mc_only_output)(
       std.extVar('outfile'), std.extVar('outfile') + '.histo.root'

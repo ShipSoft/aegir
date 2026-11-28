@@ -2,9 +2,11 @@ local lib = import 'lib.libsonnet';
 {
   stage: lib.stage,
   driver: lib.driver(std.parseInt(std.extVar('num_events'))),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
+  },
+  sources: {
     pythia8: lib.fixed_target { seed: 20260703 },
   },
   modules: {

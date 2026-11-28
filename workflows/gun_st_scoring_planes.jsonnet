@@ -17,9 +17,11 @@ local lib = import 'lib.libsonnet';
 function(pdg=14, events=200) {
   stage: lib.stage,
   driver: lib.driver(events),
-  sources: {
+  resources: {
     field: lib.null_field,
     geometry: lib.builtin_geometry,
+  },
+  sources: {
     gun: lib.gun {
       pdg: pdg,
       p_min: 10.0,

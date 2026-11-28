@@ -147,17 +147,16 @@ phlex -j 1 -c <(jsonnet --ext-str events=1020 --tla-code ecut=5 \
 
 Particles reaching the plane behind the hadron absorber above a 0.5 GeV
 cut, from batch runs of `fixed_target_production.jsonnet` with the same
-Pythia seeds for both settings: 2 000 000 events with the stage and
-1 990 000 without. The difference is `false` relative to the default, with
+Pythia seeds for both settings, 2 000 000 events each. The difference is `false` relative to the default, with
 its uncertainty taken from the spread between seeds.
 
 | Particle | default | `pre_equilibrium: false` | Difference |
 |:---|---:|---:|---:|
-| neutrinos | 44 419 | 43 976 | −0.5 ± 0.7% |
-| neutrons | 8 964 | 8 992 | +0.9 ± 1.5% |
-| muons | 3 000 | 2 998 | +0.5 ± 2.4% |
-| protons | 672 | 671 | +0.8 ± 5.2% |
-| charged pions | 391 | 434 | +11 ± 7% |
+| neutrinos | 44 419 | 44 202 | −0.5 ± 0.7% |
+| neutrons | 8 964 | 9 042 | +0.9 ± 1.5% |
+| muons | 3 000 | 3 021 | +0.7 ± 2.4% |
+| protons | 672 | 676 | +0.6 ± 5.2% |
+| charged pions | 391 | 437 | +12 ± 7% |
 
 All agree within the statistical uncertainty, and so do their momentum
 spectra. The rarer species (kaons, K⁰L, photons) agree within 2 standard

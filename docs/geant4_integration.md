@@ -144,6 +144,7 @@ unloading, causing crashes. This is a known Geant4 limitation.
 | `physics_list` | string | `FTFP_BERT_HP_EMZ` | Geant4 reference physics list name. The default is the list FairShip uses |
 | `gamma_to_mumu` | bool | `true` | Enable muon-pair production by photons (γ → μ⁺μ⁻), as FairShip does. Off in the Geant4 reference lists, but a source of muon background |
 | `positron_to_mumu` | bool | `true` | Enable muon-pair production in positron annihilation (e⁺e⁻ → μ⁺μ⁻), as FairShip does |
+| `pre_equilibrium` | bool | `true` | Simulate the pre-equilibrium stage of nuclear de-excitation after a hadronic interaction, as Geant4 and FairShip do. It emits low-energy nucleons and light ions. Set to `false` to send the excited nucleus straight to evaporation. A fixed-target run is then 1.5 times faster with a 0.5 GeV energy cut and about twice as fast with a cut of 5 to 20 GeV. In 2 000 000 events per setting with a 0.5 GeV cut, the neutrinos, neutrons, muons, protons and charged pions reaching the plane behind the absorber agreed in number and momentum within the statistical uncertainty, 0.7% for neutrinos and 1.5% for neutrons (see `docs/benchmarks.md`) |
 | `concurrency` | int | `1` | Number of concurrent worker threads |
 | `verbosity` | int | `0` | Geant4 run verbosity level |
 | `sd_mode` | string | `scoring` | Sensitive detector mode: `scoring` or `crossing` |

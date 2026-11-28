@@ -113,6 +113,55 @@ below the cut on the way, which aegir stops.
 To repeat the aegir side: `just bench-fixed-target` (needs the GeoModel
 geometry DB).
 
+### Without the pre-equilibrium stage
+
+After that change, a large share of the time goes into the
+pre-equilibrium stage of nuclear de-excitation, which follows each hadronic
+interaction and emits low-energy nucleons and light ions. Skipping it saves
+about a third of the time with a 0.5 GeV cut and about half with a cut of 5
+to 20 GeV.
+`pre_equilibrium: false` skips it and hands the excited nucleus straight to
+evaporation. This is not what FairShip simulates, so it is off unless asked
+for.
+
+Time per event on a different machine (AMD EPYC-Genoa virtual machine, one
+pinned core, wall time, 1020 minus 20 events, three repeats that agree to
+within 1 ms):
+
+| Energy cut | default | `pre_equilibrium: false` | Speed-up |
+|---:|---:|---:|---:|
+| 0.5 GeV | 116 ms | 78 ms | 1.5× |
+| 5 GeV | 64 ms | 33 ms | 1.9× |
+| 10 GeV | 38 ms | 19 ms | 2.0× |
+| 20 GeV | 23 ms | 12 ms | 1.9× |
+
+On the same machine, with 420 minus 20 events and a 0.5 GeV cut, FairShip
+took 0.13 s per event and aegir with the energy cut applied after the first
+step 0.33 s. The benchmark workflow takes the cut and the switch as
+top-level arguments:
+
+```bash
+phlex -j 1 -c <(jsonnet --ext-str events=1020 --tla-code ecut=5 \
+    --tla-code pre_equilibrium=false workflows/fixed_target_st_bench.jsonnet)
+```
+
+Particles reaching the plane behind the hadron absorber above a 0.5 GeV
+cut, from batch runs of `fixed_target_production.jsonnet` with the same
+Pythia seeds for both settings, 2 000 000 events each. The difference is `false` relative to the default, with
+its uncertainty taken from the spread between seeds.
+
+| Particle | default | `pre_equilibrium: false` | Difference |
+|:---|---:|---:|---:|
+| neutrinos | 44 419 | 44 202 | −0.5 ± 0.7% |
+| neutrons | 8 964 | 9 042 | +0.9 ± 1.5% |
+| muons | 3 000 | 3 021 | +0.7 ± 2.4% |
+| protons | 672 | 676 | +0.6 ± 5.2% |
+| charged pions | 391 | 437 | +12 ± 7% |
+
+All agree within the statistical uncertainty, and so do their momentum
+spectra. The rarer species (kaons, K⁰L, photons) agree within 2 standard
+deviations. Higher energy cuts have not been compared.
+
 ## Geant4: single-threaded vs multi-threaded (historical)
 
 Particle gun (muons, 10–100 GeV), FTFP_BERT, noop output, `mt` backend.

@@ -4,19 +4,18 @@
 
 // geometry_geomodel_provider.cpp — Phlex provider plugin for GeoModel geometry
 //
-// Loads a GeoModel .db file via SHiP::GeometryService and converts to Geant4.
+// Loads a GeoModel .db file via SHiP::GeometryService and converts it to
+// Geant4 with SHiP::Geant4Geometry.
 
 #include <G4LogicalVolume.hh>
 #include <G4PVPlacement.hh>
-#include <cstdlib>
-#include <filesystem>  // NOLINT(build/c++17)
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "SHiP/GeometryService/Geant4Geometry.h"
 #include "SHiP/GeometryService/GeometryService.h"
 #include "geometry_node_id.hpp"
 #include "geometry_source.hpp"
@@ -29,7 +28,7 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
   std::string db_path_;
   std::vector<SHiP::aegir::SensitiveVolume> sensitive_vols_;
   mutable std::once_flag init_flag_;
-  mutable std::shared_ptr<SHiP::GeometryService> service_;
+  mutable std::shared_ptr<SHiP::Geant4Geometry> geometry_;
   mutable G4VPhysicalVolume* world_ = nullptr;
 
  public:
@@ -39,13 +38,14 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
 
   [[nodiscard]] G4VPhysicalVolume* construct() const override {
     std::call_once(init_flag_, [this] {
-      // The registry shares one service — and with it one GeoModel->G4
-      // conversion — with every other user of the same file in this
-      // process; in the full GENIE chain, aegir-genie's geometry analyzer
-      // has already loaded and converted it (aegir-genie issue #11).
-      service_ = SHiP::GeometryService::sharedFromFile(db_path_);
+      // The registries share one service, and one GeoModel->G4 conversion
+      // of it, with every other user of the same file in this process; in
+      // the full GENIE chain, aegir-genie's geometry analyzer has already
+      // loaded and converted it (aegir-genie issue #11).
+      geometry_ = SHiP::Geant4Geometry::of(
+          SHiP::GeometryService::sharedFromFile(db_path_));
       // Throws if the conversion fails, so the volume is never null.
-      auto& worldLV = service_->geant4WorldLogical();
+      auto& worldLV = geometry_->worldLogical();
 
       // Wrap the logical volume in a physical volume placement (world)
       world_ = new G4PVPlacement(nullptr, G4ThreeVector(), &worldLV,
@@ -61,7 +61,7 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
       // GeoModel path off the teardown path (investigated in the context of
       // issue #68); with other users (the GENIE chain) the shared instance
       // lives until the last of them lets go.
-      service_.reset();
+      geometry_.reset();
     });
     return world_;
   }
@@ -81,24 +81,9 @@ class GeoModelGeometrySource : public SHiP::aegir::IGeometrySource {
 PHLEX_REGISTER_PROVIDERS(s, config) {
   using namespace phlex;
 
-  auto db_file = config.get<std::string>("db_file");
-
-  // Resolve relative/bare filenames via SHIPGEOMETRY_ROOT.
-  // .filename() intentionally strips subdirectory components — the geometry
-  // install layout is flat under share/geometry/.
-  if (!std::filesystem::exists(db_file)) {
-    auto resolved = std::filesystem::path(db_file).filename();
-    if (auto const* root = std::getenv("SHIPGEOMETRY_ROOT")) {
-      resolved = std::filesystem::path(root) / "share" / "geometry" / resolved;
-    }
-    if (std::filesystem::exists(resolved)) {
-      db_file = resolved.string();
-    } else {
-      throw std::runtime_error(
-          "Cannot locate geometry DB '" + db_file +
-          "'; set SHIPGEOMETRY_ROOT or provide an absolute path");
-    }
-  }
+  // A bare file name is looked up under $SHIPGEOMETRY_ROOT/share/geometry.
+  auto const db_file =
+      SHiP::resolveGeometryDbPath(config.get<std::string>("db_file")).string();
 
   auto sv = SHiP::aegir::read_sensitive_volumes(config);
 

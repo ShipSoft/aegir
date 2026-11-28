@@ -10,7 +10,7 @@ requires-pixi = ">=0.68"
 
 [dependencies]
 # SHiP/HEP packages (prefix.dev/ship-experiment/stable + conda-forge). NB: the three co-developed
-# packages (shipdatamodel/shipgeometry/shipgeometryservice) are declared in
+# packages (shipdatamodel/shipgeometry/geometry-service-g4) are declared in
 # [feature.released] just below — not here — so the opt-in `dev` environment can
 # override them with sibling source builds without these channel specs in scope.
 # >=0.6: magnet translations are SHiP::Length quantities. 0.5 added
@@ -86,13 +86,13 @@ clang-tools = ">=20"
 # generator sources fill.
 shipdatamodel = ">=0.6,<0.7"
 shipgeometry = "*"
-# >=0.6: geant4WorldLogical() returns G4LogicalVolume& and the pre-0.5
-# spellings are gone. Its process-wide geometry thread and shared
-# service registry are shared between geant4_module and any other Geant4
-# geometry user (e.g. aegir-genie's GENIE source, its issue #11). Keep in
-# lockstep with aegir-genie's pin: ld.so dedups the library process-wide and
-# the first-loaded copy wins.
-shipgeometryservice = ">=0.6,<0.7"
+# 0.7 split the library; geometry-service-g4 brings geometry-service-core.
+# Its process-wide geometry thread and shared service and conversion
+# registries are shared between geant4_module and any other Geant4 geometry
+# user (e.g. aegir-genie's GENIE source, its issue #11). Keep in lockstep with
+# aegir-genie's pin: ld.so dedups the library process-wide and the
+# first-loaded copy wins.
+geometry-service-g4 = ">=0.7,<0.8"
 
 [activation]
 scripts = ["activate.sh"]
@@ -251,11 +251,9 @@ sed -i 's#"$PREK" hook-impl#pixi run -e lint prek hook-impl#' "$hooks/commit-msg
 # validates every environment even when only the default one is used.
 # To test a colleague's PR without a local checkout, use a git spec instead:
 #   shipdatamodel = { git = "https://github.com/ShipSoft/data-model", branch = "<pr-branch>" }
-# When geometry and geometry_service are both path entries, also set
-# `shipgeometry = { path = "../geometry" }` under [package.host-dependencies]
-# in geometry_service's pixi.toml (do not commit that either). Otherwise it
-# builds against the released shipgeometry, which can pin an older
-# geomodel-core than ../geometry picks up, and the dev environment won't solve.
+# The geometry_service path entry builds one shipgeometryservice package with
+# both the core and the Geant4 component; for the split geometry-service-*
+# packages, run `pixi run -e package build-local-channel` there instead.
 # See the Developer Guide (SHiP Documentation site) for the full workflow.
 #
 # [feature.dev]

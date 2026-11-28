@@ -18,15 +18,16 @@
 //   seed    seeds the generator and Geant4, for reproducible batch jobs;
 //           without it each run draws its own (logged at startup)
 //   ecut    energy cut in GeV (FairShip's --ecut, default 0.5)
-//   pre_equilibrium  false skips the pre-equilibrium stage of nuclear
-//           de-excitation, which FairShip simulates. 1.5 to 2 times as fast;
-//           with ecut 0.5 the yields at the plane agree within the
-//           statistical uncertainty, see docs/benchmarks.md (default true)
+//   nuclear_deexcitation  'full' (default) simulates nuclear de-excitation
+//           as FairShip does. 'no_pre_equilibrium' skips its first stage:
+//           1.5 to 2 times as fast, and with ecut 0.5 the yields at the plane
+//           agree within the statistical uncertainty. 'none' skips it
+//           entirely, faster still. See docs/benchmarks.md
 //   events  number of proton interactions
 //
 // Needs the GeoModel geometry DB (pixi run build_geometry, see README).
 local lib = import 'lib.libsonnet';
-function(seed=null, ecut=0.5, events=100000, pre_equilibrium=true) {
+function(seed=null, ecut=0.5, events=100000, nuclear_deexcitation='full') {
   stage: lib.stage,
   driver: lib.driver(events),
   sources: {
@@ -43,7 +44,7 @@ function(seed=null, ecut=0.5, events=100000, pre_equilibrium=true) {
       // there to keep.
       particle_ke_cut: 0.0,
       keep_particles: 'hit_ancestry',
-      pre_equilibrium: pre_equilibrium,
+      nuclear_deexcitation: nuclear_deexcitation,
       scoring_planes: [lib.exit_hadron_absorber_plane { ke_threshold: ecut }],
       [if seed != null then 'seed']: seed,
     },

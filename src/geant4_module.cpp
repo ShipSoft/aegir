@@ -169,6 +169,51 @@ std::vector<SHiP::MCParticle> record_plane_particles(
 // physics.
 constexpr char const* kDefaultPhysicsList = "FTFP_BERT_HP_EMZ";
 
+// See Geant4SimConfig::nuclear_deexcitation.
+enum class NuclearDeexcitation { full, no_pre_equilibrium, none };
+
+NuclearDeexcitation parse_nuclear_deexcitation(std::string const& value) {
+  if (value == "full") {
+    return NuclearDeexcitation::full;
+  }
+  if (value == "no_pre_equilibrium") {
+    return NuclearDeexcitation::no_pre_equilibrium;
+  }
+  if (value == "none") {
+    return NuclearDeexcitation::none;
+  }
+  throw std::invalid_argument(
+      "geant4_module: unknown nuclear_deexcitation '" + value +
+      "' (expected 'full', 'no_pre_equilibrium' or 'none')");
+}
+
+// Process-wide, and only settable before initialisation. Not SetPrecoDummy:
+// it also sets the de-excitation channels to fDummy, whatever its argument.
+void configure_nuclear_deexcitation(NuclearDeexcitation mode) {
+  if (mode == NuclearDeexcitation::full) {
+    return;
+  }
+  auto* deex = G4NuclearLevelData::GetInstance()->GetParameters();
+  // The pre-compound model hands the excited nucleus straight to the
+  // excitation handler.
+  deex->SetPreCompoundType(eDeexcitation);
+  if (mode == NuclearDeexcitation::none) {
+    // The excitation handler then leaves the nucleus as it is.
+    deex->SetDeexChannelsType(fDummy);
+  }
+  if (deex->GetPreCompoundType() != eDeexcitation ||
+      (mode == NuclearDeexcitation::none &&
+       deex->GetDeexChannelsType() != fDummy)) {
+    throw std::runtime_error(
+        "geant4_module: nuclear_deexcitation could not be applied, the "
+        "de-excitation parameters are already locked");
+  }
+  spdlog::info("geant4_module: nuclear de-excitation: {}",
+               mode == NuclearDeexcitation::none
+                   ? "off (no pre-equilibrium stage, no evaporation)"
+                   : "no pre-equilibrium stage");
+}
+
 struct Geant4SimConfig {
   std::string physics_list = kDefaultPhysicsList;
   // Muon-pair production by photons (γ → μ⁺μ⁻) and by positron
@@ -176,12 +221,14 @@ struct Geant4SimConfig {
   // Off in Geant4's reference lists, but a source of muon background.
   bool gamma_to_mumu = true;
   bool positron_to_mumu = true;
-  // The pre-equilibrium (pre-compound) stage of nuclear de-excitation after
-  // a hadronic interaction, which emits low-energy nucleons and light ions.
-  // Skipping it saves about a third of the time of a fixed-target run with
-  // a 0.5 GeV energy cut, and about half with a cut of 5 to 20 GeV. Off, the
-  // excited nucleus goes straight to evaporation. On in Geant4 and FairShip.
-  bool pre_equilibrium = true;
+  // Nuclear de-excitation after a hadronic interaction: the pre-equilibrium
+  // (pre-compound) stage, which emits low-energy nucleons and light ions,
+  // then the excitation handler (evaporation, photon emission, break-up).
+  // full simulates both, as Geant4 and FairShip do. no_pre_equilibrium skips
+  // the first stage and hands the excited nucleus straight to evaporation.
+  // none skips both: the nucleus emits nothing, and its excitation energy
+  // becomes kinetic energy of the recoiling ion.
+  NuclearDeexcitation nuclear_deexcitation = NuclearDeexcitation::full;
   int verbosity = 0;
   int concurrency = 1;
   std::uint32_t seed = 0;
@@ -543,23 +590,7 @@ class Geant4Sim {
       G4PhysListFactory factory;
       auto* physics = factory.GetReferencePhysList(cfg_.physics_list);
       configure_em_extra(*physics, cfg_.gamma_to_mumu, cfg_.positron_to_mumu);
-      if (!cfg_.pre_equilibrium) {
-        // Process-wide, and only settable before initialisation. The
-        // pre-compound model then hands the excited nucleus straight to the
-        // excitation handler (evaporation, photon emission, break-up). Not
-        // SetPrecoDummy: it also sets the de-excitation channels to fDummy,
-        // which switches off the excitation handler as well.
-        auto* deex = G4NuclearLevelData::GetInstance()->GetParameters();
-        deex->SetPreCompoundType(eDeexcitation);
-        if (deex->GetPreCompoundType() != eDeexcitation) {
-          throw std::runtime_error(
-              "geant4_module: pre_equilibrium: false could not be applied, "
-              "the de-excitation parameters are already locked");
-        }
-        spdlog::info(
-            "geant4_module: pre-equilibrium stage of nuclear de-excitation "
-            "is off");
-      }
+      configure_nuclear_deexcitation(cfg_.nuclear_deexcitation);
       spdlog::info(
           "geant4_module: physics list {} (gamma_to_mumu {}, "
           "positron_to_mumu {})",
@@ -833,6 +864,9 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
 
   auto const seed = SHiP::aegir::resolve_seed(config, "geant4");
 
+  auto const nuclear_deexcitation = parse_nuclear_deexcitation(
+      config.get<std::string>("nuclear_deexcitation", std::string{"full"}));
+
   auto const keep_particles =
       config.get<std::string>("keep_particles", std::string{"all"});
   if (keep_particles != "all" && keep_particles != "hit_ancestry") {
@@ -846,7 +880,7 @@ PHLEX_REGISTER_ALGORITHMS(m, config) {
           config.get<std::string>("physics_list", kDefaultPhysicsList),
       .gamma_to_mumu = config.get<bool>("gamma_to_mumu", true),
       .positron_to_mumu = config.get<bool>("positron_to_mumu", true),
-      .pre_equilibrium = config.get<bool>("pre_equilibrium", true),
+      .nuclear_deexcitation = nuclear_deexcitation,
       .verbosity = config.get<int>("verbosity", 0),
       .concurrency = config.get<int>("concurrency", int{active_parallelism}),
       .seed = seed,

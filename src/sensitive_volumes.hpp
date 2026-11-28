@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <expected>
 #include <format>
 #include <initializer_list>
 #include <stdexcept>
@@ -49,8 +50,8 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
 /// between a volume-name pattern and a SHiP::detector_id is a fact about the
 /// geometry, so the known patterns are listed here rather than restated in
 /// every workflow.
-[[nodiscard]] inline std::int32_t detector_id_for_pattern(
-    std::string_view pattern) {
+[[nodiscard]] inline std::expected<std::int32_t, std::string>
+detector_id_for_pattern(std::string_view pattern) {
   auto const id = [](SHiP::detector_id d) {
     return static_cast<std::int32_t>(d);
   };
@@ -72,15 +73,15 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
   if (pattern == "Scoring" || pattern == "ScoringPlane") {
     return kTestFixtureDetectorId;
   }
-  throw std::invalid_argument(
-      "sensitive_volumes: no detector id for pattern '" + std::string{pattern} +
-      "'");
+  return std::unexpected{"no detector id for pattern '" + std::string{pattern} +
+                         "'"};
 }
 
 /// The detector id of a `detector` name in a `sensitive_volumes` entry: one
 /// of the SHiP::detector_id enumerators, or `test_fixture` for
 /// kTestFixtureDetectorId.
-[[nodiscard]] inline std::int32_t detector_id_from_name(std::string_view name) {
+[[nodiscard]] inline std::expected<std::int32_t, std::string>
+detector_id_from_name(std::string_view name) {
   using enum SHiP::detector_id;
   if (name == "test_fixture") {
     return kTestFixtureDetectorId;
@@ -94,10 +95,10 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
       return static_cast<std::int32_t>(id);
     }
   }
-  throw std::invalid_argument(
+  return std::unexpected{
       "unknown detector '" + std::string{name} +
       "' (expected UpstreamTagger, SurroundTagger, StrawTubes, Calorimeter, "
-      "TimingDetector or test_fixture)");
+      "TimingDetector or test_fixture)"};
 }
 
 [[noreturn]] inline void sensitive_volume_error(std::size_t index,
@@ -127,17 +128,16 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
     auto const& entry = entries[i];
     if (entry.is_string()) {
       std::string pattern{entry.as_string()};
-      try {
-        auto const detector_id = detector_id_for_pattern(pattern);
-        volumes.push_back(
-            {.pattern = std::move(pattern), .detector_id = detector_id});
-      } catch (std::invalid_argument const&) {
+      auto const detector_id = detector_id_for_pattern(pattern);
+      if (!detector_id) {
         sensitive_volume_error(
             i, std::format("no detector id is known for pattern '{0}'; write "
                            "it as {{pattern: '{0}', detector: ...}} to name "
                            "the detector",
                            pattern));
       }
+      volumes.push_back(
+          {.pattern = std::move(pattern), .detector_id = *detector_id});
       continue;
     }
     if (!entry.is_object()) {
@@ -158,11 +158,9 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
     if (!detector) {
       sensitive_volume_error(i, "no 'detector' for pattern '" + *pattern + "'");
     }
-    std::int32_t detector_id = 0;
-    try {
-      detector_id = detector_id_from_name(*detector);
-    } catch (std::invalid_argument const& e) {
-      sensitive_volume_error(i, e.what());
+    auto const detector_id = detector_id_from_name(*detector);
+    if (!detector_id) {
+      sensitive_volume_error(i, detector_id.error());
     }
     int id_depth = 0;
     try {
@@ -175,7 +173,7 @@ inline constexpr std::int32_t kTestFixtureDetectorId = 99;
           i, "'id_depth' must be 0 or more, not " + std::to_string(id_depth));
     }
     volumes.push_back({.pattern = std::move(*pattern),
-                       .detector_id = detector_id,
+                       .detector_id = *detector_id,
                        .id_depth = id_depth});
   }
   return volumes;

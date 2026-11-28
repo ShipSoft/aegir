@@ -49,6 +49,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <numbers>
 #include <optional>
@@ -59,6 +60,7 @@
 #include <utility>
 #include <vector>
 
+#include "expected_util.hpp"
 #include "geant4_sim_core.hpp"
 #include "scoring_plane_id.hpp"
 #include "units/clhep_bridge.hpp"
@@ -116,36 +118,39 @@ using ScoringPlaneMap = std::unordered_map<G4LogicalVolume*, ScoringPlaneInfo>;
 
 namespace scoring_plane_detail {
 
-/// What is wrong with a plane's sizes for its shape, or an empty string. The
-/// other shape's sizes are ignored; the configuration reader rejects them.
-inline std::string shape_error(ScoringPlaneConfig const& p) {
+/// Nothing, or what is wrong with a plane's configuration.
+using check_result = std::expected<void, std::string>;
+
+/// Check a plane's sizes for its shape. The other shape's sizes are ignored;
+/// the configuration reader rejects them.
+inline check_result check_shape(ScoringPlaneConfig const& p) {
   auto const zero = SHiP::Length::zero();
   if (!(p.half_z > zero)) {
-    return "half_z must be positive";
+    return std::unexpected{"half_z must be positive"};
   }
   if (p.shape == ScoringShape::box) {
     if (!(p.half_x > zero) || !(p.half_y > zero)) {
-      return "a box needs positive half_x and half_y";
+      return std::unexpected{"a box needs positive half_x and half_y"};
     }
     return {};
   }
   if (!(p.r_min >= zero) || !(p.r_max > p.r_min)) {
-    return "a tube needs 0 <= r_min < r_max";
+    return std::unexpected{"a tube needs 0 <= r_min < r_max"};
   }
   return {};
 }
 
-/// What is wrong with a plane's placement settings, or an empty string.
-inline std::string placement_error(ScoringPlaneConfig const& p) {
+/// Check a plane's placement settings.
+inline check_result check_placement(ScoringPlaneConfig const& p) {
   auto const zero = SHiP::Length::zero();
   if (p.position.has_value() == !p.after_volume.empty()) {
-    return "set exactly one of 'position' and 'after_volume'";
+    return std::unexpected{"set exactly one of 'position' and 'after_volume'"};
   }
   if (p.after_volume.empty() && p.gap != zero) {
-    return "'gap' applies to 'after_volume' placement only";
+    return std::unexpected{"'gap' applies to 'after_volume' placement only"};
   }
   if (p.gap < zero) {
-    return "gap must not be negative";
+    return std::unexpected{"gap must not be negative"};
   }
   return {};
 }
@@ -156,6 +161,7 @@ inline std::string placement_error(ScoringPlaneConfig const& p) {
 /// geometry needed); throws std::invalid_argument naming the offending plane.
 inline void validate_scoring_planes(
     std::vector<ScoringPlaneConfig> const& planes) {
+  using scoring_plane_detail::check_result;
   std::unordered_set<std::string> names;
   std::unordered_set<std::int32_t> ids;
   std::string recording;  // the plane recording particles, if any
@@ -163,26 +169,35 @@ inline void validate_scoring_planes(
     if (p.name.empty()) {
       throw std::invalid_argument("scoring plane without a name");
     }
-    std::string error;
-    if (!names.insert(p.name).second) {
-      error = "name used by more than one plane";
-    } else if (!ids.insert(p.id).second) {
-      error = "id " + std::to_string(p.id) + " used by more than one plane";
-    } else if (p.ke_threshold < SHiP::Energy::zero()) {
-      error = "ke_threshold must not be negative";
-    } else if (p.record_particles && !p.kill) {
-      // Without the kill, a track a recorded track produces after crossing
-      // could be recorded too, and a replay would simulate both.
-      error = "record_particles needs kill: true";
-    } else if (p.record_particles && !recording.empty()) {
-      error = "only one scoring plane may record particles, '" + recording +
-              "' already does";
-    } else if (error = scoring_plane_detail::shape_error(p); error.empty()) {
-      error = scoring_plane_detail::placement_error(p);
-    }
-    if (!error.empty()) {
-      throw std::invalid_argument("scoring plane '" + p.name + "': " + error);
-    }
+    // The checks that depend on the planes before this one.
+    auto const check_against_others = [&] -> check_result {
+      if (!names.insert(p.name).second) {
+        return std::unexpected{"name used by more than one plane"};
+      }
+      if (!ids.insert(p.id).second) {
+        return std::unexpected{"id " + std::to_string(p.id) +
+                               " used by more than one plane"};
+      }
+      if (p.ke_threshold < SHiP::Energy::zero()) {
+        return std::unexpected{"ke_threshold must not be negative"};
+      }
+      if (p.record_particles && !p.kill) {
+        // Without the kill, a track a recorded track produces after crossing
+        // could be recorded too, and a replay would simulate both.
+        return std::unexpected{"record_particles needs kill: true"};
+      }
+      if (p.record_particles && !recording.empty()) {
+        return std::unexpected{
+            "only one scoring plane may record particles, '" + recording +
+            "' already does"};
+      }
+      return {};
+    };
+    value_or_throw<std::invalid_argument>(
+        check_against_others()
+            .and_then([&] { return scoring_plane_detail::check_shape(p); })
+            .and_then([&] { return scoring_plane_detail::check_placement(p); }),
+        "scoring plane '" + p.name + "'");
     if (p.record_particles) {
       recording = p.name;
     }

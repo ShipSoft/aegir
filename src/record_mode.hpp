@@ -11,7 +11,7 @@
 #pragma once
 
 #include <cstdint>
-#include <stdexcept>
+#include <expected>
 #include <string>
 #include <string_view>
 
@@ -22,20 +22,19 @@ enum class record_mode : std::uint8_t {
   full,         ///< The whole record, statuses and mother links intact
 };
 
-/// Parse the `record` configuration option. Throws on an unknown value rather
-/// than silently falling back: a typo here would quietly change the physics
+/// Parse the `record` configuration option. An unknown value is an error
+/// rather than a silent fallback: a typo here would quietly change the physics
 /// content of the output.
-[[nodiscard]] inline record_mode parse_record_mode(std::string_view value,
-                                                   std::string_view source) {
+[[nodiscard]] inline std::expected<record_mode, std::string> parse_record_mode(
+    std::string_view value) {
   if (value == "final_state") {
     return record_mode::final_state;
   }
   if (value == "full") {
     return record_mode::full;
   }
-  throw std::runtime_error(std::string{source} + ": unknown record mode '" +
-                           std::string{value} +
-                           "' (expected 'final_state' or 'full')");
+  return std::unexpected{"unknown record mode '" + std::string{value} +
+                         "' (expected 'final_state' or 'full')"};
 }
 
 }  // namespace SHiP::aegir

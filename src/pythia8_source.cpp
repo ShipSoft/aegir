@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "expected_util.hpp"
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
 #include "pythia_philox_engine.hpp"
@@ -226,8 +227,10 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
   auto const process =
       config.get<std::string>("process", std::string{"SoftQCD:inelastic"});
   auto const parallel = config.get<bool>("parallel", false);
-  auto const record = SHiP::aegir::parse_record_mode(
-      config.get<std::string>("record", std::string{"final_state"}), "pythia8");
+  auto const record = SHiP::aegir::value_or_throw(
+      SHiP::aegir::parse_record_mode(
+          config.get<std::string>("record", std::string{"final_state"})),
+      "pythia8");
   auto seed = SHiP::aegir::resolve_seed(config, "pythia8");
 
   if (!parallel) {

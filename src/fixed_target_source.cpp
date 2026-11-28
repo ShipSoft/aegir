@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "expected_util.hpp"
 #include "mc_particle_source.hpp"
 #include "pythia_common.hpp"
 #include "pythia_philox_engine.hpp"
@@ -156,8 +157,9 @@ PHLEX_REGISTER_PROVIDERS(s, config) {
       SHiP::aegir::get_quantity(config, "interaction_length", 191.9 * su::mm);
   auto const tau0_threshold =
       SHiP::aegir::get_quantity(config, "tau0_threshold", 1.0 * su::mm_per_c);
-  auto const record = SHiP::aegir::parse_record_mode(
-      config.get<std::string>("record", std::string{"final_state"}),
+  auto const record = SHiP::aegir::value_or_throw(
+      SHiP::aegir::parse_record_mode(
+          config.get<std::string>("record", std::string{"final_state"})),
       "fixed_target");
   auto seed = SHiP::aegir::resolve_seed(config, "fixed_target");
 

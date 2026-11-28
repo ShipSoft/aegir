@@ -383,3 +383,12 @@ target_include_directories(
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME geometry_node_ids COMMAND geometry_node_id_test)
+
+# Record mode: parsing the generators' `record` option, and value_or_throw,
+# which turns a std::expected error into an exception.
+add_executable(record_mode_test tests/record_mode_test.cpp)
+target_include_directories(
+    record_mode_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME record_mode COMMAND record_mode_test)

@@ -62,14 +62,20 @@ set_target_properties(
 find_path(Random123_INCLUDE_DIR Random123/philox.h REQUIRED)
 find_package(SHiPRandom 0.4 REQUIRED)
 
-# SHiP::geometry_thread() and SHiP::GeometryService::sharedFromFile are
-# shared between geant4_module and any other Geant4 geometry user (e.g.
-# aegir-genie's GENIE source), see aegir-genie issue #11. >=0.6:
-# geant4WorldLogical() returns a reference and the library requires C++23.
-find_package(SHiPGeometryService 0.6...<0.7 CONFIG REQUIRED)
+# SHiP::geometry_thread(), GeometryService::sharedFromFile and
+# Geant4Geometry::of are shared between geant4_module and any other Geant4
+# geometry user (e.g. aegir-genie's GENIE source), see aegir-genie issue #11.
+# 0.7 split the Geant4 part into the G4 component; the GeoModel component is
+# for the copy-number test, which builds its world in memory.
+find_package(
+    SHiPGeometryService
+    0.7...<0.8
+    CONFIG
+    REQUIRED
+    COMPONENTS G4 GeoModel
+)
 # GeoModelIO's GeoModelDBManager and GeoModelWrite, which the GeoModel
-# copy-number test writes its .db file with. Found here rather than relied on
-# through SHiPGeometryService's own find_dependency(GeoModelIO).
+# copy-number test writes its .db file with.
 find_package(GeoModelIO CONFIG REQUIRED)
 
 # Declare a Phlex plugin built from src/<name>.cpp: create the MODULE library,
@@ -123,7 +129,7 @@ aegir_add_plugin(
     LIBS
         SHiP::DataModel
         ${Geant4_LIBRARIES}
-        SHiP::GeometryService
+        SHiP::GeometryServiceG4
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -136,7 +142,7 @@ aegir_add_plugin(
         spdlog::spdlog
         SHiP::FieldService
         SHiP::FieldServiceG4Adapter
-        SHiP::GeometryService
+        SHiP::GeometryServiceG4
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src ${Random123_INCLUDE_DIR}
     TRACE
 )
@@ -362,7 +368,8 @@ add_executable(geomodel_copy_number_test tests/geomodel_copy_number_test.cpp)
 target_link_libraries(
     geomodel_copy_number_test
     PRIVATE
-        SHiP::GeometryService
+        SHiP::GeometryServiceG4
+        SHiP::GeometryServiceGeoModel
         GeoModelIO::GeoModelDBManager
         GeoModelIO::GeoModelWrite
         ${Geant4_LIBRARIES}

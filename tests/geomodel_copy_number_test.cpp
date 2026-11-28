@@ -43,6 +43,8 @@
 #include <GeoModelKernel/GeoXF.h>
 #include <GeoModelKernel/Units.h>
 #include <GeoModelWrite/WriteGeoModel.h>
+#include <SHiP/GeometryService/Geant4Geometry.h>
+#include <SHiP/GeometryService/GeoModel.h>
 #include <SHiP/GeometryService/GeometryService.h>
 #include <unistd.h>
 
@@ -180,10 +182,10 @@ constexpr std::array<Probe, 5> kProbes{{
     {.name = "fibre", .x = 0, .y = 0, .z = 600},
 }};
 
-// Converts `svc`'s tree and places its world, as the run manager would. The
-// placement must go before `svc`, which owns the world's logical volume.
-std::unique_ptr<G4PVPlacement> place_world(SHiP::GeometryService& svc) {
-  G4LogicalVolume& world_lv = svc.geant4WorldLogical();
+// Converts `g4`'s tree and places its world, as the run manager would. The
+// placement must go before `g4`, which owns the world's logical volume.
+std::unique_ptr<G4PVPlacement> place_world(SHiP::Geant4Geometry& g4) {
+  G4LogicalVolume& world_lv = g4.worldLogical();
   return std::make_unique<G4PVPlacement>(nullptr, G4ThreeVector(), &world_lv,
                                          world_lv.GetName() + "_probe", nullptr,
                                          false, 0);
@@ -367,7 +369,8 @@ class RemoveOnExit {
 int run() {
   Checker ok;
 
-  auto direct = SHiP::GeometryService::fromWorld(buildWorld());
+  auto const direct =
+      SHiP::Geant4Geometry::of(SHiP::geometryServiceFromWorld(buildWorld()));
   auto const tree_world = place_world(*direct);
   auto const from_tree = read_touchables(ok, "tree", tree_world.get());
   print("from the GeoModel tree", from_tree);
@@ -392,7 +395,8 @@ int run() {
     buildWorld()->exec(&writer);
     writer.saveToDB();
   }
-  auto from_file = SHiP::GeometryService::fromFile(db_path);
+  auto const from_file =
+      SHiP::Geant4Geometry::of(SHiP::GeometryService::fromFile(db_path));
   auto const db_world = place_world(*from_file);
   auto const from_db = read_touchables(ok, "db", db_world.get());
   print("through a .db file", from_db);

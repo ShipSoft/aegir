@@ -1,9 +1,9 @@
 // No-field control matching gun_st_field_smoke.jsonnet — same builtin geometry
 // and same 20 GeV μ− offset in x; field_null_provider means no deflection.
 local lib = import 'lib.libsonnet';
-{
+function(events=100) {
   stage: lib.stage,
-  driver: lib.driver(100),
+  driver: lib.driver(events),
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.null_field,
@@ -13,6 +13,6 @@ local lib = import 'lib.libsonnet';
     // Pinned seed: CI extracts physics metrics from this workflow's output
     // and compares them against a baseline at tight float tolerance.
     geant4: lib.geant4 { seed: 20260703 },
-    output: lib.full_output('gun_st_nofield_smoke.root', 'gun_st_nofield_smoke_validation.root'),
+    output: lib.full_output('gun_st_nofield_smoke.root', 'gun_st_nofield_smoke_validation.root', events),
   },
 }

@@ -3,9 +3,9 @@
 // thread-safe and that the G4FieldManager wiring survives the master/worker
 // handoff.
 local lib = import 'lib.libsonnet';
-{
+function(events=200) {
   stage: lib.stage,
-  driver: lib.driver(200),
+  driver: lib.driver(events),
   sources: {
     geometry: lib.builtin_geometry,
     field: lib.world_field_05T_y,
@@ -13,6 +13,6 @@ local lib = import 'lib.libsonnet';
   },
   modules: {
     geant4: lib.geant4 { concurrency: 4, seed: 20260703 },
-    output: lib.full_output('gun_mt_field_smoke.root', 'gun_mt_field_smoke_validation.root'),
+    output: lib.full_output('gun_mt_field_smoke.root', 'gun_mt_field_smoke_validation.root', events),
   },
 }

@@ -39,7 +39,7 @@ cat >"$workdir/placements.json" <<'EOF'
 EOF
 (cd "$workdir/manifest" && phlex -c <(jsonnet -J "$workflows" -e "
   local lib = import 'lib.libsonnet';
-  (import 'gun_st_field_smoke.jsonnet') {
+  (import 'gun_st_field_smoke.jsonnet')() {
     sources+: { field: lib.field_placements('$workdir/placements.json') },
   }"))
 

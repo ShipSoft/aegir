@@ -2,9 +2,9 @@ local lib = import 'lib.libsonnet';
 // Pass --tla-code seed=N (e.g. a batch job id) for reproducible large-scale
 // runs — it seeds both the generator source and Geant4; without it each
 // draws its own random seed.
-function(seed=null) {
+function(seed=null, events=100000) {
   stage: lib.stage,
-  driver: lib.driver(100000),
+  driver: lib.driver(events),
   sources: {
     field: lib.null_field,
     geometry: lib.geomodel_geometry,
@@ -16,7 +16,7 @@ function(seed=null) {
       concurrency: 4,
       [if seed != null then 'seed']: seed,
     },
-    output: lib.full_output('fixed_target_mt_output.root', 'fixed_target_mt_validation.root') {
+    output: lib.full_output('fixed_target_mt_output.root', 'fixed_target_mt_validation.root', events) {
       filter_empty: true,
     },
   },

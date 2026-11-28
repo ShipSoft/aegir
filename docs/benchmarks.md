@@ -91,10 +91,10 @@ event is the difference between a 420-event and a 20-event run divided by
 | aegir 844f446, sub-threshold secondaries dropped before tracking | 0.14 s |
 
 Raw data for the aegir rows (20- and 420-event runs), keyed by git SHA:
-`results/fixed_target_<sha>.json` (protocol: `just bench-fixed-target`,
-run under `taskset -c 0`). A run from a tree with uncommitted changes is
-saved as `fixed_target_<sha>-dirty.*`, so it can't overwrite the results
-for the commit itself.
+`results/fixed_target_<sha>.json` (protocol: `pixi run -e bench
+bench-fixed-target`, run under `taskset -c 0`). A run from a tree with
+uncommitted changes is saved as `fixed_target_<sha>-dirty.*`, so it can't
+overwrite the results for the commit itself.
 
 The energy cut used to act only at the end of a step. Every secondary
 created below the threshold therefore still took one step, and what that
@@ -110,8 +110,8 @@ field in the full detector geometry. FairShip's generator also leaves out
 primaries below the cut or going backwards, and follows tracks that fall
 below the cut on the way, which aegir stops.
 
-To repeat the aegir side: `just bench-fixed-target` (needs the GeoModel
-geometry DB).
+To repeat the aegir side: `pixi run -e bench bench-fixed-target` (needs the
+GeoModel geometry DB).
 
 ## Geant4: single-threaded vs multi-threaded (historical)
 
@@ -209,26 +209,29 @@ improve throughput further, run on hardware with more physical cores.
 
 ## How to run
 
-All benchmarks are defined as `just` recipes. Override defaults with variables:
+All benchmarks are pixi tasks in the `bench` environment; `pixi task list -e
+bench` lists them. Each one builds aegir first. Override the defaults with
+environment variables (`EVENTS`, `G4_EVENTS`, `G4_CONCURRENCY`; see the top of
+`scripts/bench.sh` for the full list):
 
 ```sh
-just bench-pythia8                         # default: 10k events
-just events=100000 bench-pythia8           # override event count
-just bench-geant4                          # G4 ST vs MT, 100 events
-just g4_events=500 bench-geant4            # more events
-just g4_events=500 bench-geant4-threads    # sweep 1,2,4,8 threads
-just g4_events=500 bench-geant4-backends   # compare mt/task_ptl/task_tbb
-just bench-fixed-target                    # fixed target on one thread, 20 and 420 events
-just bench-fairship                        # default vs FairShip config
-just bench-scaling                         # event count sweep
+pixi run -e bench bench-pythia8                         # default: 10k events
+EVENTS=100000 pixi run -e bench bench-pythia8           # override event count
+pixi run -e bench bench-geant4                          # G4 ST vs MT, 100 events
+G4_EVENTS=500 pixi run -e bench bench-geant4            # more events
+G4_EVENTS=500 pixi run -e bench bench-geant4-threads    # sweep 1,2,4,8 threads
+pixi run -e bench bench-fixed-target                    # fixed target on one thread, 20 and 420 events
+pixi run -e bench bench-fairship                        # default vs FairShip config
+pixi run -e bench bench-scaling                         # event count sweep
 ```
 
 Results are exported to `bench-*.md` and `bench-*.json` (gitignored).
 
 ## Tooling
 
-Activate the bench environment first: `pixi shell -e bench`. It installs
-`hyperfine`, `just`, `linux-perf`, and Python.
+The `bench` environment installs `hyperfine`, `linux-perf` and Python. Run the
+tasks below with `pixi run -e bench <task>`, or open `pixi shell -e bench` and
+use `pixi run <task>` from there.
 
 ### Per-event attribution (Chrome trace)
 
@@ -237,8 +240,8 @@ Rebuild with tracing on, then run a small workflow:
 ```sh
 cmake -S . -B build -DAEGIR_ENABLE_TRACE=ON
 pixi run build
-just profile-trace                           # default: gun_st_bench, 50 events
-just trace_workflow=gun_mt_bench trace_events=200 profile-trace
+pixi run -e bench profile-trace                 # default: gun_st_bench, 50 events
+TRACE_WORKFLOW=gun_mt_bench TRACE_EVENTS=200 pixi run -e bench profile-trace
 ```
 
 `trace_<workflow>.json` is a Chrome Trace Event JSON file. Open in
@@ -253,13 +256,13 @@ quantifying the phlex↔Geant4 integration cost.
 ### Sample-based CPU profile (perf + flamegraph)
 
 ```sh
-just profile-flamegraph                                # gun_st_bench, 500 events
-just profile_workflow=gun_mt_bench profile-flamegraph
+pixi run -e bench profile-flamegraph                   # gun_st_bench, 500 events
+PROFILE_WORKFLOW=gun_mt_bench pixi run -e bench profile-flamegraph
 ```
 
 Records at 99 Hz with DWARF call-graphs. If `flamegraph.pl` and
 `stackcollapse-perf.pl` are on `$PATH` (e.g. via `nix-shell -p
-flamegraph`), the recipe writes `flamegraph_<workflow>.svg`. Otherwise
+flamegraph`), the task writes `flamegraph_<workflow>.svg`. Otherwise
 it prints the top of `perf report` to stdout.
 
 ### Scaling sweep with per-event percentiles
@@ -270,8 +273,8 @@ both aggregate (real time, CPU efficiency, RSS) and per-event
 required for the per-event columns; without it those columns are blank.
 
 ```sh
-just bench-sweep                                       # gun_mt, 1000 events
-just bench_workflow=fixed_target_mt bench-sweep        # SHiP-realistic
+pixi run -e bench bench-sweep                                   # gun_mt, 1000 events
+BENCH_WORKFLOW=fixed_target_mt pixi run -e bench bench-sweep    # SHiP-realistic
 ```
 
 The sweep emits `benchmark_<workflow>.csv` and, with `--plot`, a PNG
@@ -289,7 +292,7 @@ disjoint `T`-wide CPU slice via `taskset`, so every row of the sweep
 runs against a fully-loaded host.
 
 ```sh
-just bench-sweep-saturated                             # default sweep
+pixi run -e bench bench-sweep-saturated                         # default sweep
 ```
 
 The extra `copies` and `cohort_wall_s` columns let you compute
